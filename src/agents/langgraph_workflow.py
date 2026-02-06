@@ -189,11 +189,10 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             translation_method = None
 
             try:
-                from googletrans import Translator
+                from deep_translator import GoogleTranslator
 
-                translator = Translator()
-                result = await translator.translate(message, src=language_code, dest="en")
-                translated_message = result.text
+                result = GoogleTranslator(source=language_code, target="en").translate(message)
+                translated_message = result
                 translation_method = "Google Translate"
                 print("[WORKFLOW] Translation: Using Google Translate (fast, free)")
             except Exception as e:
@@ -982,11 +981,10 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
 
         # Try Google Translate first (fast, free)
         try:
-            from googletrans import Translator
+            from deep_translator import GoogleTranslator
 
-            translator = Translator()
-            result = await translator.translate(state["response"], src="en", dest=language_code)
-            translated_response = result.text
+            result = GoogleTranslator(source="en", target=language_code).translate(state["response"])
+            translated_response = result
             translation_method = "Google Translate"
             print("[WORKFLOW] Response Translation: Using Google Translate (fast, free)")
         except Exception as e:

@@ -30,4 +30,4 @@ python-dotenv>=1.0.0
 
 # Language detection & translation (optional, graceful fallback)
 langdetect>=1.0.9
-googletrans==4.0.0rc1
+deep-translator>=1.11.0
