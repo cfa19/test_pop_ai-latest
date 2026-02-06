@@ -53,6 +53,10 @@ SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("
 SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
 SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_tuning.json")
 
+# Groq (fast entity extraction - optional)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
 # Verbose mode (set by CLI flag -v)
 VERBOSE_MODE = False
 
@@ -103,6 +107,14 @@ def get_supabase() -> Client:
 def get_openai() -> OpenAI:
     """Create and cache the OpenAI client."""
     return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
+
+
+@lru_cache(maxsize=1)
+def get_groq() -> OpenAI | None:
+    """Create and cache the Groq client (OpenAI-compatible). Returns None if no API key."""
+    if not GROQ_API_KEY:
+        return None
+    return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
 
 
 @lru_cache(maxsize=2)

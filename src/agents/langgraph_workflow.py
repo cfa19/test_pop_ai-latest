@@ -20,7 +20,7 @@ from supabase import Client
 from voyageai.client import Client as VoyageAI
 
 from src.agents.prompt_entity_extraction import extract_entities_via_prompt
-from src.config import INTENT_CLASSIFIER_MODEL_PATH, INTENT_CLASSIFIER_TYPE, SEMANTIC_GATE_ENABLED
+from src.config import GROQ_MODEL, INTENT_CLASSIFIER_MODEL_PATH, INTENT_CLASSIFIER_TYPE, SEMANTIC_GATE_ENABLED
 from src.utils.conversation_memory import format_conversation_context, search_conversation_history
 from src.utils.rag import hybrid_search
 
@@ -619,12 +619,14 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
     return state
 
 
-async def entity_extraction_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
+async def entity_extraction_node(
+    state: WorkflowState, chat_client: OpenAI, groq_client: OpenAI | None = None
+) -> WorkflowState:
     """
     Node 2: Prompt-Based Entity Extraction
 
-    Uses OpenAI to extract structured entities from the user message based on
-    the classified category. Replaces secondary ML classifiers.
+    Uses Groq (fast) or OpenAI (fallback) to extract structured entities from
+    the user message based on the classified category.
 
     Skips extraction for CHITCHAT and OFF_TOPIC messages.
     """
@@ -642,15 +644,25 @@ async def entity_extraction_node(state: WorkflowState, chat_client: OpenAI) -> W
         state["extracted_information"] = {}
         return state
 
-    print(f"[WORKFLOW] Entity Extraction: Extracting entities for {category.value}...")
-    state["workflow_process"].append(f"🏷️ Entity Extraction: Extracting entities for {category.value}")
+    # Use Groq if available, fallback to OpenAI
+    if groq_client:
+        extraction_client = groq_client
+        extraction_model = GROQ_MODEL
+        provider = "Groq"
+    else:
+        extraction_client = chat_client
+        extraction_model = state["chat_model"]
+        provider = "OpenAI"
+
+    print(f"[WORKFLOW] Entity Extraction: Extracting entities for {category.value} via {provider}...")
+    state["workflow_process"].append(f"🏷️ Entity Extraction: Extracting entities for {category.value} via {provider}")
 
     t0 = time.perf_counter()
     entities = await extract_entities_via_prompt(
         message=state["message"],
         category=category,
-        chat_client=chat_client,
-        chat_model=state["chat_model"],
+        chat_client=extraction_client,
+        chat_model=extraction_model,
     )
     elapsed = time.perf_counter() - t0
 
@@ -658,11 +670,11 @@ async def entity_extraction_node(state: WorkflowState, chat_client: OpenAI) -> W
 
     if entities:
         entity_keys = list(entities.keys())
-        print(f"[WORKFLOW] Entity Extraction: Found {len(entity_keys)} fields in {elapsed:.3f}s: {entity_keys}")
-        state["workflow_process"].append(f"  ✅ Extracted: {', '.join(entity_keys)} ({elapsed:.3f}s)")
+        print(f"[WORKFLOW] Entity Extraction: Found {len(entity_keys)} fields in {elapsed:.3f}s via {provider}: {entity_keys}")
+        state["workflow_process"].append(f"  ✅ Extracted: {', '.join(entity_keys)} ({elapsed:.3f}s via {provider})")
     else:
-        print(f"[WORKFLOW] Entity Extraction: No entities found ({elapsed:.3f}s)")
-        state["workflow_process"].append(f"  ℹ️ No specific entities found ({elapsed:.3f}s)")
+        print(f"[WORKFLOW] Entity Extraction: No entities found ({elapsed:.3f}s via {provider})")
+        state["workflow_process"].append(f"  ℹ️ No specific entities found ({elapsed:.3f}s via {provider})")
 
     return state
 
@@ -1125,7 +1137,7 @@ Response to translate:
 # =============================================================================
 
 
-def create_workflow(chat_client: OpenAI) -> StateGraph:
+def create_workflow(chat_client: OpenAI, groq_client: OpenAI | None = None) -> StateGraph:
     """
     Create the LangGraph workflow
 
@@ -1133,7 +1145,7 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     0. Language Detection & Translation → Detect language, translate to English if needed
     1. Intent Classifier → Classify into one of 9 categories
     2. Semantic Gate → Check if message passes similarity threshold (Stage 1 filtering)
-    3. Entity Extraction → Extract structured entities via OpenAI prompt
+    3. Entity Extraction → Extract structured entities via Groq (fast) or OpenAI (fallback)
     4. Route based on category:
        - RAG_QUERY → RAG Retrieval → Context Response
        - All others → Context Response (directly)
@@ -1172,7 +1184,7 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
         return await semantic_gate_node(state)
 
     async def entity_extraction_wrapper(state: WorkflowState) -> WorkflowState:
-        return await entity_extraction_node(state, chat_client)
+        return await entity_extraction_node(state, chat_client, groq_client)
 
     async def rag_retrieval_wrapper(state: WorkflowState) -> WorkflowState:
         return await rag_retrieval_node(state, chat_client)
@@ -1238,6 +1250,7 @@ async def run_workflow(
     chat_model: str,
     intent_classifier_type: str | None = None,
     semantic_gate_enabled: bool | None = None,
+    groq_client: OpenAI | None = None,
 ) -> WorkflowState:
     """
     Run the complete workflow
@@ -1252,6 +1265,7 @@ async def run_workflow(
         embed_model: Embedding model name
         embed_dimensions: Embedding dimensions
         chat_model: Chat model name (e.g., gpt-4o-mini, gpt-4o)
+        groq_client: Optional Groq client for fast entity extraction
 
     Returns:
         Final workflow state with response and metadata
@@ -1262,7 +1276,7 @@ async def run_workflow(
     print(f"{'=' * 80}\n")
 
     # Create workflow
-    workflow = create_workflow(chat_client)
+    workflow = create_workflow(chat_client, groq_client)
 
     # Initial state
     initial_state: WorkflowState = {
