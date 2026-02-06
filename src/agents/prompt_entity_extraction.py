@@ -16,16 +16,14 @@ import logging
 
 from openai import OpenAI
 
-from src.agents.langgraph_workflow import MessageCategory
-
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Category-Specific Extraction Prompts
+# Category-Specific Extraction Prompts (keyed by string to avoid circular import)
 # =============================================================================
 
-EXTRACTION_PROMPTS: dict[MessageCategory, str] = {
-    MessageCategory.ASPIRATIONAL: """Extract career aspiration details from this message.
+EXTRACTION_PROMPTS: dict[str, str] = {
+    "aspirational": """Extract career aspiration details from this message.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "desired_role": "the job title or role they want",
@@ -37,7 +35,7 @@ Return a JSON object with these fields (use null if not mentioned):
   "seniority": "target seniority level (junior, senior, staff, lead, etc.)",
   "motivation": "why they want this (brief summary)"
 }""",
-    MessageCategory.PROFESSIONAL: """Extract professional context from this message.
+    "professional": """Extract professional context from this message.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "current_role": "their current job title or role",
@@ -48,7 +46,7 @@ Return a JSON object with these fields (use null if not mentioned):
   "industry": "current industry or sector",
   "tools": ["specific tools or technologies mentioned"]
 }""",
-    MessageCategory.EMOTIONAL: """Extract emotional context from this message.
+    "emotional": """Extract emotional context from this message.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "primary_emotion": "the main emotion expressed (stressed, anxious, excited, etc.)",
@@ -57,7 +55,7 @@ Return a JSON object with these fields (use null if not mentioned):
   "related_to": "what career aspect this relates to (job search, workload, etc.)",
   "coping": "any coping strategies they mention using"
 }""",
-    MessageCategory.PSYCHOLOGICAL: """Extract psychological/values context from this message.
+    "psychological": """Extract psychological/values context from this message.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "values": ["core values mentioned (work-life balance, growth, etc.)"],
@@ -67,7 +65,7 @@ Return a JSON object with these fields (use null if not mentioned):
   "strengths": ["self-identified strengths"],
   "preferences": ["workplace or career preferences"]
 }""",
-    MessageCategory.LEARNING: """Extract learning context from this message.
+    "learning": """Extract learning context from this message.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "learning_style": "how they prefer to learn (hands-on, visual, reading, etc.)",
@@ -77,7 +75,7 @@ Return a JSON object with these fields (use null if not mentioned):
   "resources": ["any learning resources they mention"],
   "goals": "what they want to achieve by learning this"
 }""",
-    MessageCategory.SOCIAL: """Extract social/networking context from this message.
+    "social": """Extract social/networking context from this message.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "network_type": "type of professional network described",
@@ -87,7 +85,7 @@ Return a JSON object with these fields (use null if not mentioned):
   "relationships": "notable professional relationships",
   "networking_goals": "what they want from their network"
 }""",
-    MessageCategory.RAG_QUERY: """Extract the key information need from this question.
+    "rag_query": """Extract the key information need from this question.
 Return a JSON object with these fields (use null if not mentioned):
 {
   "topic": "the main topic or subject of the question",
@@ -98,12 +96,12 @@ Return a JSON object with these fields (use null if not mentioned):
 }
 
 # Categories that should skip extraction
-SKIP_CATEGORIES = {MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC}
+SKIP_CATEGORIES = {"chitchat", "off_topic"}
 
 
 async def extract_entities_via_prompt(
     message: str,
-    category: MessageCategory,
+    category,
     chat_client: OpenAI,
     chat_model: str,
 ) -> dict:
@@ -112,17 +110,20 @@ async def extract_entities_via_prompt(
 
     Args:
         message: User message (already translated to English if needed)
-        category: Classified message category
+        category: Classified message category (MessageCategory enum)
         chat_client: OpenAI client
         chat_model: Model to use for extraction
 
     Returns:
         Dictionary with extracted entities, or empty dict if skipped/failed
     """
-    if category in SKIP_CATEGORIES:
+    # Use string value for lookups (works with both enum and string)
+    cat_value = category.value if hasattr(category, "value") else str(category)
+
+    if cat_value in SKIP_CATEGORIES:
         return {}
 
-    prompt = EXTRACTION_PROMPTS.get(category)
+    prompt = EXTRACTION_PROMPTS.get(cat_value)
     if not prompt:
         return {}
 
@@ -151,9 +152,9 @@ async def extract_entities_via_prompt(
         # Remove null values for cleaner output
         entities = {k: v for k, v in entities.items() if v is not None}
 
-        logger.info(f"[Entity Extraction] Extracted {len(entities)} fields for {category.value}")
+        logger.info(f"[Entity Extraction] Extracted {len(entities)} fields for {cat_value}")
         return entities
 
     except Exception as e:
-        logger.warning(f"[Entity Extraction] Failed for {category.value}: {e}")
+        logger.warning(f"[Entity Extraction] Failed for {cat_value}: {e}")
         return {}
