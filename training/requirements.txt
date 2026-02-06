@@ -1,0 +1,49 @@
+# ============================================================================
+# Training Requirements for Intent Classifier
+# ============================================================================
+# Install these dependencies for training custom DistilBERT models.
+# For production server usage, see main requirements.txt instead.
+# ============================================================================
+
+# Core ML Libraries (Required)
+transformers>=4.30.0
+torch>=2.0.0
+datasets>=2.12.0
+sentence-transformers>=2.2.0
+
+# Training Utilities (Required)
+scikit-learn>=1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Performance & Optimization (Recommended)
+accelerate>=0.20.0        # Faster training with automatic mixed precision
+evaluate>=0.4.0           # Evaluation metrics
+
+# ============================================================================
+# Optional Dependencies
+# ============================================================================
+# Uncomment as needed for specific use cases
+
+# Experiment Tracking
+# tensorboard>=2.13.0     # TensorBoard logging
+# wandb>=0.15.0           # Weights & Biases tracking
+
+# Model Optimization & Export
+# onnx>=1.14.0            # ONNX export
+# onnxruntime>=1.15.0     # ONNX runtime inference
+# optimum>=1.9.0          # Hugging Face optimization tools
+
+# Visualization (for analysis notebooks)
+# matplotlib>=3.7.0
+# seaborn>=0.12.0
+
+# Jupyter Notebooks (for experimentation)
+# jupyter>=1.0.0
+# ipywidgets>=8.0.0
+
+# Data Augmentation (for advanced training)
+# nlpaug>=1.1.11
+
+# Labeling Tools (for manual data labeling)
+# label-studio>=1.8.0

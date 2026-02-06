@@ -1,0 +1,9 @@
+# ONNX Export (only needed for conversion, not runtime)
+optimum[onnxruntime]
+onnx
+
+# Runtime (lightweight - no PyTorch needed!)
+onnxruntime
+transformers
+numpy
+pydantic

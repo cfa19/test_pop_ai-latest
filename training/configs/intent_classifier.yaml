@@ -1,0 +1,61 @@
+# Intent Classifier Training Configuration
+# Fine-tune a transformer model for 7-way intent classification
+
+# Model configuration
+model:
+  name: "distilbert-base-uncased"  # Options: distilbert-base-uncased, bert-base-uncased, roberta-base
+  max_length: 512  # Maximum sequence length
+
+# Data configuration
+data:
+  train_path: "data/processed/intent_train.csv"
+  val_path: "data/processed/intent_val.csv"
+  test_path: "data/processed/intent_test.csv"
+
+  # Category mapping
+  categories:
+    - "rag_query"
+    - "professional"
+    - "psychological"
+    - "learning"
+    - "social"
+    - "emotional"
+    - "aspirational"
+
+# Training configuration
+training:
+  num_epochs: 3
+  batch_size: 16
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  warmup_steps: 100
+
+  # Class weighting for imbalanced data
+  use_class_weights: true
+
+  # Early stopping
+  early_stopping_patience: 2
+
+  # Evaluation
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  metric_for_best_model: "f1"
+
+  # Logging
+  logging_steps: 10
+  save_total_limit: 3
+
+# Output configuration
+output:
+  checkpoint_dir: "models/checkpoints/intent_classifier"
+  final_dir: "models/final/intent_classifier"
+
+# Optimization
+optimization:
+  fp16: true  # Use mixed precision training (requires GPU)
+  gradient_accumulation_steps: 1
+
+# Evaluation thresholds
+evaluation:
+  min_accuracy: 0.85  # Minimum accuracy to pass validation
+  min_f1: 0.80  # Minimum F1 score to pass validation

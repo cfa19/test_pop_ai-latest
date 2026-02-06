@@ -1,0 +1,130 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Results and outputs
+outputs/
+*.csv
+
+# Data directories (uncomment if you don't want to track data)
+# data/
+# datasets/
+
+# Node modules (if any JS/TS code)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Pytest
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Claude settings
+.claude/
+.qodo/
+
+# Info files
+info/
+
+# Claude files
+CLAUDE.md
+
+# Ruff
+.ruff_cache/
+pyproject.toml
+
+# Training - exclude PyTorch models, keep ONNX for deploy
+training/scripts/models/
+training/models/all-MiniLM-L6-v2/
+training/models/onnx/model_fp32/
+# Keep ONNX models (small, needed for deploy):
+# training/models/onnx/classifier/ (~22MB quantized)
+# training/models/onnx/model_int8/  (~22MB quantized)
+# Exclude non-quantized ONNX (large)
+training/models/onnx/*/model.onnx
+
+# SSH keys
+keys/
+
+# Compressed files
+*.zip
+nul
+para los modelos.txx

@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+
+# Environment
+.env
+.env.*
+
+# Virtual environments
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+.claude
+.qodo
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+
+# Testing
+tests/
+.pytest_cache
+.ruff_cache
+
+# Documentation (not needed in production)
+docs/
+doc/
+info/
+*.md
+
+# Training - exclude everything except final models and tuning results
+training/data/
+training/constants/
+training/utils/
+training/scripts/models/*/checkpoint-*
+training/scripts/eval_results/
+training/scripts/training/
+training/scripts/*.py
+training/*.py
+training/*.md
+training/*.yaml
+training/*.txt
+training/__pycache__/
+
+# SQL scripts
+sql/
+
+# Misc
+nul
+pyproject.toml

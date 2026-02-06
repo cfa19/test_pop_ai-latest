@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: pop-skills-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        value: https://gedpxcmgprnrfxhpkehx.supabase.co/auth/v1/.well-known/jwks.json
+
+      # OpenAI
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Voyage AI (Embeddings)
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: EMBED_MODEL
+        value: voyage-3-large
+      - key: EMBED_DIMENSIONS
+        value: "1024"
+
+      # Chat
+      - key: CHAT_MODEL
+        value: gpt-4o-mini
+
+      # Providers
+      - key: EMBED_PROVIDER
+        value: voyage
+      - key: CHAT_PROVIDER
+        value: openai
+
+      # Intent Classifier (local model for production)
+      - key: INTENT_CLASSIFIER_TYPE
+        value: all-minilm
+      - key: INTENT_CLASSIFIER_MODEL_PATH
+        value: training/scripts/models/all-MiniLM-L6-v2/final
+      - key: SEMANTIC_GATE_ENABLED
+        value: "true"
+      - key: SEMANTIC_GATE_MODEL
+        value: all-MiniLM-L6-v2
+      - key: SEMANTIC_GATE_TUNING_PATH
+        value: training/results/semantic_gate_tuning.json
