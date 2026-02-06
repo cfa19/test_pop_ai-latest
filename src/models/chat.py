@@ -11,7 +11,7 @@ class ChatRequest(BaseModel):
     chat_model: Optional[str] = None
     message_worth_method: Optional[str] = None
     embed_provider: Optional[Literal["openai", "voyage"]] = None
-    intent_classifier_type: Optional[Literal["openai", "distilbert", "onnx"]] = None
+    intent_classifier_type: Optional[Literal["openai", "onnx"]] = None
     semantic_gate_enabled: Optional[bool] = None
 
 

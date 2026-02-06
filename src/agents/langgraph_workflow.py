@@ -315,7 +315,7 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
 
     Supports two classifier backends:
     - "openai": LLM-based classification (default)
-    - "distilbert": Fine-tuned DistilBERT model (faster, no API cost)
+    - "onnx": ONNX Runtime classifier (faster, no API cost)
     """
     classifier_type = state.get("intent_classifier_type") or INTENT_CLASSIFIER_TYPE
     print(f"[WORKFLOW] Intent Classifier: Analyzing message using {classifier_type}...")
@@ -342,32 +342,6 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
             print(f"[WORKFLOW] ONNX classification failed: {str(e)}")
             print("[WORKFLOW] Falling back to OpenAI classifier...")
             state["workflow_process"].append(f"  ONNX failed: {str(e)}")
-            state["workflow_process"].append("  Falling back to OpenAI classifier")
-            t0 = time.perf_counter()
-            classification = await _classify_with_openai(state["message"], chat_client, state["chat_model"])
-            _elapsed = time.perf_counter() - t0
-            state["workflow_process"].append(f"  Classified as: {classification.category.value} (confidence: {classification.confidence:.2f})")
-
-    elif classifier_type == "distilbert":
-        # Use fine-tuned DistilBERT model
-        from src.agents.distilbert_classifier import get_distilbert_classifier
-
-        try:
-            classifier = get_distilbert_classifier(INTENT_CLASSIFIER_MODEL_PATH)
-            t0 = time.perf_counter()
-            classification = await classifier.classify(state["message"])
-            _elapsed = time.perf_counter() - t0
-
-            print(f"[WORKFLOW] Intent Classifier: Category = {classification.category.value}")
-            print(f"[WORKFLOW] Intent Classifier: Reasoning = {classification.reasoning}")
-            state["workflow_process"].append(f"  Classified as: {classification.category.value} (confidence: {classification.confidence:.2f})")
-            state["workflow_process"].append(f"  Reasoning: {classification.reasoning}")
-
-        except (ImportError, FileNotFoundError, RuntimeError, ValueError) as e:
-            # Fallback to OpenAI if DistilBERT fails
-            print(f"[WORKFLOW] DistilBERT classification failed: {str(e)}")
-            print("[WORKFLOW] Falling back to OpenAI classifier...")
-            state["workflow_process"].append(f"  DistilBERT failed: {str(e)}")
             state["workflow_process"].append("  Falling back to OpenAI classifier")
             t0 = time.perf_counter()
             classification = await _classify_with_openai(state["message"], chat_client, state["chat_model"])

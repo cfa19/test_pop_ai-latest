@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 
 import src.config as config
-from src.agents.langgraph_workflow import run_workflow
+from src.agents.langgraph_workflow import MessageCategory, run_workflow
 from src.config import (
     EMBED_DIMENSIONS,
     get_client_by_provider,
@@ -16,6 +16,7 @@ from src.config import (
 from src.models.chat import ChatRequest, ChatResponse, IntentClassificationResponse
 from src.utils.auth import AuthenticationError, authenticate_request
 from src.utils.conversation_memory import generate_conversation_id, store_message, store_message_with_embedding
+from src.utils.message_queue import get_message_queue
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,14 @@ async def chat(request_body: ChatRequest, request: Request):
         # Generate conversation_id if not provided
         conversation_id = request_body.conversation_id or generate_conversation_id()
 
-        # Run LangGraph workflow (includes RAG retrieval)
-        workflow_state = await run_workflow(
+        # Submit to message queue for sequential processing
+        # This prevents concurrent GPU/CPU usage from overwhelming resources
+        message_queue = get_message_queue()
+
+        logger.info(f"[CHAT] Submitting message to queue (queue size: {message_queue.get_queue_size()})")
+
+        workflow_state = await message_queue.process_message(
+            workflow_func=run_workflow,
             message=request_body.message,
             user_id=user_id,
             conversation_id=conversation_id,
@@ -91,6 +98,8 @@ async def chat(request_body: ChatRequest, request: Request):
             intent_classifier_type=request_body.intent_classifier_type,
             semantic_gate_enabled=request_body.semantic_gate_enabled,
         )
+
+        logger.info(f"[CHAT] Message processed (queue size: {message_queue.get_queue_size()})")
 
         # Extract workflow results
         response_text = workflow_state["response"]
@@ -111,10 +120,16 @@ async def chat(request_body: ChatRequest, request: Request):
                 response_text = response_text + workflow_text
 
         # Step 5: Store conversation (embedding only for worthy messages)
-        # TODO: This is a placeholder for the worthy message filtering logic
-        is_worthy = False
+        # Use intent classifier result to decide: CHITCHAT and OFF_TOPIC don't need embeddings
+        category = (
+            unified_classification.category
+            if unified_classification
+            else MessageCategory.EMOTIONAL  # fallback = worthy (emotional has highest weight)
+        )
+        is_worthy = category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
 
         if is_worthy:
+            # User message WITH embedding (for RAG search)
             store_message_with_embedding(
                 supabase=get_supabase(),
                 embed_client=embed_client,
@@ -123,17 +138,9 @@ async def chat(request_body: ChatRequest, request: Request):
                 user_id=user_id,
                 role="user",
                 message=request_body.message,
-            )
-            store_message_with_embedding(
-                supabase=get_supabase(),
-                embed_client=embed_client,
-                embed_model=embed_model,
-                conversation_id=conversation_id,
-                user_id=user_id,
-                role="assistant",
-                message=response_text,
             )
         else:
+            # User message WITHOUT embedding (chitchat/off-topic)
             store_message(
                 supabase=get_supabase(),
                 conversation_id=conversation_id,
@@ -141,13 +148,15 @@ async def chat(request_body: ChatRequest, request: Request):
                 role="user",
                 message=request_body.message,
             )
-            store_message(
-                supabase=get_supabase(),
-                conversation_id=conversation_id,
-                user_id=user_id,
-                role="assistant",
-                message=response_text,
-            )
+
+        # Assistant response always stored WITHOUT embedding (text + timestamp only)
+        store_message(
+            supabase=get_supabase(),
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role="assistant",
+            message=response_text,
+        )
 
         # Prepare conversation context for response
         conversation_context_list = [

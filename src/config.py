@@ -45,7 +45,7 @@ EMBED_DIMENSIONS = int(os.getenv("EMBED_DIMENSIONS", "1024"))
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
 # Intent classifier settings
-INTENT_CLASSIFIER_TYPE = os.getenv("INTENT_CLASSIFIER_TYPE", "openai")  # "openai", "distilbert", or "onnx"
+INTENT_CLASSIFIER_TYPE = os.getenv("INTENT_CLASSIFIER_TYPE", "openai")  # "openai" or "onnx"
 INTENT_CLASSIFIER_MODEL_PATH = os.getenv("INTENT_CLASSIFIER_MODEL_PATH", "training/models/latest")
 
 # Semantic gate settings (Stage 1 filtering)
