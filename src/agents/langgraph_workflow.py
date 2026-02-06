@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from supabase import Client
 from voyageai.client import Client as VoyageAI
 
+from src.agents.prompt_entity_extraction import extract_entities_via_prompt
 from src.config import INTENT_CLASSIFIER_MODEL_PATH, INTENT_CLASSIFIER_TYPE, SEMANTIC_GATE_ENABLED
 from src.utils.conversation_memory import format_conversation_context, search_conversation_history
 from src.utils.rag import hybrid_search
@@ -618,6 +619,54 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
     return state
 
 
+async def entity_extraction_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
+    """
+    Node 2: Prompt-Based Entity Extraction
+
+    Uses OpenAI to extract structured entities from the user message based on
+    the classified category. Replaces secondary ML classifiers.
+
+    Skips extraction for CHITCHAT and OFF_TOPIC messages.
+    """
+    classification = state.get("unified_classification")
+    if not classification:
+        state["extracted_information"] = {}
+        return state
+
+    category = classification.category
+
+    # Skip for chitchat/off_topic
+    if category in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC):
+        print(f"[WORKFLOW] Entity Extraction: Skipping for {category.value}")
+        state["workflow_process"].append(f"🏷️ Entity Extraction: Skipping for {category.value}")
+        state["extracted_information"] = {}
+        return state
+
+    print(f"[WORKFLOW] Entity Extraction: Extracting entities for {category.value}...")
+    state["workflow_process"].append(f"🏷️ Entity Extraction: Extracting entities for {category.value}")
+
+    t0 = time.perf_counter()
+    entities = await extract_entities_via_prompt(
+        message=state["message"],
+        category=category,
+        chat_client=chat_client,
+        chat_model=state["chat_model"],
+    )
+    elapsed = time.perf_counter() - t0
+
+    state["extracted_information"] = entities
+
+    if entities:
+        entity_keys = list(entities.keys())
+        print(f"[WORKFLOW] Entity Extraction: Found {len(entity_keys)} fields in {elapsed:.3f}s: {entity_keys}")
+        state["workflow_process"].append(f"  ✅ Extracted: {', '.join(entity_keys)} ({elapsed:.3f}s)")
+    else:
+        print(f"[WORKFLOW] Entity Extraction: No entities found ({elapsed:.3f}s)")
+        state["workflow_process"].append(f"  ℹ️ No specific entities found ({elapsed:.3f}s)")
+
+    return state
+
+
 async def rag_retrieval_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
     """
     Node 0: RAG Retrieval - Search documents and conversation history
@@ -692,6 +741,9 @@ CATEGORY_CONFIG = {
         "temperature": 0.3,
         "prompt": """You are a knowledgeable career educator for Activity Harmonia.
 
+**Question Details**:
+{extracted_info}
+
 **Retrieved Knowledge Base**:
 {document_context}
 
@@ -716,6 +768,9 @@ specializing in professional development.
 **Context**: The user is sharing information about their professional skills, \
 experience, or technical abilities.
 {reasoning}
+
+**Extracted Details**:
+{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -742,6 +797,9 @@ specializing in values alignment and self-awareness.
 motivations, or how they see themselves.
 {reasoning}
 
+**Extracted Details**:
+{extracted_info}
+
 **Relevant Knowledge Base**:
 {document_context}
 
@@ -766,6 +824,9 @@ specializing in learning and development.
 **Context**: The user is sharing information about how they learn, their \
 educational background, or areas they want to develop.
 {reasoning}
+
+**Extracted Details**:
+{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -792,6 +853,9 @@ specializing in professional relationships and networking.
 collaboration style, or professional relationships.
 {reasoning}
 
+**Extracted Details**:
+{extracted_info}
+
 **Relevant Knowledge Base**:
 {document_context}
 
@@ -816,6 +880,9 @@ specializing in emotional wellbeing and resilience.
 **Context**: The user is expressing emotional concerns, stress, confidence \
 issues, or wellbeing challenges related to their career.
 {reasoning}
+
+**Extracted Details**:
+{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -843,6 +910,9 @@ specializing in goal-setting and career visioning.
 **Context**: The user is sharing their career goals, dreams, aspirations, \
 or vision for their future.
 {reasoning}
+
+**Extracted Details**:
+{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -933,10 +1003,18 @@ It does not appear to be related to career coaching, professional development, o
         print(f"[WORKFLOW] Response ({category.value}): Generating response...")
         state["workflow_process"].append(f"💬 Response Generator: Creating {category.value} response (temperature: {config['temperature']})")
 
+        # Format extracted entities for the prompt
+        extracted = state.get("extracted_information", {})
+        if extracted:
+            extracted_info = "\n".join(f"- {k}: {v}" for k, v in extracted.items())
+        else:
+            extracted_info = "No specific details extracted."
+
         prompt = config["prompt"].format(
             document_context=state.get("document_context", ""),
             conversation_context=state.get("conversation_context", ""),
             reasoning=classification.reasoning if classification else "",
+            extracted_info=extracted_info,
         )
 
         temperature = config["temperature"]
@@ -1055,10 +1133,11 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     0. Language Detection & Translation → Detect language, translate to English if needed
     1. Intent Classifier → Classify into one of 9 categories
     2. Semantic Gate → Check if message passes similarity threshold (Stage 1 filtering)
-    3. Route based on category:
+    3. Entity Extraction → Extract structured entities via OpenAI prompt
+    4. Route based on category:
        - RAG_QUERY → RAG Retrieval → Context Response
        - All others → Context Response (directly)
-    4. Response Translation → Translate response back to original language if needed
+    5. Response Translation → Translate response back to original language if needed
     """
 
     workflow = StateGraph(WorkflowState)
@@ -1092,6 +1171,9 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     async def semantic_gate_wrapper(state: WorkflowState) -> WorkflowState:
         return await semantic_gate_node(state)
 
+    async def entity_extraction_wrapper(state: WorkflowState) -> WorkflowState:
+        return await entity_extraction_node(state, chat_client)
+
     async def rag_retrieval_wrapper(state: WorkflowState) -> WorkflowState:
         return await rag_retrieval_node(state, chat_client)
 
@@ -1105,6 +1187,7 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     workflow.add_node("language_detection", language_detection_wrapper)
     workflow.add_node("intent_classifier", intent_classifier_wrapper)
     workflow.add_node("semantic_gate", semantic_gate_wrapper)
+    workflow.add_node("entity_extraction", entity_extraction_wrapper)
     workflow.add_node("rag_retrieval", rag_retrieval_wrapper)
     workflow.add_node("context_response", context_response_wrapper)
     workflow.add_node("response_translation", response_translation_wrapper)
@@ -1118,9 +1201,12 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     # Intent Classifier → Semantic Gate (always)
     workflow.add_edge("intent_classifier", "semantic_gate")
 
-    # Semantic Gate → Router (based on category)
+    # Semantic Gate → Entity Extraction (always)
+    workflow.add_edge("semantic_gate", "entity_extraction")
+
+    # Entity Extraction → Router (based on category)
     workflow.add_conditional_edges(
-        "semantic_gate",
+        "entity_extraction",
         route_based_on_category,
         {
             "rag_retrieval": "rag_retrieval",
