@@ -138,15 +138,45 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     try:
         # Try to import langdetect (lazy import to avoid startup dependency)
         try:
-            from langdetect import DetectorFactory, detect
+            from langdetect import DetectorFactory, detect_langs
 
             # Set seed for consistent results
             DetectorFactory.seed = 0
         except ImportError:
             raise ImportError("langdetect library not found. Install with: pip install langdetect")
 
-        # Detect language (fast, no API call)
-        language_code = detect(message).lower()
+        # Detect language with confidence check
+        # langdetect is unreliable for short messages (e.g. "que es popskills" → French)
+        # Use detect_langs() to get probabilities and require high confidence for non-English
+        detected = detect_langs(message)  # returns list of Language objects with .lang and .prob
+        top_lang = detected[0]
+        language_code = top_lang.lang.lower()
+        confidence = top_lang.prob
+
+        # Check if English is among the candidates
+        en_prob = 0.0
+        for lang in detected:
+            if lang.lang.lower() == "en":
+                en_prob = lang.prob
+                break
+
+        # Short messages (< 20 chars or < 4 words) are especially unreliable
+        is_short = len(message) < 20 or len(message.split()) < 4
+        min_confidence = 0.85 if is_short else 0.7
+
+        # Default to English if:
+        # - Top detection is not confident enough
+        # - English is a close candidate (within 0.3 of top)
+        # - Detected language is obscure (not in our supported map)
+        if language_code != "en":
+            if confidence < min_confidence:
+                print(f"[WORKFLOW] Language Detection: Low confidence {confidence:.2f} for '{language_code}', defaulting to English")
+                language_code = "en"
+            elif en_prob > 0 and (confidence - en_prob) < 0.3:
+                print(f"[WORKFLOW] Language Detection: English close candidate ({en_prob:.2f} vs {confidence:.2f}), defaulting to English")
+                language_code = "en"
+
+        print(f"[WORKFLOW] Language Detection: Raw detections: {[(str(d.lang), round(d.prob, 3)) for d in detected[:3]]}")
 
         # Map language code to full name
         language_names = {
@@ -171,7 +201,13 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             "no": "Norwegian",
             "fi": "Finnish",
         }
-        language_name = language_names.get(language_code, language_code.capitalize())
+        # If detected language is not in our supported map, default to English
+        # This catches obscure detections like Catalan ("ca"), Afrikaans ("af"), etc.
+        if language_code != "en" and language_code not in language_names:
+            print(f"[WORKFLOW] Language Detection: Unsupported language '{language_code}', defaulting to English")
+            language_code = "en"
+
+        language_name = language_names.get(language_code, "English")
 
         state["detected_language"] = language_code
         state["language_name"] = language_name
