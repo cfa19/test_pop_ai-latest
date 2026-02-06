@@ -176,6 +176,24 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
                 print(f"[WORKFLOW] Language Detection: English close candidate ({en_prob:.2f} vs {confidence:.2f}), defaulting to English")
                 language_code = "en"
 
+        # Spanish/French disambiguation
+        # langdetect is notoriously bad at distinguishing French from Spanish for short texts
+        # (e.g. "que es popskills" → French). Use word-level heuristics to override.
+        if language_code == "fr":
+            _spanish_words = {
+                "que", "es", "como", "donde", "porque", "cual", "hola", "para", "por",
+                "quiero", "puedo", "tengo", "necesito", "soy", "estoy", "hacer", "tiene",
+                "esta", "esto", "ese", "eso", "una", "uno", "las", "los", "del", "sobre",
+                "cuando", "quien", "cuales", "hay", "ser", "son", "pero", "tambien", "bien",
+                "muy", "mas", "mejor", "puede", "como", "dime", "mira", "bueno", "vale",
+            }
+            words = set(message.lower().replace("?", "").replace("¿", "").replace("!", "").replace("¡", "").split())
+            spanish_matches = words & _spanish_words
+            has_spanish_chars = any(c in message for c in "ñ¿¡")
+            if len(spanish_matches) >= 2 or has_spanish_chars:
+                print(f"[WORKFLOW] Language Detection: Overriding fr -> es (Spanish indicators: {spanish_matches or 'special chars'})")
+                language_code = "es"
+
         print(f"[WORKFLOW] Language Detection: Raw detections: {[(str(d.lang), round(d.prob, 3)) for d in detected[:3]]}")
 
         # Map language code to full name
