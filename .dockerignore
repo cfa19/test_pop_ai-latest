@@ -2,7 +2,7 @@
 .git
 .gitignore
 
-# Environment
+# Environment (secrets - set via env vars in cloud)
 .env
 .env.*
 
@@ -22,35 +22,40 @@ __pycache__
 *.pyc
 *.pyo
 *.egg-info
-
-# Testing
-tests/
-.pytest_cache
 .ruff_cache
+.pytest_cache
 
-# Documentation (not needed in production)
+# Testing & docs (not needed in production)
+tests/
 docs/
 doc/
 info/
 *.md
 
-# Training - exclude everything except final models and tuning results
+# Training - exclude data, scripts, configs (not needed at runtime)
+# Keep: training/models/onnx/ (ONNX models) and training/results/ (thresholds)
 training/data/
 training/constants/
 training/utils/
-training/scripts/models/*/checkpoint-*
-training/scripts/eval_results/
-training/scripts/training/
-training/scripts/*.py
-training/*.py
+training/scripts/
+training/inference.py
+training/configs/
 training/*.md
-training/*.yaml
 training/*.txt
-training/__pycache__/
 
 # SQL scripts
 sql/
 
+# RAG benchmarks
+rag/
+
 # Misc
 nul
+*.zip
+*.txx
 pyproject.toml
+export_classifier_onnx.py
+check_centroids.py
+check_norms.py
+test_onnx.py
+railway.json

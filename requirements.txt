@@ -1,9 +1,33 @@
-# ONNX Export (only needed for conversion, not runtime)
-optimum[onnxruntime]
-onnx
+# ===========================================
+# Runtime Dependencies (no PyTorch needed!)
+# ===========================================
 
-# Runtime (lightweight - no PyTorch needed!)
-onnxruntime
-transformers
-numpy
-pydantic
+# API Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# LLM & Embeddings
+openai>=1.6.0
+voyageai>=0.3.0
+langgraph>=0.0.20
+
+# Database
+supabase>=2.3.0
+
+# ML Inference (ONNX - lightweight, ~50MB total)
+onnxruntime>=1.16.0
+transformers>=4.36.0
+numpy>=1.24.0
+
+# Auth
+PyJWT[crypto]>=2.8.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Language detection & translation (optional, graceful fallback)
+langdetect>=1.0.9
+googletrans==4.0.0rc1
