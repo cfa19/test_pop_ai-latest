@@ -122,3 +122,33 @@ def get_client_by_provider(provider: str) -> OpenAI:
         return VoyageAI(api_key=VOYAGE_API_KEY, timeout=30.0)
     else:
         raise ValueError(f"Unsupported embed provider: {provider}. Must be 'openai' or 'voyage'.")
+
+
+# =============================================================================
+# Model Instances (preloaded on startup)
+# =============================================================================
+
+_intent_classifier_instance = None
+_semantic_gate_instance = None
+
+
+def set_intent_classifier(classifier):
+    """Set the preloaded intent classifier instance (called during startup)."""
+    global _intent_classifier_instance
+    _intent_classifier_instance = classifier
+
+
+def get_intent_classifier():
+    """Get the preloaded intent classifier instance."""
+    return _intent_classifier_instance
+
+
+def set_semantic_gate(gate):
+    """Set the preloaded semantic gate instance (called during startup)."""
+    global _semantic_gate_instance
+    _semantic_gate_instance = gate
+
+
+def get_semantic_gate_instance():
+    """Get the preloaded semantic gate instance."""
+    return _semantic_gate_instance
