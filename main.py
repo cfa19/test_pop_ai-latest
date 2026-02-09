@@ -45,10 +45,14 @@ def download_models():
     # Update config paths to point to downloaded models
     config.INTENT_CLASSIFIER_MODEL_PATH = str(Path(local_path) / "classifier")
     config.ONNX_HIERARCHY_PATH = local_path
+    config.SEMANTIC_GATE_ONNX_MODEL_PATH = str(Path(local_path) / "semantic_gate")
+    config.SEMANTIC_GATE_CENTROIDS_DIR = str(Path(local_path) / "semantic_gate")
+    config.SEMANTIC_GATE_TUNING_PATH = str(Path(local_path) / "semantic_gate" / "semantic_gate_hierarchical_tuning.json")
 
     logger.info(f"Models downloaded to {local_path}")
     logger.info(f"  Primary classifier: {config.INTENT_CLASSIFIER_MODEL_PATH}")
     logger.info(f"  ONNX hierarchy: {config.ONNX_HIERARCHY_PATH}")
+    logger.info(f"  Semantic gate ONNX: {config.SEMANTIC_GATE_ONNX_MODEL_PATH}")
 
 
 async def preload_models():
@@ -80,16 +84,25 @@ async def preload_models():
     # Preload semantic gate if enabled
     if SEMANTIC_GATE_ENABLED:
         try:
-            logger.info("Preloading semantic gate...")
-            from src.agents.semantic_gate import get_semantic_gate
+            logger.info("Preloading semantic gate (ONNX)...")
+            from src.agents.semantic_gate_onnx import get_semantic_gate_onnx
 
-            gate = get_semantic_gate()
+            gate = get_semantic_gate_onnx()
             set_semantic_gate(gate)
 
-            logger.info("Semantic gate loaded successfully")
+            logger.info("Semantic gate (ONNX) loaded successfully")
         except Exception as e:
-            logger.warning(f"Failed to preload semantic gate: {e}")
-            logger.warning("Will fall back to lazy loading on first request")
+            logger.warning(f"Failed to preload ONNX semantic gate: {e}")
+            try:
+                logger.info("Trying PyTorch semantic gate as fallback...")
+                from src.agents.semantic_gate import get_semantic_gate
+
+                gate = get_semantic_gate()
+                set_semantic_gate(gate)
+                logger.info("PyTorch semantic gate loaded successfully")
+            except Exception as e2:
+                logger.warning(f"Failed to preload semantic gate: {e2}")
+                logger.warning("Will fall back to lazy loading on first request")
     else:
         logger.info("Semantic gate disabled (no preloading needed)")
 

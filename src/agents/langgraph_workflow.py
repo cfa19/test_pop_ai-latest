@@ -860,8 +860,6 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
         return state
 
     try:
-        # Import semantic gate (lazy to avoid import errors if dependencies missing)
-        from src.agents.semantic_gate import get_semantic_gate
         from src.config import get_semantic_gate_instance
 
         # Try to get preloaded semantic gate from config first
@@ -870,7 +868,12 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
         # Fall back to lazy loading if not preloaded
         if gate is None:
             print("[WORKFLOW] Semantic Gate: Not preloaded, lazy loading...")
-            gate = get_semantic_gate()
+            try:
+                from src.agents.semantic_gate_onnx import get_semantic_gate_onnx
+                gate = get_semantic_gate_onnx()
+            except Exception:
+                from src.agents.semantic_gate import get_semantic_gate
+                gate = get_semantic_gate()
 
         # Check message against hierarchical semantic gate
         predicted_subcategory = classification.subcategory if hasattr(classification, "subcategory") else None

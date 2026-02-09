@@ -38,9 +38,9 @@ services:
       - key: HF_REPO_ID
         value: cfa0819/pop-skills-onnx
 
-      # Semantic Gate (disabled - requires PyTorch)
+      # Semantic Gate (ONNX-based, no PyTorch required)
       - key: SEMANTIC_GATE_ENABLED
-        value: "false"
+        value: "true"
 
       # JWT
       - key: JWT_ALGORITHM
