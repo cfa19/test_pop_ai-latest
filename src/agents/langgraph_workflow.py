@@ -19,9 +19,8 @@ from pydantic import BaseModel, Field
 from supabase import Client
 from voyageai.client import Client as VoyageAI
 
+import src.config as _config
 from src.config import (
-    INTENT_CLASSIFIER_MODEL_PATH,
-    ONNX_HIERARCHY_PATH,
     PRIMARY_INTENT_CLASSIFIER_TYPE,
     SEMANTIC_GATE_ENABLED,
 )
@@ -582,7 +581,7 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
             # Fall back to lazy loading if not preloaded
             if classifier is None:
                 print("[WORKFLOW] Classifier not preloaded, lazy loading...")
-                classifier = get_intent_classifier(INTENT_CLASSIFIER_MODEL_PATH)
+                classifier = get_intent_classifier(_config.INTENT_CLASSIFIER_MODEL_PATH)
 
             t0 = time.perf_counter()
             classification = await classifier.classify(state["message"])
@@ -630,9 +629,9 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
             t0 = time.perf_counter()
 
             if classifier_type == "onnx":
-                subcategory, subcategory_confidence = classify_with_secondary_onnx(state["message"], primary_category, ONNX_HIERARCHY_PATH)
+                subcategory, subcategory_confidence = classify_with_secondary_onnx(state["message"], primary_category, _config.ONNX_HIERARCHY_PATH)
             else:
-                subcategory, subcategory_confidence = classify_with_secondary(state["message"], primary_category, INTENT_CLASSIFIER_MODEL_PATH)
+                subcategory, subcategory_confidence = classify_with_secondary(state["message"], primary_category, _config.INTENT_CLASSIFIER_MODEL_PATH)
 
             elapsed = time.perf_counter() - t0
 
