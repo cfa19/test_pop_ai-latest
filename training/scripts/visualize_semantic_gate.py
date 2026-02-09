@@ -187,10 +187,10 @@ def plot_per_category_thresholds(results: dict, ax):
     x = np.arange(len(categories))
     width = 0.25
 
-    bars1 = ax.bar(x - width, thresholds, width, label="Threshold", color="#3498db")
-    bars2 = ax.bar(x, domain_acceptance, width, label="Domain Acceptance", color="#2ecc71")
-    bars3 = ax.bar(x + width, offtopic_rejection, width, label="Off-topic Rejection", color="#e74c3c")
-    bars4 = ax.bar(x + 2 * width, f1_scores, width, label="F1 Score", color="#9b59b6")
+    ax.bar(x - width, thresholds, width, label="Threshold", color="#3498db")
+    ax.bar(x, domain_acceptance, width, label="Domain Acceptance", color="#2ecc71")
+    ax.bar(x + width, offtopic_rejection, width, label="Off-topic Rejection", color="#e74c3c")
+    ax.bar(x + 2 * width, f1_scores, width, label="F1 Score", color="#9b59b6")
 
     ax.set_xticks(x + width / 2)
     ax.set_xticklabels(categories, rotation=45, ha="right")

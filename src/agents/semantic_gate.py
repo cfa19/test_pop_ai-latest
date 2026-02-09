@@ -1,43 +1,65 @@
 """
-Semantic Gate (Stage 1) - Pre-Classification Filtering
+Hierarchical Semantic Gate - Two-Level Filtering
 
-Filters out off-topic messages before they reach the BERT classifier using
-per-category similarity thresholds and centroids.
-
-Uses a local ONNX model (all-MiniLM-L6-v2) — no HuggingFace downloads.
+Filters off-topic messages using hierarchical thresholds:
+- Primary level: Category thresholds (rag_query, professional, etc.)
+- Secondary level: Subcategory thresholds (skills, experience, etc.)
 
 Flow:
-1. Compute message embedding via local ONNX model
-2. Compare to each category centroid
-3. Find best matching category
-4. Check if similarity >= category-specific threshold
-5. Block if below threshold, pass otherwise
+1. Compute message embedding
+2. Primary check: Compare to primary category centroids
+3. Secondary check (if applicable): Compare to subcategory centroids
+4. Block if below threshold at either level
 
-Thresholds are loaded from training/results/semantic_gate_tuning.json
+Data Sources:
+- Thresholds: training/results/semantic_gate_hierarchical_tuning.json
+- Centroids: from hierarchical model path (INTENT_CLASSIFIER_MODEL_PATH or tuning model_path)
+  - Primary: {model_path}/primary/final/centroids.pkl
+  - Secondary: {model_path}/secondary/{category}/final/centroids.pkl per category
 """
 
 import json
 import os
 import pickle
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Tuple
 
 import numpy as np
-import onnxruntime as ort
-from transformers import AutoTokenizer
+
+# Lazy imports for optional dependencies
+_sentence_transformer = None
+_cosine_similarity = None
+
+
+def _ensure_dependencies():
+    """Ensure required dependencies are imported (lazy loading)"""
+    global _sentence_transformer, _cosine_similarity
+
+    if _sentence_transformer is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            from sklearn.metrics.pairwise import cosine_similarity
+
+            _sentence_transformer = SentenceTransformer
+            _cosine_similarity = cosine_similarity
+        except ImportError:
+            raise ImportError(
+                "Semantic gate requires sentence-transformers and scikit-learn. Install with: pip install sentence-transformers scikit-learn"
+            )
 
 
 class SemanticGate:
     """
-    Semantic gate for filtering off-topic messages using per-category thresholds.
+    Hierarchical semantic gate for filtering off-topic messages.
 
-    Uses a local ONNX model for embeddings and cosine similarity to compare
-    messages against category-specific centroids. No internet downloads needed.
+    Uses SentenceTransformer embeddings and cosine similarity with two-level thresholds:
+    - Primary: Category-level thresholds
+    - Secondary: Subcategory-level thresholds
     """
 
     # Mapping from MessageCategory enum values to tuning JSON keys
     CATEGORY_MAPPING = {
-        "rag_query": "rag_queries",  # Note: tuning uses plural
+        "rag_query": "rag_query",
         "professional": "professional",
         "psychological": "psychological",
         "learning": "learning",
@@ -48,96 +70,79 @@ class SemanticGate:
         "off_topic": "off_topic",
     }
 
-    def __init__(self, tuning_results_path: str = None, model_name: str = "all-MiniLM-L6-v2", training_data_dir: str = None, model_dir: str = None):
+    # Categories that skip secondary classification
+    SKIP_SECONDARY = {"rag_query", "chitchat", "off_topic"}
+
+    def __init__(self, tuning_results_path: str = None, centroids_dir: str = None, model_name: str = "all-MiniLM-L6-v2"):
         """
-        Initialize semantic gate with per-category thresholds and centroids.
+        Initialize hierarchical semantic gate.
 
         Args:
-            tuning_results_path: Path to semantic_gate_tuning.json
-            model_name: Model name (for logging only, model loaded from local ONNX)
-            training_data_dir: Directory with training data files
-            model_dir: Directory containing centroids.pkl
+            tuning_results_path: Path to semantic_gate_hierarchical_tuning.json
+            centroids_dir: Directory containing centroid pickle files (primary_centroids.pkl, secondary_centroids.pkl)
+                          Defaults to {INTENT_CLASSIFIER_MODEL_PATH}/semantic_gate/
+            model_name: SentenceTransformer model name (must match tuning)
         """
+        _ensure_dependencies()
+
         # Default paths (relative to project root)
         project_root = Path(__file__).parent.parent.parent
         if tuning_results_path is None:
-            tuning_results_path = project_root / "training" / "results" / "semantic_gate_tuning.json"
-        if training_data_dir is None:
-            training_data_dir = project_root / "training" / "data" / "processed"
-        if model_dir is None:
-            from src.config import INTENT_CLASSIFIER_MODEL_PATH
+            tuning_results_path = project_root / "training" / "results" / "semantic_gate_hierarchical_tuning.json"
 
-            model_dir = project_root / INTENT_CLASSIFIER_MODEL_PATH
-        model_dir = Path(model_dir)
-
-        # Load tuning results
+        # Load tuning results (hierarchical)
         self.tuning_results = self._load_tuning_results(tuning_results_path)
-        self.category_thresholds = self.tuning_results["recommendation"]["thresholds"]
+        self.is_hierarchical = self.tuning_results.get("hierarchical", self.tuning_results.get("approach") == "hierarchical_thresholds")
 
-        # --- Load local ONNX model for embeddings ---
-        onnx_model_dir = project_root / "training" / "models" / "onnx" / "model_int8"
-        onnx_file = onnx_model_dir / "model_quantized.onnx"
-        if not onnx_file.exists():
-            onnx_file = onnx_model_dir / "model.onnx"
-        if not onnx_file.exists():
-            raise FileNotFoundError(f"Semantic gate ONNX model not found in {onnx_model_dir}. Expected model_quantized.onnx or model.onnx")
+        # Determine centroids directory
+        # Expected: {model_path}/semantic_gate/ containing primary_centroids.pkl and secondary_centroids.pkl
+        if centroids_dir is None:
+            # Try tuning results model_path, then INTENT_CLASSIFIER_MODEL_PATH
+            model_path = self.tuning_results.get("model_path")
+            if model_path:
+                centroids_dir = Path(model_path) / "semantic_gate"
+            else:
+                try:
+                    from src.config import INTENT_CLASSIFIER_MODEL_PATH
 
-        print(f"[SEMANTIC GATE] Loading ONNX model from {onnx_file}...")
-        self.session = ort.InferenceSession(str(onnx_file), providers=["CPUExecutionProvider"])
-        self.input_names = [i.name for i in self.session.get_inputs()]
-        self.tokenizer = AutoTokenizer.from_pretrained(str(onnx_model_dir))
-        self.model_name = model_name
-        print("[SEMANTIC GATE] ONNX model loaded (local, no download)")
-
-        # Centroids: load from model_dir/centroids.pkl if available, else compute
-        centroids_path = model_dir / "centroids.pkl"
-        stored = self._load_stored_centroids(centroids_path)
-        if stored is not None:
-            self.category_centroids = stored
-            print(f"[SEMANTIC GATE] Loaded centroids from {centroids_path}")
+                    centroids_dir = Path(INTENT_CLASSIFIER_MODEL_PATH) / "semantic_gate"
+                except ImportError:
+                    centroids_dir = project_root / "training" / "models" / "semantic_gate"
         else:
-            print(f"[SEMANTIC GATE] Computing category centroids from {training_data_dir}...")
-            self.category_centroids = self._compute_centroids(training_data_dir)
-            self._save_centroids(centroids_path, self.category_centroids)
-            print(f"[SEMANTIC GATE] Saved centroids to {centroids_path}")
+            centroids_dir = Path(centroids_dir)
+
+        self.centroids_dir = centroids_dir
+
+        # Load thresholds
+        if self.is_hierarchical:
+            self.primary_thresholds = self.tuning_results.get("primary_thresholds", {})
+            self.secondary_thresholds = self.tuning_results.get("secondary_thresholds", {})
+            print("[SEMANTIC GATE] Loaded hierarchical thresholds:")
+            print(f"  Primary categories: {len(self.primary_thresholds)}")
+            total_secondary = sum(len(subcats) for subcats in self.secondary_thresholds.values())
+            print(f"  Secondary categories: {total_secondary}")
+        else:
+            # Fallback to old format (backwards compatibility)
+            self.primary_thresholds = self.tuning_results.get("recommendation", {}).get("thresholds", {})
+            self.secondary_thresholds = {}
+            print("[SEMANTIC GATE] Loaded non-hierarchical thresholds (legacy format)")
+            print(f"  Primary categories: {len(self.primary_thresholds)}")
+
+        # Initialize embedding model
+        print(f"[SEMANTIC GATE] Loading SentenceTransformer: {model_name}...")
+        self.model = _sentence_transformer(model_name)
+        self.model_name = model_name
+
+        # Load centroids from models directory (pickle files)
+        print(f"[SEMANTIC GATE] Loading centroids from {centroids_dir}...")
+        self.primary_centroids = self._load_centroids_from_models("primary")
+        self.secondary_centroids = self._load_centroids_from_models("secondary") if self.is_hierarchical else {}
 
         print("[SEMANTIC GATE] Initialization complete")
-        print(f"  Loaded {len(self.category_thresholds)} category thresholds")
-        print(f"  Centroids: {len(self.category_centroids)} categories")
-
-    def _encode(self, texts: List[str]) -> np.ndarray:
-        """
-        Encode texts to embeddings using local ONNX model (mean pooling + L2 norm).
-
-        Args:
-            texts: List of strings to encode
-
-        Returns:
-            Array of shape (len(texts), 384) with normalized embeddings
-        """
-        all_embeddings = []
-        for text in texts:
-            inputs = self.tokenizer(text, return_tensors="np", padding=True, truncation=True, max_length=128)
-            feed = {
-                "input_ids": inputs["input_ids"],
-                "attention_mask": inputs["attention_mask"],
-            }
-            if "token_type_ids" in self.input_names:
-                feed["token_type_ids"] = inputs.get("token_type_ids", np.zeros_like(inputs["input_ids"]))
-
-            outputs = self.session.run(None, feed)
-            hidden = outputs[0]  # (1, seq_len, 384)
-
-            # Mean pooling
-            mask = inputs["attention_mask"][..., np.newaxis]
-            pooled = (hidden * mask).sum(axis=1) / mask.sum(axis=1)
-
-            # L2 normalize
-            embedding = pooled[0]
-            embedding = embedding / np.maximum(np.linalg.norm(embedding), 1e-9)
-            all_embeddings.append(embedding)
-
-        return np.array(all_embeddings)
+        print(f"  Primary centroids: {len(self.primary_centroids)}")
+        if self.is_hierarchical:
+            total_sec_centroids = sum(len(subcats) for subcats in self.secondary_centroids.values())
+            print(f"  Secondary centroids: {total_sec_centroids}")
 
     def _load_tuning_results(self, path: str) -> dict:
         """Load tuning results from JSON file"""
@@ -149,137 +154,186 @@ class SemanticGate:
 
         print(f"[SEMANTIC GATE] Loaded tuning results from {path}")
         print(f"  Model: {results['model_name']}")
-        print(f"  Mean domain acceptance: {results['global_metrics']['mean_domain_acceptance'] * 100:.2f}%")
-        print(f"  Mean off-topic rejection: {results['global_metrics']['mean_offtopic_rejection'] * 100:.2f}%")
+        print(f"  Mean domain acceptance: {results['global_metrics']['primary']['mean_domain_acceptance'] * 100:.2f}%")
+        print(f"  Mean off-topic rejection: {results['global_metrics']['primary']['mean_offtopic_rejection'] * 100:.2f}%")
 
         return results
 
-    def _load_stored_centroids(self, path: Path) -> Dict[str, np.ndarray] | None:
-        """Load pre-computed centroids from centroids.pkl."""
-        if not path.exists():
-            return None
-        try:
-            with open(path, "rb") as f:
-                centroids = pickle.load(f)
-            if not centroids or not isinstance(centroids, dict):
-                return None
-            result = {}
-            for cat, arr in centroids.items():
-                arr = np.asarray(arr)
-                if arr.ndim == 1:
-                    arr = arr.reshape(1, -1)
-                result[cat] = arr
-            return result
-        except Exception as e:
-            print(f"[SEMANTIC GATE] Could not load stored centroids: {e}")
-            return None
-
-    def _save_centroids(self, path: Path, centroids: Dict[str, np.ndarray]) -> None:
-        """Save computed centroids to centroids.pkl for future use."""
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "wb") as f:
-                pickle.dump(centroids, f)
-        except Exception as e:
-            print(f"[SEMANTIC GATE] Could not save centroids: {e}")
-
-    def _load_messages_from_file(self, file_path: str) -> List[str]:
-        """Load messages from a text file (one per line)"""
-        if not os.path.exists(file_path):
-            return []
-        with open(file_path, "r", encoding="utf-8") as f:
-            messages = [line.strip() for line in f if line.strip()]
-        return messages
-
-    def _compute_centroids(self, data_dir: str) -> Dict[str, np.ndarray]:
-        """Compute per-category centroids from training data using local ONNX model."""
-        centroids = {}
-
-        category_files = {
-            "rag_queries": "rag_queries.txt",
-            "professional": "professional.txt",
-            "psychological": "psychological.txt",
-            "learning": "learning.txt",
-            "social": "social.txt",
-            "emotional": "emotional.txt",
-            "aspirational": "aspirational.txt",
-            "chitchat": "chitchat.txt",
-        }
-
-        for category, filename in category_files.items():
-            file_path = os.path.join(data_dir, filename)
-            messages = self._load_messages_from_file(file_path)
-
-            if not messages:
-                print(f"  WARNING: No messages found for {category} at {file_path}")
-                continue
-
-            print(f"  Computing centroid for {category} ({len(messages)} messages)...")
-            embeddings = self._encode(messages)
-            centroid = np.mean(embeddings, axis=0, keepdims=True)
-            centroids[category] = centroid
-
-        return centroids
-
-    def check_message(self, message: str, predicted_category: str, classifier_confidence: float = 0.0) -> Tuple[bool, float, str]:
+    def _load_centroids_from_models(self, level: str):
         """
-        Check if message should pass the semantic gate.
+        Load centroids from hierarchical model directory.
+
+        Paths:
+        - Primary: centroids_dir/primary/final/centroids.pkl
+        - Secondary: centroids_dir/secondary/{category}/final/centroids.pkl (one .pkl per category)
 
         Args:
-            message: The user message
-            predicted_category: Category predicted by the intent classifier
-            classifier_confidence: Confidence score from the classifier (0-1).
-                If high (>0.85), the threshold is halved to trust the classifier
-                for short/specific messages that have low embedding similarity.
+            level: "primary" or "secondary"
 
         Returns:
-            Tuple of (should_pass, similarity, best_category)
+            For primary: Dict mapping category -> centroid array (shape 1, dim)
+            For secondary: Dict mapping category -> subcategory -> centroid array
         """
-        message_embedding = self._encode([message])
 
-        best_category = None
-        best_similarity = -1
+        def _normalize(arr):
+            arr = np.asarray(arr)
+            if arr.ndim == 1:
+                arr = arr.reshape(1, -1)
+            return arr
 
-        for category, centroid in self.category_centroids.items():
-            # Cosine similarity (both are normalized, so dot product = cosine sim)
-            similarity = float(np.dot(message_embedding[0], centroid[0]))
+        if level in ("primary", "secondary"):
+            centroid_file = self.centroids_dir / f"{level}_centroids.pkl"
+            if not centroid_file.exists():
+                print(f"[SEMANTIC GATE] No {level} centroids at {centroid_file}")
+                return {}
+            try:
+                with open(centroid_file, "rb") as f:
+                    centroids = pickle.load(f)
+                if not centroids or not isinstance(centroids, dict):
+                    print(f"[SEMANTIC GATE] Invalid {level} centroids format")
+                    return {}
+                if level == "primary":
+                    return {cat: _normalize(arr) for cat, arr in centroids.items()}
+                elif level == "secondary":
+                    return {cat: {subcat: _normalize(arr) for subcat, arr in subcats.items()} for cat, subcats in centroids.items()}
+            except Exception as e:
+                print(f"[SEMANTIC GATE] Error loading {level} centroids: {e}")
+                return {}
 
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_category = category
+        return {}
+
+    def check_message(
+        self, message: str, predicted_category: str, predicted_subcategory: str = None
+    ) -> Tuple[bool, float, str, str | None, float | None]:
+        """
+        Check if message should pass the hierarchical semantic gate.
+
+        Args:
+            message: User message to check
+            predicted_category: Primary category predicted by intent classifier (e.g., "rag_query")
+            predicted_subcategory: Secondary category if applicable (e.g., "skills")
+
+        Returns:
+            Tuple of (should_pass, primary_similarity, best_primary, best_secondary, secondary_similarity)
+            - should_pass: True if message passes both levels, False if blocked at either level
+            - primary_similarity: Similarity to best matching primary category
+            - best_primary: Best matching primary category (tuning key format)
+            - best_secondary: Best matching secondary category (or None if N/A)
+            - secondary_similarity: Similarity to best matching secondary category (or None if N/A)
+        """
+        # Compute message embedding once
+        message_embedding = self.model.encode([message])
+
+        # =====================================================================
+        # STEP 1: Primary Category Check
+        # =====================================================================
+        best_primary = None
+        best_primary_sim = -1
+
+        for category, centroid in self.primary_centroids.items():
+            similarity = _cosine_similarity(message_embedding, centroid)[0][0]
+            if similarity > best_primary_sim:
+                best_primary_sim = similarity
+                best_primary = category
 
         # Map predicted category to tuning key format
         predicted_category_key = self.CATEGORY_MAPPING.get(predicted_category, predicted_category)
 
-        # Get threshold for the predicted category
-        threshold_category = predicted_category_key if predicted_category_key in self.category_thresholds else best_category
-        threshold = self.category_thresholds.get(threshold_category, 0.4)
+        # Get primary threshold
+        primary_threshold = self.primary_thresholds.get(predicted_category_key, 0.4)
 
-        # If classifier is highly confident, reduce threshold (trust the classifier
-        # for short/specific messages like product names with low embedding similarity)
-        if classifier_confidence > 0.85:
-            threshold *= 0.5
+        # Check primary threshold
+        if best_primary_sim < primary_threshold:
+            # Failed primary check
+            return False, float(best_primary_sim), best_primary, None, None
 
-        should_pass = best_similarity >= threshold
+        # =====================================================================
+        # STEP 2: Secondary Category Check (if hierarchical and applicable)
+        # =====================================================================
+        if not self.is_hierarchical:
+            # Non-hierarchical mode: only primary check
+            return True, float(best_primary_sim), best_primary, None, None
 
-        return should_pass, float(best_similarity), best_category
+        # Check if category has secondary classification
+        if predicted_category in self.SKIP_SECONDARY:
+            # Categories that skip secondary (rag_query, chitchat, off_topic)
+            return True, float(best_primary_sim), best_primary, None, None
 
-    def get_threshold(self, category: str, classifier_confidence: float = 0.0) -> float:
-        """Get threshold for a specific category (adjusted for classifier confidence)."""
+        # Check if we have secondary centroids and thresholds for this category
+        if predicted_category_key not in self.secondary_centroids:
+            # No secondary data for this category
+            return True, float(best_primary_sim), best_primary, None, None
+
+        if predicted_category_key not in self.secondary_thresholds:
+            # No secondary thresholds for this category
+            return True, float(best_primary_sim), best_primary, None, None
+
+        # Find best matching subcategory
+        best_secondary = None
+        best_secondary_sim = -1
+
+        subcategory_centroids = self.secondary_centroids[predicted_category_key]
+        for subcat, centroid in subcategory_centroids.items():
+            similarity = _cosine_similarity(message_embedding, centroid)[0][0]
+            if similarity > best_secondary_sim:
+                best_secondary_sim = similarity
+                best_secondary = subcat
+
+        # Get secondary threshold
+        if predicted_subcategory and predicted_subcategory in self.secondary_thresholds[predicted_category_key]:
+            # Use predicted subcategory threshold
+            secondary_threshold = self.secondary_thresholds[predicted_category_key][predicted_subcategory]
+        elif best_secondary and best_secondary in self.secondary_thresholds[predicted_category_key]:
+            # Use best match threshold
+            secondary_threshold = self.secondary_thresholds[predicted_category_key][best_secondary]
+        else:
+            # Fallback: use primary threshold
+            secondary_threshold = primary_threshold
+
+        # Check secondary threshold
+        should_pass = best_secondary_sim >= secondary_threshold
+
+        return should_pass, float(best_primary_sim), best_primary, best_secondary, float(best_secondary_sim)
+
+    def get_threshold(self, category: str, subcategory: str = None) -> float:
+        """
+        Get threshold for a specific category or subcategory.
+
+        Args:
+            category: Category name (MessageCategory enum value like "rag_query")
+            subcategory: Optional subcategory name (e.g., "skills")
+
+        Returns:
+            Threshold for that category/subcategory
+        """
+        # Map to tuning key format
         category_key = self.CATEGORY_MAPPING.get(category, category)
-        threshold = self.category_thresholds.get(category_key, 0.4)
-        if classifier_confidence > 0.85:
-            threshold *= 0.5
-        return threshold
+
+        if subcategory and self.is_hierarchical:
+            # Try to get secondary threshold
+            if category_key in self.secondary_thresholds:
+                if subcategory in self.secondary_thresholds[category_key]:
+                    return self.secondary_thresholds[category_key][subcategory]
+
+        # Get primary threshold
+        return self.primary_thresholds.get(category_key, 0.4)
 
     def get_statistics(self) -> dict:
         """Get semantic gate statistics"""
-        return {
+        stats = {
             "model_name": self.model_name,
-            "num_categories": len(self.category_centroids),
-            "thresholds": self.category_thresholds,
+            "is_hierarchical": self.is_hierarchical,
+            "num_primary_categories": len(self.primary_centroids),
+            "primary_thresholds": self.primary_thresholds,
             "global_metrics": self.tuning_results["global_metrics"],
         }
+
+        if self.is_hierarchical:
+            total_secondary = sum(len(subcats) for subcats in self.secondary_centroids.values())
+            stats["num_secondary_categories"] = total_secondary
+            stats["secondary_thresholds"] = self.secondary_thresholds
+
+        return stats
 
 
 # =============================================================================
@@ -289,11 +343,19 @@ class SemanticGate:
 _semantic_gate_instance = None
 
 
-def get_semantic_gate(force_reload: bool = False) -> SemanticGate:
-    """Get or create the global semantic gate instance (singleton pattern)."""
+def get_semantic_gate(centroids_dir: str = None, tuning_results_path: str = None, force_reload: bool = False) -> SemanticGate:
+    """
+    Get or create the global semantic gate instance (singleton pattern).
+
+    Args:
+        force_reload: If True, recreate the semantic gate
+
+    Returns:
+        SemanticGate instance
+    """
     global _semantic_gate_instance
 
     if _semantic_gate_instance is None or force_reload:
-        _semantic_gate_instance = SemanticGate()
+        _semantic_gate_instance = SemanticGate(centroids_dir=centroids_dir, tuning_results_path=tuning_results_path)
 
     return _semantic_gate_instance

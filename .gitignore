@@ -111,20 +111,20 @@ CLAUDE.md
 .ruff_cache/
 pyproject.toml
 
-# Training - exclude PyTorch models, keep ONNX for deploy
+# Training - exclude large model files, keep ONNX quantized for deploy
 training/scripts/models/
 training/models/all-MiniLM-L6-v2/
-training/models/onnx/model_fp32/
-# Keep ONNX models (small, needed for deploy):
-# training/models/onnx/classifier/ (~22MB quantized)
-# training/models/onnx/model_int8/  (~22MB quantized)
-# Exclude non-quantized ONNX (large)
-training/models/onnx/*/model.onnx
+training/models/all-miniM/
+training/models/full_onnx/
+# Keep ONNX quantized models for deploy:
+# training/models/onnx/classifier/    (~22MB primary)
+# training/models/onnx/secondary/     (~65MB x6 secondary)
+# training/models/onnx/semantic_gate/  (~52KB centroids)
+# Exclude non-quantized ONNX FP32 (large, any depth)
+training/models/onnx/**/model.onnx
 
 # SSH keys
 keys/
 
 # Compressed files
 *.zip
-nul
-para los modelos.txx

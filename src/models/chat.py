@@ -7,11 +7,11 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     conversation_id: Optional[str] = None
     embed_model: Optional[str] = None
-    chat_provider: Optional[Literal["openai", "voyage", "groq"]] = None
+    chat_provider: Optional[Literal["openai", "voyage"]] = None
     chat_model: Optional[str] = None
     message_worth_method: Optional[str] = None
     embed_provider: Optional[Literal["openai", "voyage"]] = None
-    intent_classifier_type: Optional[Literal["openai", "onnx"]] = None
+    intent_classifier_type: Optional[Literal["openai", "onnx", "bert"]] = None
     semantic_gate_enabled: Optional[bool] = None
 
 

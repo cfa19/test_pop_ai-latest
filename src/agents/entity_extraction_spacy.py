@@ -10,14 +10,14 @@ Uses aspiration_verb_database.json for flexible verb-to-object matching.
 Performance: ~10-50ms per message (en_core_web_sm model)
 """
 
-import os
 import json
-import spacy
-from spacy.matcher import Matcher
-from typing import Dict, List, Optional, Tuple
+import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
+import spacy
+from spacy.matcher import Matcher
 
 # =============================================================================
 # Model Loading (singleton pattern)
@@ -50,11 +50,11 @@ def load_verb_database(database_path: Optional[str] = None) -> Dict[str, List[st
 
     if not os.path.exists(database_path):
         print(f"[ENTITY EXTRACTION] Verb database not found at {database_path}")
-        print(f"  Run: python training/scripts/generate_aspiration_verb_database.py")
+        print("  Run: python training/scripts/generate_aspiration_verb_database.py")
         return {}
 
     try:
-        with open(database_path, 'r', encoding='utf-8') as f:
+        with open(database_path, "r", encoding="utf-8") as f:
             _verb_database = json.load(f)
         print(f"[ENTITY EXTRACTION] Loaded {len(_verb_database)} verbs from database")
         return _verb_database
@@ -99,6 +99,7 @@ def _get_matcher(nlp):
 # Component Extraction Patterns (Task A: Extract what's explicitly there)
 # =============================================================================
 
+
 def _get_entity_patterns() -> List[Dict]:
     """
     Define token-based patterns for career COMPONENTS.
@@ -117,18 +118,32 @@ def _get_entity_patterns() -> List[Dict]:
     # =============================================================================
 
     action_verbs = [
-        "lead", "manage", "oversee", "direct", "run", "head",
-        "build", "create", "develop", "establish", "grow",
-        "own", "drive", "execute", "deliver",
-        "advise", "consult", "mentor", "coach",
-        "architect", "design", "engineer",
+        "lead",
+        "manage",
+        "oversee",
+        "direct",
+        "run",
+        "head",
+        "build",
+        "create",
+        "develop",
+        "establish",
+        "grow",
+        "own",
+        "drive",
+        "execute",
+        "deliver",
+        "advise",
+        "consult",
+        "mentor",
+        "coach",
+        "architect",
+        "design",
+        "engineer",
     ]
 
     for verb in action_verbs:
-        patterns.append({
-            "label": "ACTION",
-            "pattern": [{"LOWER": verb}]
-        })
+        patterns.append({"label": "ACTION", "pattern": [{"LOWER": verb}]})
 
     # =============================================================================
     # FUNCTION - Functional domains
@@ -136,27 +151,51 @@ def _get_entity_patterns() -> List[Dict]:
 
     functions = [
         # Engineering
-        "engineering", "software", "data", "ml", "machine learning",
-        "backend", "frontend", "full stack", "fullstack", "devops",
-        "infrastructure", "platform", "security", "qa", "testing",
+        "engineering",
+        "software",
+        "data",
+        "ml",
+        "machine learning",
+        "backend",
+        "frontend",
+        "full stack",
+        "fullstack",
+        "devops",
+        "infrastructure",
+        "platform",
+        "security",
+        "qa",
+        "testing",
         # Data & AI
-        "data science", "analytics", "ai", "artificial intelligence",
+        "data science",
+        "analytics",
+        "ai",
+        "artificial intelligence",
         "research",
         # Product & Design
-        "product", "design", "ux", "ui", "user experience",
+        "product",
+        "design",
+        "ux",
+        "ui",
+        "user experience",
         # Business
-        "marketing", "sales", "business development", "partnerships",
-        "operations", "finance", "hr", "recruiting", "people",
-        "customer success", "support",
+        "marketing",
+        "sales",
+        "business development",
+        "partnerships",
+        "operations",
+        "finance",
+        "hr",
+        "recruiting",
+        "people",
+        "customer success",
+        "support",
     ]
 
     for function in functions:
         tokens = function.split()
         pattern = [{"LOWER": token} for token in tokens]
-        patterns.append({
-            "label": "FUNCTION",
-            "pattern": pattern
-        })
+        patterns.append({"label": "FUNCTION", "pattern": pattern})
 
     # =============================================================================
     # SCOPE - Scale, reach, seniority indicators
@@ -164,54 +203,80 @@ def _get_entity_patterns() -> List[Dict]:
 
     scope_terms = [
         # Geographic/organizational scale
-        "global", "international", "regional", "local",
-        "enterprise", "large", "small", "startup",
+        "global",
+        "international",
+        "regional",
+        "local",
+        "enterprise",
+        "large",
+        "small",
+        "startup",
         # Seniority indicators (explicit)
-        "senior", "junior", "mid-level", "entry-level",
-        "staff", "principal", "lead", "chief",
+        "senior",
+        "junior",
+        "mid-level",
+        "entry-level",
+        "staff",
+        "principal",
+        "lead",
+        "chief",
         # Size indicators
-        "large-scale", "small-scale", "cross-functional",
+        "large-scale",
+        "small-scale",
+        "cross-functional",
     ]
 
     for term in scope_terms:
         tokens = term.split("-") if "-" in term else term.split()
         pattern = [{"LOWER": token} for token in tokens]
-        patterns.append({
-            "label": "SCOPE",
-            "pattern": pattern
-        })
+        patterns.append({"label": "SCOPE", "pattern": pattern})
 
     # =============================================================================
     # ORG_UNIT - Organizational units
     # =============================================================================
 
     org_units = [
-        "team", "department", "division", "group", "unit",
-        "org", "organization", "company", "business",
-        "function", "practice", "studio",
+        "team",
+        "department",
+        "division",
+        "group",
+        "unit",
+        "org",
+        "organization",
+        "company",
+        "business",
+        "function",
+        "practice",
+        "studio",
     ]
 
     for unit in org_units:
-        patterns.append({
-            "label": "ORG_UNIT",
-            "pattern": [{"LOWER": unit}]
-        })
+        patterns.append({"label": "ORG_UNIT", "pattern": [{"LOWER": unit}]})
 
     # =============================================================================
     # INDUSTRIES (unchanged)
     # =============================================================================
 
     industries = [
-        "fintech", "finance", "healthcare", "edtech", "education",
-        "ecommerce", "retail", "gaming", "saas", "consulting",
-        "cybersecurity", "blockchain", "crypto", "ai", "startup",
+        "fintech",
+        "finance",
+        "healthcare",
+        "edtech",
+        "education",
+        "ecommerce",
+        "retail",
+        "gaming",
+        "saas",
+        "consulting",
+        "cybersecurity",
+        "blockchain",
+        "crypto",
+        "ai",
+        "startup",
     ]
 
     for industry in industries:
-        patterns.append({
-            "label": "INDUSTRY",
-            "pattern": [{"LOWER": industry}]
-        })
+        patterns.append({"label": "INDUSTRY", "pattern": [{"LOWER": industry}]})
 
     # =============================================================================
     # COMPANY_TYPE (unchanged)
@@ -258,12 +323,9 @@ def _get_entity_patterns() -> List[Dict]:
 # Role Inference Layer (Task B: Infer canonical roles from components)
 # =============================================================================
 
+
 def infer_role_from_components(
-    actions: List[str],
-    functions: List[str],
-    scopes: List[str],
-    org_units: List[str],
-    verb_database: Optional[Dict[str, List[str]]] = None
+    actions: List[str], functions: List[str], scopes: List[str], org_units: List[str], verb_database: Optional[Dict[str, List[str]]] = None
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Infer canonical job title and seniority from extracted components.
@@ -325,10 +387,7 @@ def infer_role_from_components(
         aspiration_object_parts = []
 
         # Add scopes (non-seniority)
-        non_seniority_scopes = [
-            s for s in scopes
-            if s.lower() not in sum(seniority_map.values(), [])
-        ]
+        non_seniority_scopes = [s for s in scopes if s.lower() not in sum(seniority_map.values(), [])]
         aspiration_object_parts.extend(non_seniority_scopes)
 
         # Add functions
@@ -411,6 +470,7 @@ def infer_role_from_components(
 # =============================================================================
 # Main Extraction Function
 # =============================================================================
+
 
 def extract_entities(text: str, nlp=None) -> Dict[str, any]:
     """
@@ -497,11 +557,7 @@ def extract_entities(text: str, nlp=None) -> Dict[str, any]:
     # Stage 2: Infer role from components (using verb database)
     verb_database = load_verb_database()
     inferred_role, inferred_seniority = infer_role_from_components(
-        components["actions"],
-        components["functions"],
-        components["scopes"],
-        components["org_units"],
-        verb_database=verb_database
+        components["actions"], components["functions"], components["scopes"], components["org_units"], verb_database=verb_database
     )
 
     # Build final result

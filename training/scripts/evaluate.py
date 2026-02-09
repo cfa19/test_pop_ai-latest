@@ -117,8 +117,6 @@ def evaluate_intent_classifier(model_path: str, test_data_path: str, output_dir:
     predictions = model.predict_batch(messages)
     pred_labels = [p["category"] for p in predictions]
     confidences = [p["confidence"] for p in predictions]
-    stages = [2] * len(predictions)  # All from classifier
-    similarities = [None] * len(predictions)
 
     end_time = time.time()
 

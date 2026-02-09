@@ -8,7 +8,6 @@ No external dependencies beyond standard library.
 import re
 from typing import Dict, List, Optional
 
-
 # =============================================================================
 # Entity Patterns
 # =============================================================================
@@ -16,22 +15,49 @@ from typing import Dict, List, Optional
 # Job titles (common patterns)
 JOB_TITLES = [
     # Engineering
-    "software engineer", "data engineer", "ml engineer", "machine learning engineer",
-    "devops engineer", "site reliability engineer", "sre", "backend engineer",
-    "frontend engineer", "full stack engineer", "fullstack engineer",
+    "software engineer",
+    "data engineer",
+    "ml engineer",
+    "machine learning engineer",
+    "devops engineer",
+    "site reliability engineer",
+    "sre",
+    "backend engineer",
+    "frontend engineer",
+    "full stack engineer",
+    "fullstack engineer",
     # Data & AI
-    "data scientist", "data analyst", "machine learning scientist", "ai researcher",
-    "research scientist", "applied scientist",
+    "data scientist",
+    "data analyst",
+    "machine learning scientist",
+    "ai researcher",
+    "research scientist",
+    "applied scientist",
     # Product & Design
-    "product manager", "product owner", "ux designer", "ui designer",
-    "product designer", "user researcher",
+    "product manager",
+    "product owner",
+    "ux designer",
+    "ui designer",
+    "product designer",
+    "user researcher",
     # Leadership
-    "engineering manager", "tech lead", "technical lead", "architect",
-    "principal engineer", "staff engineer", "director of engineering",
-    "vp of engineering", "cto", "chief technology officer",
+    "engineering manager",
+    "tech lead",
+    "technical lead",
+    "architect",
+    "principal engineer",
+    "staff engineer",
+    "director of engineering",
+    "vp of engineering",
+    "cto",
+    "chief technology officer",
     # Other tech roles
-    "security engineer", "qa engineer", "test engineer", "technical writer",
-    "developer advocate", "solutions architect",
+    "security engineer",
+    "qa engineer",
+    "test engineer",
+    "technical writer",
+    "developer advocate",
+    "solutions architect",
 ]
 
 # Seniority levels
@@ -51,11 +77,33 @@ SENIORITY_LEVELS = {
 
 # Industries
 INDUSTRIES = [
-    "fintech", "finance", "healthcare", "health tech", "edtech", "education",
-    "e-commerce", "ecommerce", "retail", "gaming", "entertainment",
-    "social media", "saas", "b2b", "b2c", "enterprise", "startup",
-    "consulting", "cybersecurity", "security", "ai", "artificial intelligence",
-    "blockchain", "crypto", "web3", "climate tech", "clean tech",
+    "fintech",
+    "finance",
+    "healthcare",
+    "health tech",
+    "edtech",
+    "education",
+    "e-commerce",
+    "ecommerce",
+    "retail",
+    "gaming",
+    "entertainment",
+    "social media",
+    "saas",
+    "b2b",
+    "b2c",
+    "enterprise",
+    "startup",
+    "consulting",
+    "cybersecurity",
+    "security",
+    "ai",
+    "artificial intelligence",
+    "blockchain",
+    "crypto",
+    "web3",
+    "climate tech",
+    "clean tech",
 ]
 
 # Company types
@@ -79,6 +127,7 @@ LOCATION_PREFERENCES = {
 # Extraction Functions
 # =============================================================================
 
+
 def extract_salary(text: str) -> Optional[Dict[str, any]]:
     """
     Extract salary expectations from text.
@@ -91,7 +140,7 @@ def extract_salary(text: str) -> Optional[Dict[str, any]]:
     text_lower = text.lower()
 
     # Pattern 1: $XXXk or $XXX,XXX
-    pattern1 = r'\$\s*(\d{1,3})(?:,(\d{3}))*k?'
+    pattern1 = r"\$\s*(\d{1,3})(?:,(\d{3}))*k?"
     matches = re.findall(pattern1, text)
 
     if matches:
@@ -109,7 +158,7 @@ def extract_salary(text: str) -> Optional[Dict[str, any]]:
             return {"min": min(amounts), "max": max(amounts), "currency": "USD"}
 
     # Pattern 2: XXXk or XXX thousand
-    pattern2 = r'(\d{2,3})k'
+    pattern2 = r"(\d{2,3})k"
     match = re.search(pattern2, text_lower)
     if match:
         return {"amount": int(match.group(1)) * 1000, "currency": "USD"}
@@ -129,25 +178,25 @@ def extract_timeline(text: str) -> Optional[str]:
     text_lower = text.lower()
 
     # Pattern: "in X years/months"
-    pattern1 = r'in (\d+)\s*(year|month|week)s?'
+    pattern1 = r"in (\d+)\s*(year|month|week)s?"
     match = re.search(pattern1, text_lower)
     if match:
         return f"{match.group(1)} {match.group(2)}s"
 
     # Pattern: "within X years/months"
-    pattern2 = r'within\s+(\d+)\s*(year|month|week)s?'
+    pattern2 = r"within\s+(\d+)\s*(year|month|week)s?"
     match = re.search(pattern2, text_lower)
     if match:
         return f"{match.group(1)} {match.group(2)}s"
 
     # Pattern: "by YYYY"
-    pattern3 = r'by\s+(20\d{2})'
+    pattern3 = r"by\s+(20\d{2})"
     match = re.search(pattern3, text)
     if match:
         return f"by {match.group(1)}"
 
     # Pattern: "next year/month"
-    pattern4 = r'next\s+(year|month|quarter)'
+    pattern4 = r"next\s+(year|month|quarter)"
     match = re.search(pattern4, text_lower)
     if match:
         return f"next {match.group(1)}"
@@ -169,7 +218,7 @@ def extract_job_title(text: str) -> List[str]:
         for keyword in keywords:
             for title in JOB_TITLES:
                 # Pattern: "senior data scientist"
-                pattern = rf'\b{keyword}\s+{title}\b'
+                pattern = rf"\b{keyword}\s+{title}\b"
                 if re.search(pattern, text_lower):
                     full_title = f"{keyword} {title}".title()
                     if full_title not in matches:
@@ -177,7 +226,7 @@ def extract_job_title(text: str) -> List[str]:
 
     # Check for standalone titles
     for title in JOB_TITLES:
-        pattern = rf'\b{title}\b'
+        pattern = rf"\b{title}\b"
         if re.search(pattern, text_lower):
             title_formatted = title.title()
             # Only add if not already captured with seniority
@@ -194,7 +243,7 @@ def extract_seniority(text: str) -> Optional[str]:
     for level, keywords in SENIORITY_LEVELS.items():
         for keyword in keywords:
             # Match whole words only
-            pattern = rf'\b{keyword}\b'
+            pattern = rf"\b{keyword}\b"
             if re.search(pattern, text_lower):
                 return level.title()
 
@@ -207,7 +256,7 @@ def extract_industry(text: str) -> List[str]:
     matches = []
 
     for industry in INDUSTRIES:
-        pattern = rf'\b{industry}\b'
+        pattern = rf"\b{industry}\b"
         if re.search(pattern, text_lower):
             matches.append(industry.title())
 
@@ -220,7 +269,7 @@ def extract_company_type(text: str) -> Optional[str]:
 
     for company_type, keywords in COMPANY_TYPES.items():
         for keyword in keywords:
-            pattern = rf'\b{keyword}\b'
+            pattern = rf"\b{keyword}\b"
             if re.search(pattern, text_lower):
                 return company_type
 
@@ -233,7 +282,7 @@ def extract_location_preference(text: str) -> Optional[str]:
 
     for pref_type, keywords in LOCATION_PREFERENCES.items():
         for keyword in keywords:
-            pattern = rf'\b{keyword}\b'
+            pattern = rf"\b{keyword}\b"
             if re.search(pattern, text_lower):
                 return pref_type
 
@@ -243,6 +292,7 @@ def extract_location_preference(text: str) -> Optional[str]:
 # =============================================================================
 # Main Extraction Function
 # =============================================================================
+
 
 def extract_aspirational_entities(message: str) -> Dict[str, any]:
     """
@@ -336,7 +386,7 @@ if __name__ == "__main__":
         "My goal is to work as a Staff ML Engineer at a FAANG company, preferably remote, earning 200-250k",
         "I'm aiming for a product manager role in fintech within the next 6 months",
         "I'd love to be a CTO of a startup by 2026",
-        "Looking to transition to engineering manager, hybrid work, at a scale-up"
+        "Looking to transition to engineering manager, hybrid work, at a scale-up",
     ]
 
     print("=" * 80)

@@ -11,7 +11,6 @@ from src.agents.langgraph_workflow import MessageCategory, run_workflow
 from src.config import (
     EMBED_DIMENSIONS,
     get_client_by_provider,
-    get_groq,
     get_supabase,
 )
 from src.models.chat import ChatRequest, ChatResponse, IntentClassificationResponse
@@ -98,7 +97,6 @@ async def chat(request_body: ChatRequest, request: Request):
             chat_model=chat_model,
             intent_classifier_type=request_body.intent_classifier_type,
             semantic_gate_enabled=request_body.semantic_gate_enabled,
-            groq_client=get_groq(),
         )
 
         logger.info(f"[CHAT] Message processed (queue size: {message_queue.get_queue_size()})")

@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 try:
     from sentence_transformers import SentenceTransformer
-    from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+    from sklearn.metrics import confusion_matrix, precision_recall_fscore_support  # noqa: F401
     from sklearn.metrics.pairwise import cosine_similarity
 except ImportError:
     print("ERROR: Required packages not installed.")

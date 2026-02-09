@@ -19,14 +19,21 @@ from pydantic import BaseModel, Field
 from supabase import Client
 from voyageai.client import Client as VoyageAI
 
-from src.agents.prompt_entity_extraction import extract_entities_via_prompt
-from src.config import GROQ_MODEL, INTENT_CLASSIFIER_MODEL_PATH, INTENT_CLASSIFIER_TYPE, SEMANTIC_GATE_ENABLED
+from src.config import (
+    INTENT_CLASSIFIER_MODEL_PATH,
+    ONNX_HIERARCHY_PATH,
+    PRIMARY_INTENT_CLASSIFIER_TYPE,
+    SEMANTIC_GATE_ENABLED,
+)
 from src.utils.conversation_memory import format_conversation_context, search_conversation_history
 from src.utils.rag import hybrid_search
 
 # =============================================================================
 # Intent Classification Models
 # =============================================================================
+
+# Categories that skip secondary classification (primary is sufficient)
+SKIP_SECONDARY_CATEGORIES = {"rag_query", "chitchat", "off_topic"}
 
 
 class MessageCategory(str, Enum):
@@ -47,12 +54,253 @@ class IntentClassification(BaseModel):
     """Result of unified message classification"""
 
     category: MessageCategory = Field(description="Message category (RAG query or Store A context)")
+    subcategory: str | None = Field(default=None, description="Subcategory within the primary category (if applicable)")
     confidence: float = Field(ge=0.0, le=1.0, description="Classification confidence")
+    subcategory_confidence: float | None = Field(default=None, ge=0.0, le=1.0, description="Subcategory classification confidence")
     reasoning: str = Field(description="Explanation for the classification")
     key_entities: dict = Field(default_factory=dict, description="Extracted entities relevant to the category")
     secondary_categories: list[MessageCategory] = Field(
         default_factory=list, description="Additional relevant categories (if message spans multiple)"
     )
+
+
+# =============================================================================
+# Hierarchical Classification Support
+# =============================================================================
+
+# Global cache for secondary classifiers (category -> (model, tokenizer, label_mappings, device))
+_secondary_classifier_cache = {}
+
+
+def load_secondary_classifier(category: str, model_base_path: str):
+    """
+    Load a secondary classifier for a specific category (with caching).
+
+    Args:
+        category: Primary category name (e.g., "professional", "aspirational")
+        model_base_path: Base path to the trained models directory
+                        (e.g., "training/models/hierarchical/20260201_203858")
+
+    Returns:
+        Tuple of (model, tokenizer, label_mappings, device) or None if not found
+    """
+    global _secondary_classifier_cache
+
+    from pathlib import Path
+
+    # Check if category should have secondary classifier
+    if category in SKIP_SECONDARY_CATEGORIES:
+        return None
+
+    # Check cache first
+    cache_key = f"{category}:{model_base_path}"
+    if cache_key in _secondary_classifier_cache:
+        return _secondary_classifier_cache[cache_key]
+
+    # Build path to secondary classifier
+    secondary_path = Path(model_base_path) / "secondary" / category / "final"
+
+    if not secondary_path.exists():
+        print(f"[Secondary Classifier] No secondary classifier found for '{category}' at {secondary_path}")
+        return None
+
+    try:
+        import json
+
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        # Load label mappings
+        label_mappings_path = secondary_path / "label_mappings.json"
+        with open(label_mappings_path, "r") as f:
+            label_mappings = json.load(f)
+
+        # Load model and tokenizer
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        tokenizer = AutoTokenizer.from_pretrained(str(secondary_path), local_files_only=True)
+        model = AutoModelForSequenceClassification.from_pretrained(str(secondary_path), local_files_only=True)
+        model.to(device)
+        model.eval()
+
+        print(f"[Secondary Classifier] Loaded {category} classifier with {len(label_mappings['categories'])} subcategories")
+
+        # Cache the loaded classifier
+        classifier_data = (model, tokenizer, label_mappings, device)
+        _secondary_classifier_cache[cache_key] = classifier_data
+
+        return classifier_data
+
+    except Exception as e:
+        print(f"[Secondary Classifier] Error loading {category} classifier: {e}")
+        return None
+
+
+def classify_with_secondary(message: str, category: str, model_base_path: str) -> tuple[str | None, float | None]:
+    """
+    Classify message into subcategory using the appropriate secondary classifier.
+
+    Args:
+        message: User message to classify
+        category: Primary category (e.g., "professional")
+        model_base_path: Base path to trained models
+
+    Returns:
+        Tuple of (subcategory, confidence) or (None, None) if classification fails
+    """
+    classifier_data = load_secondary_classifier(category, model_base_path)
+
+    if classifier_data is None:
+        return None, None
+
+    model, tokenizer, label_mappings, device = classifier_data
+
+    try:
+        import torch
+
+        # Tokenize input
+        inputs = tokenizer(message, return_tensors="pt", truncation=True, max_length=512, padding=True).to(device)
+
+        # Get predictions
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            probs = torch.softmax(logits, dim=-1)[0]
+
+        # Get predicted class
+        pred_class_id = torch.argmax(probs).item()
+        subcategory = label_mappings["id2label"][str(pred_class_id)]
+        confidence = probs[pred_class_id].item()
+
+        print(f"[Secondary Classifier] {category} → {subcategory} (confidence: {confidence:.2%})")
+
+        return subcategory, confidence
+
+    except Exception as e:
+        print(f"[Secondary Classifier] Error during classification: {e}")
+        return None, None
+
+
+# =============================================================================
+# ONNX Secondary Classification Support
+# =============================================================================
+
+_secondary_onnx_cache = {}
+
+
+def load_secondary_onnx_classifier(category: str, base_path: str):
+    """
+    Load a secondary ONNX classifier for a specific category (with caching).
+
+    Args:
+        category: Primary category name (e.g., "professional", "aspirational")
+        base_path: Base path to the ONNX hierarchy models (e.g., "training/models/full_onnx")
+
+    Returns:
+        Tuple of (session, tokenizer, label_mappings, input_names) or None if not found
+    """
+    global _secondary_onnx_cache
+
+    from pathlib import Path
+
+    if category in SKIP_SECONDARY_CATEGORIES:
+        return None
+
+    cache_key = f"{category}:{base_path}"
+    if cache_key in _secondary_onnx_cache:
+        return _secondary_onnx_cache[cache_key]
+
+    secondary_path = Path(base_path) / "secondary" / category
+
+    if not secondary_path.exists():
+        print(f"[Secondary ONNX] No ONNX model found for '{category}' at {secondary_path}")
+        return None
+
+    try:
+        import onnxruntime as ort
+        from transformers import AutoTokenizer
+
+        # Find ONNX model (prefer quantized)
+        onnx_file = secondary_path / "model_quantized.onnx"
+        if not onnx_file.exists():
+            onnx_file = secondary_path / "model.onnx"
+        if not onnx_file.exists():
+            print(f"[Secondary ONNX] No .onnx file in {secondary_path}")
+            return None
+
+        # Load ONNX session
+        session = ort.InferenceSession(str(onnx_file), providers=["CPUExecutionProvider"])
+        input_names = [i.name for i in session.get_inputs()]
+
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(str(secondary_path))
+
+        # Load label mappings from config.json
+        config_file = secondary_path / "config.json"
+        with open(config_file) as f:
+            config = json.load(f)
+        id2label = config.get("id2label", {})
+
+        label_mappings = {"id2label": id2label, "categories": list(id2label.values())}
+
+        print(f"[Secondary ONNX] Loaded {category} classifier with {len(id2label)} subcategories: {list(id2label.values())}")
+
+        classifier_data = (session, tokenizer, label_mappings, input_names)
+        _secondary_onnx_cache[cache_key] = classifier_data
+        return classifier_data
+
+    except Exception as e:
+        print(f"[Secondary ONNX] Error loading {category} classifier: {e}")
+        return None
+
+
+def classify_with_secondary_onnx(message: str, category: str, base_path: str) -> tuple[str | None, float | None]:
+    """
+    Classify message into subcategory using ONNX secondary classifier.
+
+    Args:
+        message: User message to classify
+        category: Primary category (e.g., "professional")
+        base_path: Base path to ONNX hierarchy models
+
+    Returns:
+        Tuple of (subcategory, confidence) or (None, None) if classification fails
+    """
+    import numpy as np
+
+    classifier_data = load_secondary_onnx_classifier(category, base_path)
+
+    if classifier_data is None:
+        return None, None
+
+    session, tokenizer, label_mappings, input_names = classifier_data
+
+    try:
+        # Tokenize
+        inputs = tokenizer(message, return_tensors="np", padding=True, truncation=True, max_length=128)
+        feed = {"input_ids": inputs["input_ids"], "attention_mask": inputs["attention_mask"]}
+        if "token_type_ids" in input_names:
+            feed["token_type_ids"] = inputs.get("token_type_ids", np.zeros_like(inputs["input_ids"]))
+
+        # Run inference
+        outputs = session.run(None, feed)
+        logits = outputs[0][0]
+
+        # Softmax
+        exp_logits = np.exp(logits - np.max(logits))
+        probs = exp_logits / exp_logits.sum()
+
+        # Best prediction
+        best_idx = int(np.argmax(probs))
+        subcategory = label_mappings["id2label"].get(str(best_idx), f"label_{best_idx}")
+        confidence = float(probs[best_idx])
+
+        print(f"[Secondary ONNX] {category} → {subcategory} (confidence: {confidence:.2%})")
+
+        return subcategory, confidence
+
+    except Exception as e:
+        print(f"[Secondary ONNX] Error during classification: {e}")
+        return None, None
 
 
 # =============================================================================
@@ -139,45 +387,15 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     try:
         # Try to import langdetect (lazy import to avoid startup dependency)
         try:
-            from langdetect import DetectorFactory, detect_langs
+            from langdetect import DetectorFactory, detect
 
             # Set seed for consistent results
             DetectorFactory.seed = 0
         except ImportError:
             raise ImportError("langdetect library not found. Install with: pip install langdetect")
 
-        # Detect language with confidence check
-        # langdetect is unreliable for short messages (e.g. "que es popskills" → French)
-        # Use detect_langs() to get probabilities and require high confidence for non-English
-        detected = detect_langs(message)  # returns list of Language objects with .lang and .prob
-        top_lang = detected[0]
-        language_code = top_lang.lang.lower()
-        confidence = top_lang.prob
-
-        # Check if English is among the candidates
-        en_prob = 0.0
-        for lang in detected:
-            if lang.lang.lower() == "en":
-                en_prob = lang.prob
-                break
-
-        # Short messages (< 20 chars or < 4 words) are especially unreliable
-        is_short = len(message) < 20 or len(message.split()) < 4
-        min_confidence = 0.85 if is_short else 0.7
-
-        # Default to English if:
-        # - Top detection is not confident enough
-        # - English is a close candidate (within 0.3 of top)
-        # - Detected language is obscure (not in our supported map)
-        if language_code != "en":
-            if confidence < min_confidence:
-                print(f"[WORKFLOW] Language Detection: Low confidence {confidence:.2f} for '{language_code}', defaulting to English")
-                language_code = "en"
-            elif en_prob > 0 and (confidence - en_prob) < 0.3:
-                print(f"[WORKFLOW] Language Detection: English close candidate ({en_prob:.2f} vs {confidence:.2f}), defaulting to English")
-                language_code = "en"
-
-        print(f"[WORKFLOW] Language Detection: Raw detections: {[(str(d.lang), round(d.prob, 3)) for d in detected[:3]]}")
+        # Detect language (fast, no API call)
+        language_code = detect(message).lower()
 
         # Map language code to full name
         language_names = {
@@ -202,13 +420,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             "no": "Norwegian",
             "fi": "Finnish",
         }
-        # If detected language is not in our supported map, default to English
-        # This catches obscure detections like Catalan ("ca"), Afrikaans ("af"), etc.
-        if language_code != "en" and language_code not in language_names:
-            print(f"[WORKFLOW] Language Detection: Unsupported language '{language_code}', defaulting to English")
-            language_code = "en"
-
-        language_name = language_names.get(language_code, "English")
+        language_name = language_names.get(language_code, language_code.capitalize())
 
         state["detected_language"] = language_code
         state["language_name"] = language_name
@@ -226,10 +438,11 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             translation_method = None
 
             try:
-                from deep_translator import GoogleTranslator
+                from googletrans import Translator
 
-                result = GoogleTranslator(source=language_code, target="en").translate(message)
-                translated_message = result
+                translator = Translator()
+                result = await translator.translate(message, src=language_code, dest="en")
+                translated_message = result.text
                 translation_method = "Google Translate"
                 print("[WORKFLOW] Translation: Using Google Translate (fast, free)")
             except Exception as e:
@@ -308,60 +521,149 @@ Text to translate:
 
 async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
     """
-    Node 1: Unified Message Classifier
+    Node 1: Hierarchical Message Classifier
 
-    Classifies user message into one of 7 categories:
-    1. RAG_QUERY - Factual question seeking information
-    2-7. Store A Contexts - Professional, Psychological, Learning, Social, Emotional, Aspirational
+    Two-level classification:
+    1. Primary: Classifies into one of 9 categories (rag_query, professional, psychological, etc.)
+    2. Secondary: For applicable categories, classifies into subcategories
 
-    Supports two classifier backends:
+    Supports three classifier backends:
     - "openai": LLM-based classification (default)
-    - "onnx": ONNX Runtime classifier (faster, no API cost)
+    - "onnx": ONNX Runtime classifier (lightweight, no PyTorch needed)
+    - "bert": Fine-tuned local model with PyTorch (supports secondary classification)
     """
-    classifier_type = state.get("intent_classifier_type") or INTENT_CLASSIFIER_TYPE
+    classifier_type = state.get("intent_classifier_type") or PRIMARY_INTENT_CLASSIFIER_TYPE
     print(f"[WORKFLOW] Intent Classifier: Analyzing message using {classifier_type}...")
     state["workflow_process"].append(f"🔍 Intent Classifier: Analyzing message using {classifier_type}")
 
+    # =========================================================================
+    # STEP 1: Primary Classification
+    # =========================================================================
+
     # Check which classifier to use
     if classifier_type == "onnx":
-        # Use ONNX classifier (lightweight, no PyTorch needed)
+        # Use ONNX Runtime classifier (lightweight, no PyTorch needed)
         from src.agents.onnx_classifier import get_onnx_classifier
 
         try:
-            classifier = get_onnx_classifier(model_path=INTENT_CLASSIFIER_MODEL_PATH)
+            classifier = get_onnx_classifier()
+
             t0 = time.perf_counter()
             classification = await classifier.classify(state["message"])
-            _elapsed = time.perf_counter() - t0
+            elapsed = time.perf_counter() - t0
 
-            print(f"[WORKFLOW] Intent Classifier: Category = {classification.category.value}")
-            print(f"[WORKFLOW] Intent Classifier: Reasoning = {classification.reasoning}")
-            state["workflow_process"].append(f"  Classified as: {classification.category.value} (confidence: {classification.confidence:.2f})")
-            state["workflow_process"].append(f"  Reasoning: {classification.reasoning}")
+            print(f"[WORKFLOW] Intent Classifier (ONNX): Primary Category = {classification.category.value}")
+            print(f"[WORKFLOW] Intent Classifier (ONNX): Confidence = {classification.confidence:.2%}")
+            state["workflow_process"].append(f"  ✅ Primary: {classification.category.value} (confidence: {classification.confidence:.2f})")
+            state["workflow_process"].append(f"  📝 Reasoning: {classification.reasoning}")
+            state["workflow_process"].append(f"  ⏱️ Primary classification: {elapsed:.3f}s (ONNX)")
 
         except (ImportError, FileNotFoundError, RuntimeError, ValueError) as e:
-            # Fallback to OpenAI if ONNX fails
-            print(f"[WORKFLOW] ONNX classification failed: {str(e)}")
+            # Fallback to OpenAI if ONNX classifier fails
+            print(f"[WORKFLOW] ONNX classifier failed: {str(e)}")
             print("[WORKFLOW] Falling back to OpenAI classifier...")
-            state["workflow_process"].append(f"  ONNX failed: {str(e)}")
-            state["workflow_process"].append("  Falling back to OpenAI classifier")
+            state["workflow_process"].append(f"  ⚠️ ONNX classifier failed: {str(e)}")
+            state["workflow_process"].append("  🔄 Falling back to OpenAI classifier")
             t0 = time.perf_counter()
             classification = await _classify_with_openai(state["message"], chat_client, state["chat_model"])
-            _elapsed = time.perf_counter() - t0
-            state["workflow_process"].append(f"  Classified as: {classification.category.value} (confidence: {classification.confidence:.2f})")
+            elapsed = time.perf_counter() - t0
+            state["workflow_process"].append(f"  ✅ Primary: {classification.category.value} (confidence: {classification.confidence:.2f})")
+            state["workflow_process"].append(f"  ⏱️ Primary classification: {elapsed:.3f}s (OpenAI fallback)")
+
+    elif classifier_type == "bert":
+        # Use fine-tuned local model (preloaded or lazy-loaded)
+        from src.agents.intent_classifier import get_intent_classifier
+        from src.config import get_intent_classifier as get_classifier_from_config
+
+        try:
+            # Try to get preloaded classifier from config first
+            classifier = get_classifier_from_config()
+
+            # Fall back to lazy loading if not preloaded
+            if classifier is None:
+                print("[WORKFLOW] Classifier not preloaded, lazy loading...")
+                classifier = get_intent_classifier(INTENT_CLASSIFIER_MODEL_PATH)
+
+            t0 = time.perf_counter()
+            classification = await classifier.classify(state["message"])
+            elapsed = time.perf_counter() - t0
+
+            print(f"[WORKFLOW] Intent Classifier: Primary Category = {classification.category.value}")
+            print(f"[WORKFLOW] Intent Classifier: Reasoning = {classification.reasoning}")
+            state["workflow_process"].append(f"  ✅ Primary: {classification.category.value} (confidence: {classification.confidence:.2f})")
+            state["workflow_process"].append(f"  📝 Reasoning: {classification.reasoning}")
+            # state["workflow_process"].append(f"  ⏱️ Primary classification: {elapsed:.3f}s")
+
+        except (ImportError, FileNotFoundError, RuntimeError, ValueError) as e:
+            # Fallback to OpenAI if local classifier fails
+            print(f"[WORKFLOW] Local classifier failed: {str(e)}")
+            print("[WORKFLOW] Falling back to OpenAI classifier...")
+            state["workflow_process"].append(f"  ⚠️ Local classifier failed: {str(e)}")
+            state["workflow_process"].append("  🔄 Falling back to OpenAI classifier")
+            t0 = time.perf_counter()
+            classification = await _classify_with_openai(state["message"], chat_client, state["chat_model"])
+            elapsed = time.perf_counter() - t0
+            state["workflow_process"].append(f"  ✅ Primary: {classification.category.value} (confidence: {classification.confidence:.2f})")
+            state["workflow_process"].append(f"  ⏱️ Primary classification: {elapsed:.3f}s (OpenAI fallback)")
 
     else:
         # Use OpenAI LLM-based classification
         t0 = time.perf_counter()
         classification = await _classify_with_openai(state["message"], chat_client, state["chat_model"])
-        _elapsed = time.perf_counter() - t0
-        state["workflow_process"].append(f"  ✅ Classified as: {classification.category.value} (confidence: {classification.confidence:.2f})")
+        elapsed = time.perf_counter() - t0
+        state["workflow_process"].append(f"  ✅ Primary: {classification.category.value} (confidence: {classification.confidence:.2f})")
         state["workflow_process"].append(f"  📝 Reasoning: {classification.reasoning}")
-        # state["workflow_process"].append(f"  ⏱️ Intent classification: {elapsed:.3f}s (OpenAI)")
+        state["workflow_process"].append(f"  ⏱️ Primary classification: {elapsed:.3f}s (OpenAI)")
+
+    # =========================================================================
+    # STEP 2: Secondary Classification (Hierarchical)
+    # =========================================================================
+
+    primary_category = classification.category.value
+
+    # Check if this category should have secondary classification
+    if primary_category not in SKIP_SECONDARY_CATEGORIES and classifier_type in ("bert", "onnx"):
+        print(f"[WORKFLOW] Secondary Classifier ({classifier_type}): Running for {primary_category}...")
+        state["workflow_process"].append(f"  🔍 Secondary: Classifying {primary_category} subcategory ({classifier_type})")
+
+        try:
+            t0 = time.perf_counter()
+
+            if classifier_type == "onnx":
+                subcategory, subcategory_confidence = classify_with_secondary_onnx(state["message"], primary_category, ONNX_HIERARCHY_PATH)
+            else:
+                subcategory, subcategory_confidence = classify_with_secondary(state["message"], primary_category, INTENT_CLASSIFIER_MODEL_PATH)
+
+            elapsed = time.perf_counter() - t0
+
+            if subcategory:
+                classification.subcategory = subcategory
+                classification.subcategory_confidence = subcategory_confidence
+                print(f"[WORKFLOW] Secondary Classifier: Subcategory = {subcategory} (confidence: {subcategory_confidence:.2f})")
+                state["workflow_process"].append(f"  ✅ Subcategory: {subcategory} (confidence: {subcategory_confidence:.2f})")
+                state["workflow_process"].append(f"  ⏱️ Secondary classification: {elapsed:.3f}s")
+            else:
+                print(f"[WORKFLOW] Secondary Classifier: No subcategory classifier available for {primary_category}")
+                state["workflow_process"].append(f"  ⚠️ No secondary classifier available for {primary_category}")
+
+        except Exception as e:
+            print(f"[WORKFLOW] Secondary Classifier: Error - {str(e)}")
+            state["workflow_process"].append(f"  ⚠️ Secondary classification failed: {str(e)}")
+            # Continue without subcategory
+
+    elif primary_category in SKIP_SECONDARY_CATEGORIES:
+        print(f"[WORKFLOW] Secondary Classifier: Skipping for {primary_category} (no subcategories)")
+        state["workflow_process"].append(f"  ⏭️ No secondary classification needed for {primary_category}")
+    else:
+        print(f"[WORKFLOW] Secondary Classifier: Skipping ({classifier_type} classifier - secondary not available)")
+        state["workflow_process"].append(f"  ⏭️ Secondary classification not available for {classifier_type}")
 
     state["unified_classification"] = classification
     state["metadata"] = state.get("metadata", {})
     state["metadata"]["category"] = classification.category.value
+    state["metadata"]["subcategory"] = classification.subcategory
     state["metadata"]["classification_confidence"] = classification.confidence
+    state["metadata"]["subcategory_confidence"] = classification.subcategory_confidence
     state["metadata"]["classifier_type"] = classifier_type
 
     return state
@@ -519,17 +821,20 @@ Respond ONLY in valid JSON format:
 
 async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
     """
-    Node 1.5: Semantic Gate (Stage 1 Filtering)
+    Node 1.5: Hierarchical Semantic Gate (Stage 1 Filtering)
 
-    Filters out off-topic messages using per-category similarity thresholds.
+    Filters out off-topic messages using two-level similarity thresholds.
     Runs after intent classification to check if the message is semantically
-    similar enough to the predicted category.
+    similar enough to the predicted category and subcategory.
 
     Flow:
     1. Compute message embedding
-    2. Compare to category centroids
-    3. Check if similarity >= threshold for predicted category
-    4. Block if below threshold (mark as off-topic)
+    2. Primary check: Compare to primary category centroids
+    3. Secondary check (if applicable): Compare to subcategory centroids
+    4. Block if below threshold at either level (mark as off-topic)
+
+    The gate uses hierarchical thresholds tuned to maximize off-topic rejection
+    while maintaining high domain acceptance (>95%).
     """
     gate_enabled = state.get("semantic_gate_enabled")
     if gate_enabled is None:
@@ -557,44 +862,91 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
     try:
         # Import semantic gate (lazy to avoid import errors if dependencies missing)
         from src.agents.semantic_gate import get_semantic_gate
+        from src.config import get_semantic_gate_instance
 
-        gate = get_semantic_gate()
+        # Try to get preloaded semantic gate from config first
+        gate = get_semantic_gate_instance()
 
-        # Check message against semantic gate (pass classifier confidence)
-        classifier_confidence = classification.confidence if classification.confidence else 0.0
-        should_pass, similarity, best_category = gate.check_message(
-            state["message"], classification.category.value, classifier_confidence=classifier_confidence
+        # Fall back to lazy loading if not preloaded
+        if gate is None:
+            print("[WORKFLOW] Semantic Gate: Not preloaded, lazy loading...")
+            gate = get_semantic_gate()
+
+        # Check message against hierarchical semantic gate
+        predicted_subcategory = classification.subcategory if hasattr(classification, "subcategory") else None
+        (should_pass, primary_similarity, best_primary, best_secondary, secondary_similarity) = gate.check_message(
+            state["message"], classification.category.value, predicted_subcategory
         )
 
-        # Get threshold for predicted category (adjusted for confidence)
-        threshold = gate.get_threshold(classification.category.value, classifier_confidence)
+        # Get thresholds for predicted category/subcategory
+        primary_threshold = gate.get_threshold(classification.category.value)
+        secondary_threshold = gate.get_threshold(classification.category.value, predicted_subcategory) if predicted_subcategory else None
 
         # Store results in state
         state["semantic_gate_passed"] = should_pass
-        state["semantic_gate_similarity"] = similarity
-        state["semantic_gate_category"] = best_category
+        state["semantic_gate_similarity"] = primary_similarity
+        state["semantic_gate_category"] = best_primary
+        state["semantic_gate_subcategory"] = best_secondary
+        state["semantic_gate_secondary_similarity"] = secondary_similarity
 
         # Update metadata
         state["metadata"]["semantic_gate_passed"] = should_pass
-        state["metadata"]["semantic_gate_similarity"] = similarity
-        state["metadata"]["semantic_gate_threshold"] = threshold
-        state["metadata"]["semantic_gate_best_category"] = best_category
+        state["metadata"]["semantic_gate_primary_similarity"] = primary_similarity
+        state["metadata"]["semantic_gate_primary_threshold"] = primary_threshold
+        state["metadata"]["semantic_gate_best_primary"] = best_primary
+
+        if best_secondary:
+            state["metadata"]["semantic_gate_best_secondary"] = best_secondary
+            state["metadata"]["semantic_gate_secondary_similarity"] = secondary_similarity
+            state["metadata"]["semantic_gate_secondary_threshold"] = secondary_threshold
 
         if should_pass:
-            print(f"[WORKFLOW] Semantic Gate: PASSED (similarity: {similarity:.4f}, threshold: {threshold:.4f})")
-            state["workflow_process"].append(f"  ✅ PASSED: similarity {similarity:.4f} >= threshold {threshold:.4f}")
-            state["workflow_process"].append(f"  📊 Best matching category: {best_category}")
+            if best_secondary:
+                print("[WORKFLOW] Semantic Gate: PASSED")
+                print(f"  Primary: {primary_similarity:.4f} >= {primary_threshold:.4f} ({best_primary})")
+                print(f"  Secondary: {secondary_similarity:.4f} >= {secondary_threshold:.4f} ({best_secondary})")
+                state["workflow_process"].append("  ✅ PASSED hierarchical gate")
+                state["workflow_process"].append(f"    Primary: {primary_similarity:.4f} >= {primary_threshold:.4f} ({best_primary})")
+                state["workflow_process"].append(f"    Secondary: {secondary_similarity:.4f} >= {secondary_threshold:.4f} ({best_secondary})")
+            else:
+                print(f"[WORKFLOW] Semantic Gate: PASSED (primary only: {primary_similarity:.4f} >= {primary_threshold:.4f})")
+                state["workflow_process"].append(f"  ✅ PASSED: similarity {primary_similarity:.4f} >= threshold {primary_threshold:.4f}")
+                state["workflow_process"].append(f"  📊 Best matching category: {best_primary}")
         else:
-            print(f"[WORKFLOW] Semantic Gate: BLOCKED (similarity: {similarity:.4f}, threshold: {threshold:.4f})")
-            state["workflow_process"].append(f"  ❌ BLOCKED: similarity {similarity:.4f} < threshold {threshold:.4f}")
-            state["workflow_process"].append(f"  📊 Best matching category: {best_category}")
+            if best_secondary and secondary_similarity is not None:
+                # Failed at secondary level
+                print("[WORKFLOW] Semantic Gate: BLOCKED at secondary level")
+                print(f"  Primary: {primary_similarity:.4f} >= {primary_threshold:.4f} ({best_primary}) ✓")
+                print(f"  Secondary: {secondary_similarity:.4f} < {secondary_threshold:.4f} ({best_secondary}) ✗")
+                state["workflow_process"].append("  ❌ BLOCKED at secondary level")
+                state["workflow_process"].append(f"    Primary: {primary_similarity:.4f} >= {primary_threshold:.4f} ✓")
+                state["workflow_process"].append(f"    Secondary: {secondary_similarity:.4f} < {secondary_threshold:.4f} ✗")
+            else:
+                # Failed at primary level
+                print(f"[WORKFLOW] Semantic Gate: BLOCKED at primary level ({primary_similarity:.4f} < {primary_threshold:.4f})")
+                state["workflow_process"].append(f"  ❌ BLOCKED: similarity {primary_similarity:.4f} < threshold {primary_threshold:.4f}")
+                state["workflow_process"].append(f"  📊 Best matching category: {best_primary}")
+
             state["workflow_process"].append("  🚫 Message classified as off-topic")
 
             # Override classification to OFF_TOPIC
             classification.category = MessageCategory.OFF_TOPIC
-            classification.reasoning = (
-                f"Blocked by semantic gate: similarity {similarity:.4f} below threshold {threshold:.4f}. {classification.reasoning}"
-            )
+            if best_secondary and secondary_similarity is not None:
+                # Failed at secondary level
+                classification.reasoning = (
+                    f"Blocked by semantic gate at secondary level: {best_secondary} "
+                    f"similarity {secondary_similarity:.4f} below threshold {secondary_threshold:.4f}. "
+                    f"Primary level passed: {best_primary} "
+                    f"similarity {primary_similarity:.4f} >= {primary_threshold:.4f}. "
+                    f"{classification.reasoning}"
+                )
+            else:
+                # Failed at primary level
+                classification.reasoning = (
+                    f"Blocked by semantic gate at primary level: {best_primary} "
+                    f"similarity {primary_similarity:.4f} below threshold {primary_threshold:.4f}. "
+                    f"{classification.reasoning}"
+                )
             state["unified_classification"] = classification
             state["metadata"]["category"] = "off_topic"
 
@@ -615,66 +967,6 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
         state["semantic_gate_passed"] = True
         state["semantic_gate_similarity"] = 1.0
         state["semantic_gate_category"] = "error"
-
-    return state
-
-
-async def entity_extraction_node(
-    state: WorkflowState, chat_client: OpenAI, groq_client: OpenAI | None = None
-) -> WorkflowState:
-    """
-    Node 2: Prompt-Based Entity Extraction
-
-    Uses Groq (fast) or OpenAI (fallback) to extract structured entities from
-    the user message based on the classified category.
-
-    Skips extraction for CHITCHAT and OFF_TOPIC messages.
-    """
-    classification = state.get("unified_classification")
-    if not classification:
-        state["extracted_information"] = {}
-        return state
-
-    category = classification.category
-
-    # Skip for chitchat/off_topic
-    if category in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC):
-        print(f"[WORKFLOW] Entity Extraction: Skipping for {category.value}")
-        state["workflow_process"].append(f"🏷️ Entity Extraction: Skipping for {category.value}")
-        state["extracted_information"] = {}
-        return state
-
-    # Use Groq if available, fallback to OpenAI
-    if groq_client:
-        extraction_client = groq_client
-        extraction_model = GROQ_MODEL
-        provider = "Groq"
-    else:
-        extraction_client = chat_client
-        extraction_model = state["chat_model"]
-        provider = "OpenAI"
-
-    print(f"[WORKFLOW] Entity Extraction: Extracting entities for {category.value} via {provider}...")
-    state["workflow_process"].append(f"🏷️ Entity Extraction: Extracting entities for {category.value} via {provider}")
-
-    t0 = time.perf_counter()
-    entities = await extract_entities_via_prompt(
-        message=state["message"],
-        category=category,
-        chat_client=extraction_client,
-        chat_model=extraction_model,
-    )
-    elapsed = time.perf_counter() - t0
-
-    state["extracted_information"] = entities
-
-    if entities:
-        entity_keys = list(entities.keys())
-        print(f"[WORKFLOW] Entity Extraction: Found {len(entity_keys)} fields in {elapsed:.3f}s via {provider}: {entity_keys}")
-        state["workflow_process"].append(f"  ✅ Extracted: {', '.join(entity_keys)} ({elapsed:.3f}s via {provider})")
-    else:
-        print(f"[WORKFLOW] Entity Extraction: No entities found ({elapsed:.3f}s via {provider})")
-        state["workflow_process"].append(f"  ℹ️ No specific entities found ({elapsed:.3f}s via {provider})")
 
     return state
 
@@ -753,9 +1045,6 @@ CATEGORY_CONFIG = {
         "temperature": 0.3,
         "prompt": """You are a knowledgeable career educator for Activity Harmonia.
 
-**Question Details**:
-{extracted_info}
-
 **Retrieved Knowledge Base**:
 {document_context}
 
@@ -780,9 +1069,6 @@ specializing in professional development.
 **Context**: The user is sharing information about their professional skills, \
 experience, or technical abilities.
 {reasoning}
-
-**Extracted Details**:
-{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -809,9 +1095,6 @@ specializing in values alignment and self-awareness.
 motivations, or how they see themselves.
 {reasoning}
 
-**Extracted Details**:
-{extracted_info}
-
 **Relevant Knowledge Base**:
 {document_context}
 
@@ -836,9 +1119,6 @@ specializing in learning and development.
 **Context**: The user is sharing information about how they learn, their \
 educational background, or areas they want to develop.
 {reasoning}
-
-**Extracted Details**:
-{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -865,9 +1145,6 @@ specializing in professional relationships and networking.
 collaboration style, or professional relationships.
 {reasoning}
 
-**Extracted Details**:
-{extracted_info}
-
 **Relevant Knowledge Base**:
 {document_context}
 
@@ -892,9 +1169,6 @@ specializing in emotional wellbeing and resilience.
 **Context**: The user is expressing emotional concerns, stress, confidence \
 issues, or wellbeing challenges related to their career.
 {reasoning}
-
-**Extracted Details**:
-{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -922,9 +1196,6 @@ specializing in goal-setting and career visioning.
 **Context**: The user is sharing their career goals, dreams, aspirations, \
 or vision for their future.
 {reasoning}
-
-**Extracted Details**:
-{extracted_info}
 
 **Relevant Knowledge Base**:
 {document_context}
@@ -1015,18 +1286,10 @@ It does not appear to be related to career coaching, professional development, o
         print(f"[WORKFLOW] Response ({category.value}): Generating response...")
         state["workflow_process"].append(f"💬 Response Generator: Creating {category.value} response (temperature: {config['temperature']})")
 
-        # Format extracted entities for the prompt
-        extracted = state.get("extracted_information", {})
-        if extracted:
-            extracted_info = "\n".join(f"- {k}: {v}" for k, v in extracted.items())
-        else:
-            extracted_info = "No specific details extracted."
-
         prompt = config["prompt"].format(
             document_context=state.get("document_context", ""),
             conversation_context=state.get("conversation_context", ""),
             reasoning=classification.reasoning if classification else "",
-            extracted_info=extracted_info,
         )
 
         temperature = config["temperature"]
@@ -1081,10 +1344,11 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
 
         # Try Google Translate first (fast, free)
         try:
-            from deep_translator import GoogleTranslator
+            from googletrans import Translator
 
-            result = GoogleTranslator(source="en", target=language_code).translate(state["response"])
-            translated_response = result
+            translator = Translator()
+            result = await translator.translate(state["response"], src="en", dest=language_code)
+            translated_response = result.text
             translation_method = "Google Translate"
             print("[WORKFLOW] Response Translation: Using Google Translate (fast, free)")
         except Exception as e:
@@ -1137,7 +1401,7 @@ Response to translate:
 # =============================================================================
 
 
-def create_workflow(chat_client: OpenAI, groq_client: OpenAI | None = None) -> StateGraph:
+def create_workflow(chat_client: OpenAI) -> StateGraph:
     """
     Create the LangGraph workflow
 
@@ -1145,11 +1409,10 @@ def create_workflow(chat_client: OpenAI, groq_client: OpenAI | None = None) -> S
     0. Language Detection & Translation → Detect language, translate to English if needed
     1. Intent Classifier → Classify into one of 9 categories
     2. Semantic Gate → Check if message passes similarity threshold (Stage 1 filtering)
-    3. Entity Extraction → Extract structured entities via Groq (fast) or OpenAI (fallback)
-    4. Route based on category:
+    3. Route based on category:
        - RAG_QUERY → RAG Retrieval → Context Response
        - All others → Context Response (directly)
-    5. Response Translation → Translate response back to original language if needed
+    4. Response Translation → Translate response back to original language if needed
     """
 
     workflow = StateGraph(WorkflowState)
@@ -1183,9 +1446,6 @@ def create_workflow(chat_client: OpenAI, groq_client: OpenAI | None = None) -> S
     async def semantic_gate_wrapper(state: WorkflowState) -> WorkflowState:
         return await semantic_gate_node(state)
 
-    async def entity_extraction_wrapper(state: WorkflowState) -> WorkflowState:
-        return await entity_extraction_node(state, chat_client, groq_client)
-
     async def rag_retrieval_wrapper(state: WorkflowState) -> WorkflowState:
         return await rag_retrieval_node(state, chat_client)
 
@@ -1199,7 +1459,6 @@ def create_workflow(chat_client: OpenAI, groq_client: OpenAI | None = None) -> S
     workflow.add_node("language_detection", language_detection_wrapper)
     workflow.add_node("intent_classifier", intent_classifier_wrapper)
     workflow.add_node("semantic_gate", semantic_gate_wrapper)
-    workflow.add_node("entity_extraction", entity_extraction_wrapper)
     workflow.add_node("rag_retrieval", rag_retrieval_wrapper)
     workflow.add_node("context_response", context_response_wrapper)
     workflow.add_node("response_translation", response_translation_wrapper)
@@ -1213,12 +1472,9 @@ def create_workflow(chat_client: OpenAI, groq_client: OpenAI | None = None) -> S
     # Intent Classifier → Semantic Gate (always)
     workflow.add_edge("intent_classifier", "semantic_gate")
 
-    # Semantic Gate → Entity Extraction (always)
-    workflow.add_edge("semantic_gate", "entity_extraction")
-
-    # Entity Extraction → Router (based on category)
+    # Semantic Gate → Router (based on category)
     workflow.add_conditional_edges(
-        "entity_extraction",
+        "semantic_gate",
         route_based_on_category,
         {
             "rag_retrieval": "rag_retrieval",
@@ -1250,7 +1506,6 @@ async def run_workflow(
     chat_model: str,
     intent_classifier_type: str | None = None,
     semantic_gate_enabled: bool | None = None,
-    groq_client: OpenAI | None = None,
 ) -> WorkflowState:
     """
     Run the complete workflow
@@ -1265,7 +1520,6 @@ async def run_workflow(
         embed_model: Embedding model name
         embed_dimensions: Embedding dimensions
         chat_model: Chat model name (e.g., gpt-4o-mini, gpt-4o)
-        groq_client: Optional Groq client for fast entity extraction
 
     Returns:
         Final workflow state with response and metadata
@@ -1276,7 +1530,7 @@ async def run_workflow(
     print(f"{'=' * 80}\n")
 
     # Create workflow
-    workflow = create_workflow(chat_client, groq_client)
+    workflow = create_workflow(chat_client)
 
     # Initial state
     initial_state: WorkflowState = {

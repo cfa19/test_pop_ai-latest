@@ -5,7 +5,7 @@ Ensures messages are processed one at a time to avoid overwhelming
 the GPU/CPU with concurrent classifier/model calls.
 
 This is especially important for:
-- ONNX intent classifier (CPU inference)
+- DistilBERT intent classifier (GPU memory)
 - Semantic gate (sentence transformer)
 - Any other ML models that shouldn't run concurrently
 """
@@ -64,18 +64,12 @@ class MessageQueue:
         # Reject all pending requests
         for request_id, future in self.pending_requests.items():
             if not future.done():
-                future.set_exception(
-                    RuntimeError("Message queue stopped before processing completed")
-                )
+                future.set_exception(RuntimeError("Message queue stopped before processing completed"))
 
         self.pending_requests.clear()
         logger.info("[MESSAGE QUEUE] Stopped")
 
-    async def process_message(
-        self,
-        workflow_func,
-        **kwargs
-    ) -> Any:
+    async def process_message(self, workflow_func, **kwargs) -> Any:
         """
         Submit a message for processing and wait for the result.
 
@@ -100,11 +94,7 @@ class MessageQueue:
         self.pending_requests[request_id] = result_future
 
         # Add message to queue
-        await self.queue.put({
-            "request_id": request_id,
-            "workflow_func": workflow_func,
-            "kwargs": kwargs
-        })
+        await self.queue.put({"request_id": request_id, "workflow_func": workflow_func, "kwargs": kwargs})
 
         logger.debug(f"[MESSAGE QUEUE] Queued request {request_id[:8]}... (queue size: {self.queue.qsize()})")
 
@@ -129,10 +119,7 @@ class MessageQueue:
             try:
                 # Get next message from queue (wait up to 1 second)
                 try:
-                    message_data = await asyncio.wait_for(
-                        self.queue.get(),
-                        timeout=1.0
-                    )
+                    message_data = await asyncio.wait_for(self.queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
                     # No message in queue, continue loop
                     continue
@@ -141,10 +128,7 @@ class MessageQueue:
                 workflow_func = message_data["workflow_func"]
                 kwargs = message_data["kwargs"]
 
-                logger.debug(
-                    f"[MESSAGE QUEUE] Processing request {request_id[:8]}... "
-                    f"(queue size: {self.queue.qsize()})"
-                )
+                logger.debug(f"[MESSAGE QUEUE] Processing request {request_id[:8]}... (queue size: {self.queue.qsize()})")
 
                 # Get the future for this request
                 result_future = self.pending_requests.get(request_id)
