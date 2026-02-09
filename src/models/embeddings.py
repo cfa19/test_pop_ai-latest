@@ -5,18 +5,9 @@ Models for embedding generation using Voyage AI.
 Default: voyage-3-large (1024 dimensions)
 """
 
-from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
-
-
-class EmbeddingModel(str, Enum):
-    """Supported embedding models."""
-
-    VOYAGE_3_LARGE = "voyage-3-large"
-    VOYAGE_3 = "voyage-3"
-    VOYAGE_3_LITE = "voyage-3-lite"
 
 
 class Embedding(BaseModel):

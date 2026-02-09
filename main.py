@@ -14,20 +14,13 @@ from src.api.chat import router as chat_router
 from src.utils.message_queue import start_message_queue, stop_message_queue
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # ===============================
 # FASTAPI APP
 # ===============================
-app = FastAPI(
-    title="Pop Skills Chatbot API",
-    description="API for the chatbot with RAG",
-    version="1.0.0"
-)
+app = FastAPI(title="Pop Skills Chatbot API", description="API for the chatbot with RAG", version="1.0.0")
 
 
 async def preload_models():
@@ -95,6 +88,7 @@ async def shutdown_event():
     # Stop message queue
     await stop_message_queue()
     logger.info("Message queue stopped")
+
 
 # Allow CORS (for the frontend to call the backend)
 app.add_middleware(
