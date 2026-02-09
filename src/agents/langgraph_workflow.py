@@ -394,7 +394,19 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             raise ImportError("langdetect library not found. Install with: pip install langdetect")
 
         # Detect language (fast, no API call)
-        language_code = detect(message).lower()
+        # Use detect_langs() for confidence check — langdetect is unreliable
+        # on short messages (e.g., "i feel depressed" → Dutch)
+        from langdetect import detect_langs
+
+        lang_results = detect_langs(message)
+        top_result = lang_results[0]
+        language_code = str(top_result.lang).lower()
+
+        # If confidence is low (<80%) or message is very short, default to English
+        if top_result.prob < 0.80 or len(message.split()) <= 5:
+            if language_code != "en":
+                print(f"[WORKFLOW] Language Detection: Low confidence ({top_result.prob:.0%}) or short message, defaulting to English")
+                language_code = "en"
 
         # Map language code to full name
         language_names = {
