@@ -28,6 +28,67 @@ from src.utils.conversation_memory import format_conversation_context, search_co
 from src.utils.rag import hybrid_search
 
 # =============================================================================
+# Language Detection (lingua-py — accurate, local, no API calls)
+# =============================================================================
+
+_lingua_detector = None
+
+
+def _get_lingua_detector():
+    """Get or create the lingua language detector (singleton, lazy-loaded)."""
+    global _lingua_detector
+    if _lingua_detector is None:
+        from lingua import Language, LanguageDetectorBuilder
+
+        languages = [
+            Language.ENGLISH, Language.SPANISH, Language.FRENCH, Language.GERMAN,
+            Language.PORTUGUESE, Language.ITALIAN, Language.DUTCH, Language.RUSSIAN,
+            Language.ARABIC, Language.CHINESE, Language.JAPANESE, Language.KOREAN,
+            Language.HINDI, Language.TURKISH, Language.POLISH, Language.SWEDISH,
+            Language.DANISH, Language.BOKMAL, Language.FINNISH,
+        ]
+        _lingua_detector = LanguageDetectorBuilder.from_languages(*languages).build()
+    return _lingua_detector
+
+
+# Mapping from lingua Language to ISO 639-1 code
+_LINGUA_TO_ISO = None
+
+
+def _get_lingua_iso_map():
+    """Build lingua Language → ISO 639-1 code mapping (lazy)."""
+    global _LINGUA_TO_ISO
+    if _LINGUA_TO_ISO is None:
+        from lingua import Language
+        _LINGUA_TO_ISO = {
+            Language.ENGLISH: "en", Language.SPANISH: "es", Language.FRENCH: "fr",
+            Language.GERMAN: "de", Language.PORTUGUESE: "pt", Language.ITALIAN: "it",
+            Language.DUTCH: "nl", Language.RUSSIAN: "ru", Language.ARABIC: "ar",
+            Language.CHINESE: "zh", Language.JAPANESE: "ja", Language.KOREAN: "ko",
+            Language.HINDI: "hi", Language.TURKISH: "tr", Language.POLISH: "pl",
+            Language.SWEDISH: "sv", Language.DANISH: "da", Language.BOKMAL: "no",
+            Language.FINNISH: "fi",
+        }
+    return _LINGUA_TO_ISO
+
+
+def _detect_language_lingua(text: str) -> str:
+    """
+    Detect language using lingua-py (local, fast, accurate for short text).
+
+    Returns ISO 639-1 code (e.g., "en", "es", "fr").
+    Falls back to "en" if detection fails.
+    """
+    detector = _get_lingua_detector()
+    iso_map = _get_lingua_iso_map()
+
+    result = detector.detect_language_of(text)
+    if result is None:
+        return "en"
+    return iso_map.get(result, "en")
+
+
+# =============================================================================
 # Intent Classification Models
 # =============================================================================
 
@@ -369,7 +430,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     The response will be translated back to the original language at the end.
 
     Flow:
-    1. Detect message language using fast library (langdetect)
+    1. Detect message language using lingua-py (local, accurate)
     2. If not English, translate to English using LLM
     3. Store original message and language info in state
     4. Update message field with translated version (or original if English)
@@ -382,32 +443,9 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     # Store original message
     state["original_message"] = message
 
-    # Detect language using fast library (langdetect)
+    # Detect language using lingua-py (accurate, local, no API calls)
     try:
-        # Try to import langdetect (lazy import to avoid startup dependency)
-        try:
-            from langdetect import DetectorFactory, detect
-
-            # Set seed for consistent results
-            DetectorFactory.seed = 0
-        except ImportError:
-            raise ImportError("langdetect library not found. Install with: pip install langdetect")
-
-        # Detect language (fast, no API call)
-        # Use detect_langs() for confidence check — langdetect is unreliable
-        # on short messages (e.g., "i feel depressed" → Dutch)
-        from langdetect import detect_langs
-
-        lang_results = detect_langs(message)
-        top_result = lang_results[0]
-        language_code = str(top_result.lang).lower()
-
-        # If confidence is low (<80%) AND message is very short, default to English
-        # (short messages with high confidence are likely correct, e.g. "me siento deprimido" → Spanish)
-        if top_result.prob < 0.80 and len(message.split()) <= 5:
-            if language_code != "en":
-                print(f"[WORKFLOW] Language Detection: Low confidence ({top_result.prob:.0%}) or short message, defaulting to English")
-                language_code = "en"
+        language_code = _detect_language_lingua(message)
 
         # Map language code to full name
         language_names = {
@@ -420,8 +458,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             "nl": "Dutch",
             "ru": "Russian",
             "ar": "Arabic",
-            "zh-cn": "Chinese (Simplified)",
-            "zh-tw": "Chinese (Traditional)",
+            "zh": "Chinese",
             "ja": "Japanese",
             "ko": "Korean",
             "hi": "Hindi",
@@ -437,7 +474,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
         state["detected_language"] = language_code
         state["language_name"] = language_name
 
-        print(f"[WORKFLOW] Language Detection: Detected {language_name} ({language_code}) [langdetect]")
+        print(f"[WORKFLOW] Language Detection: Detected {language_name} ({language_code}) [lingua]")
         state["workflow_process"].append(f"  ✅ Detected language: {language_name} ({language_code})")
 
         # If not English, translate to English
@@ -505,9 +542,9 @@ Text to translate:
         state["metadata"]["is_translated"] = state["is_translated"]
 
     except ImportError as e:
-        # langdetect not installed, assume English and continue
-        print(f"[WORKFLOW] Language Detection: Library not installed - {str(e)}, assuming English")
-        state["workflow_process"].append("  ⚠️ langdetect not installed, assuming English")
+        # lingua-py not installed, assume English and continue
+        print(f"[WORKFLOW] Language Detection: lingua not installed - {str(e)}, assuming English")
+        state["workflow_process"].append("  ⚠️ lingua not installed, assuming English")
         state["detected_language"] = "en"
         state["language_name"] = "English"
         state["is_translated"] = False
