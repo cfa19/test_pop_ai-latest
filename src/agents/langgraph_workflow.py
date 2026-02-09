@@ -805,6 +805,23 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
         state["semantic_gate_category"] = "unknown"
         return state
 
+    # Classifier confidence bypass: if the ONNX/BERT classifier is highly confident,
+    # trust it and skip the semantic gate. This prevents the gate from blocking
+    # messages that the trained classifier correctly identified.
+    CONFIDENCE_BYPASS_THRESHOLD = 0.65
+    if classification.confidence >= CONFIDENCE_BYPASS_THRESHOLD:
+        print(f"[WORKFLOW] Semantic Gate: BYPASSED (classifier confidence {classification.confidence:.2%} >= {CONFIDENCE_BYPASS_THRESHOLD:.0%})")
+        state["workflow_process"].append(
+            f"  ✅ BYPASSED: classifier confidence {classification.confidence:.2%} >= {CONFIDENCE_BYPASS_THRESHOLD:.0%} threshold"
+        )
+        state["semantic_gate_passed"] = True
+        state["semantic_gate_similarity"] = 1.0
+        state["semantic_gate_category"] = classification.category.value
+        state["metadata"]["semantic_gate_passed"] = True
+        state["metadata"]["semantic_gate_bypassed"] = True
+        state["metadata"]["semantic_gate_bypass_reason"] = f"classifier_confidence_{classification.confidence:.2f}"
+        return state
+
     try:
         from src.config import get_semantic_gate_instance
 
