@@ -55,6 +55,10 @@ SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("
 SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
 SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_tuning.json")
 
+# Groq (fast entity extraction + chat - optional)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
 # Verbose mode (set by CLI flag -v)
 VERBOSE_MODE = False
 
@@ -107,23 +111,35 @@ def get_openai() -> OpenAI:
     return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=1)
+def get_groq() -> OpenAI | None:
+    """Create and cache the Groq client (OpenAI-compatible). Returns None if no API key."""
+    if not GROQ_API_KEY:
+        return None
+    return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
+
+
+@lru_cache(maxsize=3)
 def get_client_by_provider(provider: str) -> OpenAI:
     """
-    Get embedding client based on provider name. Cached to avoid recreating clients.
+    Get client based on provider name. Cached to avoid recreating clients.
 
     Args:
-        provider: Provider name ('openai' or 'voyage')
+        provider: Provider name ('openai', 'voyage', or 'groq')
 
     Returns:
-        OpenAI or VoyageAI client for the specified provider
+        OpenAI, VoyageAI, or Groq client for the specified provider
     """
     if provider == "openai":
         return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
     elif provider == "voyage":
         return VoyageAI(api_key=VOYAGE_API_KEY, timeout=30.0)
+    elif provider == "groq":
+        if not GROQ_API_KEY:
+            raise ValueError("GROQ_API_KEY must be set to use Groq as chat provider")
+        return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
     else:
-        raise ValueError(f"Unsupported embed provider: {provider}. Must be 'openai' or 'voyage'.")
+        raise ValueError(f"Unsupported provider: {provider}. Must be 'openai', 'voyage', or 'groq'.")
 
 
 # =============================================================================

@@ -7,7 +7,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     conversation_id: Optional[str] = None
     embed_model: Optional[str] = None
-    chat_provider: Optional[Literal["openai", "voyage"]] = None
+    chat_provider: Optional[Literal["openai", "voyage", "groq"]] = None
     chat_model: Optional[str] = None
     message_worth_method: Optional[str] = None
     embed_provider: Optional[Literal["openai", "voyage"]] = None
