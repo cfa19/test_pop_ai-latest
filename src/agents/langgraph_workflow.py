@@ -604,32 +604,6 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
         print(f"[WORKFLOW] Secondary Classifier: Skipping ({classifier_type} classifier - secondary not available)")
         state["workflow_process"].append(f"  ⏭️ Secondary classification not available for {classifier_type}")
 
-    # =========================================================================
-    # STEP 3: Emotion keyword correction (fixes ONNX misclassification)
-    # =========================================================================
-    # The ONNX model sometimes classifies short emotional messages as chitchat.
-    # If the message contains clear emotional indicators and was classified as
-    # chitchat or off_topic, override to emotional (highest priority context).
-    if classification.category in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC):
-        message_lower = state["message"].lower()
-        emotional_keywords = {
-            "sad", "depressed", "anxious", "stressed", "burnout", "burned out",
-            "exhausted", "overwhelmed", "frustrated", "scared", "worried",
-            "lonely", "hopeless", "miserable", "upset", "crying", "afraid",
-            "nervous", "insecure", "panic", "anxiety", "depression", "drained",
-            "helpless", "worthless", "desperate", "suffering", "hurt", "angry",
-            "furious", "devastated", "ashamed", "guilty", "confused", "lost",
-            "stuck", "tired", "broken", "fear", "grief", "grieving",
-            "triste", "deprimido", "ansioso", "estresado", "agotado",
-            "preocupado", "asustado", "frustrado", "solo", "enojado",
-        }
-        if any(kw in message_lower for kw in emotional_keywords):
-            original = classification.category.value
-            classification.category = MessageCategory.EMOTIONAL
-            classification.reasoning = f"Corrected from {original} to emotional (emotional keywords detected). {classification.reasoning}"
-            print(f"[WORKFLOW] Intent Classifier: Corrected {original} → emotional (keyword detection)")
-            state["workflow_process"].append(f"  🔄 Corrected: {original} → emotional (emotional keywords detected)")
-
     state["unified_classification"] = classification
     state["metadata"] = state.get("metadata", {})
     state["metadata"]["category"] = classification.category.value
