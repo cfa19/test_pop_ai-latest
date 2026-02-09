@@ -493,6 +493,7 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
 
         try:
             classifier = get_onnx_classifier()
+            print(f"[WORKFLOW] Intent Classifier: ENGINE=ONNX model={classifier.session.get_modelmeta().producer_name or 'onnxruntime'}")
 
             t0 = time.perf_counter()
             classification = await classifier.classify(state["message"])
@@ -504,10 +505,10 @@ async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> W
             state["workflow_process"].append(f"  📝 Reasoning: {classification.reasoning}")
             state["workflow_process"].append(f"  ⏱️ Primary classification: {elapsed:.3f}s (ONNX)")
 
-        except (ImportError, FileNotFoundError, RuntimeError, ValueError) as e:
+        except (ImportError, FileNotFoundError, RuntimeError, ValueError, Exception) as e:
             # Fallback to OpenAI if ONNX classifier fails
             print(f"[WORKFLOW] ONNX classifier failed: {str(e)}")
-            print("[WORKFLOW] Falling back to OpenAI classifier...")
+            print("[WORKFLOW] Intent Classifier: ENGINE=OpenAI (FALLBACK from ONNX failure)")
             state["workflow_process"].append(f"  ⚠️ ONNX classifier failed: {str(e)}")
             state["workflow_process"].append("  🔄 Falling back to OpenAI classifier")
             t0 = time.perf_counter()
@@ -830,13 +831,12 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
 
         # Fall back to lazy loading if not preloaded
         if gate is None:
-            print("[WORKFLOW] Semantic Gate: Not preloaded, lazy loading...")
-            try:
-                from src.agents.semantic_gate_onnx import get_semantic_gate_onnx
-                gate = get_semantic_gate_onnx()
-            except Exception:
-                from src.agents.semantic_gate import get_semantic_gate
-                gate = get_semantic_gate()
+            print("[WORKFLOW] Semantic Gate: Not preloaded, lazy loading ONNX...")
+            from src.agents.semantic_gate_onnx import get_semantic_gate_onnx
+            gate = get_semantic_gate_onnx()
+
+        gate_type = type(gate).__name__
+        print(f"[WORKFLOW] Semantic Gate: Using {gate_type} engine")
 
         # Check message against hierarchical semantic gate
         predicted_subcategory = classification.subcategory if hasattr(classification, "subcategory") else None
