@@ -1,805 +1,642 @@
 {
-  "model_name": "all-MiniLM-L6-v2 (ONNX quantized)",
-  "model_path": "D:\\VIT\\Work\\Harmonia\\test_pop_ai\\training\\models\\onnx\\semantic_gate",
+  "model_name": "all-MiniLM-L6-v2",
+  "model_path": "training/models/onnx",
   "approach": "hierarchical_thresholds",
   "primary_categories": 8,
-  "secondary_categories": 25,
+  "secondary_categories": 18,
   "global_metrics": {
     "primary": {
-      "mean_threshold": 0.40125,
-      "mean_domain_acceptance": 0.9627133078561897,
-      "mean_offtopic_rejection": 0.9609277514023755,
-      "mean_f1_score": 0.965690606172031
+      "mean_threshold": 0.3375,
+      "mean_domain_acceptance": 0.9688399391575708,
+      "mean_offtopic_rejection": 0.9428663141448868,
+      "mean_f1_score": 0.9815436127197853
     }
   },
   "primary_thresholds": {
-    "rag_query": 0.21,
-    "professional": 0.41,
-    "psychological": 0.48,
-    "learning": 0.44,
-    "social": 0.42,
-    "emotional": 0.42,
-    "aspirational": 0.47,
-    "chitchat": 0.36
+    "aspirational": 0.36,
+    "chitchat": 0.37,
+    "emotional": 0.37,
+    "learning": 0.39,
+    "professional": 0.2,
+    "psychological": 0.43,
+    "rag_query": 0.23,
+    "social": 0.35000000000000003
   },
   "secondary_thresholds": {
-    "professional": {
-      "current_position": 0.43,
-      "skills": 0.41,
-      "certifications": 0.39,
-      "experiences": 0.27
-    },
-    "psychological": {
-      "personality_profile": 0.47,
-      "values_hierarchy": 0.43,
-      "working_styles": 0.49,
-      "motivations_core": 0.56
-    },
-    "learning": {
-      "preferred_format": 0.49,
-      "knowledge": 0.44,
-      "learning_velocity": 0.45
-    },
-    "social": {
-      "people_helped": 0.42,
-      "testimonials": 0.4,
-      "journey_peers": 0.45,
-      "mentors": 0.37
+    "aspirational": {
+      "dream_roles": 0.39,
+      "life_goals": 0.43,
+      "impact_legacy": 0.38,
+      "skill_expertise": 0.37
     },
     "emotional": {
+      "confidence": 0.4,
       "energy_patterns": 0.45,
-      "confidence": 0.41,
       "stress_triggers": 0.44,
-      "celebration_moments": 0.47
+      "celebration_moments": 0.41000000000000003
     },
-    "aspirational": {
-      "dream_roles": 0.47,
-      "salary_expectations": 0.45,
-      "impact_legacy": 0.48,
-      "skill_expertise": 0.46,
-      "values": 0.51,
-      "life_goals": 0.43
+    "learning": {
+      "knowledge": 0.37,
+      "learning_velocity": 0.45,
+      "preferred_format": 0.37
+    },
+    "professional": {},
+    "psychological": {
+      "personality_profile": 0.41000000000000003,
+      "values_hierarchy": 0.38,
+      "motivations_core": 0.45,
+      "working_styles": 0.46
+    },
+    "social": {
+      "mentors": 0.36,
+      "journey_peers": 0.36,
+      "testimonials": 0.3
     }
   },
   "detailed_results": {
     "primary": {
-      "rag_query": {
-        "threshold": 0.21,
-        "metrics": {
-          "threshold": 0.21,
-          "true_positives": 1457,
-          "false_negatives": 34,
-          "true_negatives": 17,
-          "false_positives": 2,
-          "domain_acceptance_rate": 0.97719651240778,
-          "offtopic_rejection_rate": 0.8947368421052632,
-          "precision": 0.9986291980808774,
-          "recall": 0.97719651240778,
-          "f1_score": 0.9877966101694916,
-          "accuracy": 0.976158940397351,
-          "total_domain": 1491,
-          "total_offtopic": 19
-        },
-        "domain_similarity_stats": {
-          "mean": 0.42632412910461426,
-          "std": 0.11348888278007507
-        }
-      },
-      "professional": {
-        "threshold": 0.41,
-        "metrics": {
-          "threshold": 0.41000000000000003,
-          "true_positives": 952,
-          "false_negatives": 42,
-          "true_negatives": 74,
-          "false_positives": 3,
-          "domain_acceptance_rate": 0.9577464788732394,
-          "offtopic_rejection_rate": 0.961038961038961,
-          "precision": 0.9968586387434555,
-          "recall": 0.9577464788732394,
-          "f1_score": 0.9769112365315545,
-          "accuracy": 0.957983193277311,
-          "total_domain": 994,
-          "total_offtopic": 77
-        },
-        "domain_similarity_stats": {
-          "mean": 0.5889970064163208,
-          "std": 0.09147799760103226
-        }
-      },
-      "psychological": {
-        "threshold": 0.48,
-        "metrics": {
-          "threshold": 0.48,
-          "true_positives": 967,
-          "false_negatives": 29,
-          "true_negatives": 648,
-          "false_positives": 1,
-          "domain_acceptance_rate": 0.9708835341365462,
-          "offtopic_rejection_rate": 0.9984591679506933,
-          "precision": 0.9989669421487604,
-          "recall": 0.9708835341365462,
-          "f1_score": 0.984725050916497,
-          "accuracy": 0.9817629179331308,
-          "total_domain": 996,
-          "total_offtopic": 649
-        },
-        "domain_similarity_stats": {
-          "mean": 0.6307812333106995,
-          "std": 0.07211852818727493
-        }
-      },
-      "learning": {
-        "threshold": 0.44,
-        "metrics": {
-          "threshold": 0.44,
-          "true_positives": 955,
-          "false_negatives": 44,
-          "true_negatives": 932,
-          "false_positives": 67,
-          "domain_acceptance_rate": 0.955955955955956,
-          "offtopic_rejection_rate": 0.9329329329329329,
-          "precision": 0.9344422700587084,
-          "recall": 0.955955955955956,
-          "f1_score": 0.9450766947055912,
-          "accuracy": 0.9444444444444444,
-          "total_domain": 999,
-          "total_offtopic": 999
-        },
-        "domain_similarity_stats": {
-          "mean": 0.6045946478843689,
-          "std": 0.08725324273109436
-        }
-      },
-      "social": {
-        "threshold": 0.42,
-        "metrics": {
-          "threshold": 0.42,
-          "true_positives": 973,
-          "false_negatives": 26,
-          "true_negatives": 302,
-          "false_positives": 0,
-          "domain_acceptance_rate": 0.973973973973974,
-          "offtopic_rejection_rate": 1.0,
-          "precision": 1.0,
-          "recall": 0.973973973973974,
-          "f1_score": 0.9868154158215011,
-          "accuracy": 0.9800153727901614,
-          "total_domain": 999,
-          "total_offtopic": 302
-        },
-        "domain_similarity_stats": {
-          "mean": 0.6036248803138733,
-          "std": 0.08638576418161392
-        }
-      },
-      "emotional": {
-        "threshold": 0.42,
-        "metrics": {
-          "threshold": 0.42,
-          "true_positives": 951,
-          "false_negatives": 47,
-          "true_negatives": 738,
-          "false_positives": 22,
-          "domain_acceptance_rate": 0.9529058116232465,
-          "offtopic_rejection_rate": 0.9710526315789474,
-          "precision": 0.9773895169578622,
-          "recall": 0.9529058116232465,
-          "f1_score": 0.964992389649924,
-          "accuracy": 0.9607508532423208,
-          "total_domain": 998,
-          "total_offtopic": 760
-        },
-        "domain_similarity_stats": {
-          "mean": 0.5632821917533875,
-          "std": 0.08324918150901794
-        }
-      },
       "aspirational": {
-        "threshold": 0.47,
-        "metrics": {
-          "threshold": 0.47000000000000003,
-          "true_positives": 957,
-          "false_negatives": 40,
-          "true_negatives": 135,
-          "false_positives": 1,
-          "domain_acceptance_rate": 0.9598796389167502,
-          "offtopic_rejection_rate": 0.9926470588235294,
-          "precision": 0.9989561586638831,
-          "recall": 0.9598796389167502,
-          "f1_score": 0.9790281329923274,
-          "accuracy": 0.9638128861429832,
-          "total_domain": 997,
-          "total_offtopic": 136
-        },
-        "domain_similarity_stats": {
-          "mean": 0.6348428726196289,
-          "std": 0.08383914083242416
-        }
-      },
-      "chitchat": {
         "threshold": 0.36,
         "metrics": {
           "threshold": 0.36,
-          "true_positives": 753,
-          "false_negatives": 37,
-          "true_negatives": 1919,
-          "false_positives": 130,
-          "domain_acceptance_rate": 0.9531645569620253,
-          "offtopic_rejection_rate": 0.9365544167886775,
-          "precision": 0.8527746319365799,
-          "recall": 0.9531645569620253,
-          "f1_score": 0.9001793185893604,
-          "accuracy": 0.9411764705882353,
-          "total_domain": 790,
-          "total_offtopic": 2049
+          "true_positives": 5687,
+          "false_negatives": 277,
+          "true_negatives": 316,
+          "false_positives": 36,
+          "domain_acceptance_rate": 0.9535546613011402,
+          "offtopic_rejection_rate": 0.8977272727272727,
+          "precision": 0.9937095928708719,
+          "recall": 0.9535546613011402,
+          "f1_score": 0.9732181055874048,
+          "accuracy": 0.9504433185560481,
+          "total_domain": 5964,
+          "total_offtopic": 352
         },
         "domain_similarity_stats": {
-          "mean": 0.5764979124069214,
-          "std": 0.12037795037031174
+          "mean": 0.5464724898338318,
+          "std": 0.10548918694257736
+        }
+      },
+      "chitchat": {
+        "threshold": 0.37,
+        "metrics": {
+          "threshold": 0.37,
+          "true_positives": 972,
+          "false_negatives": 22,
+          "true_negatives": 102,
+          "false_positives": 0,
+          "domain_acceptance_rate": 0.9778672032193159,
+          "offtopic_rejection_rate": 1.0,
+          "precision": 1.0,
+          "recall": 0.9778672032193159,
+          "f1_score": 0.9888097660223805,
+          "accuracy": 0.9799270072992701,
+          "total_domain": 994,
+          "total_offtopic": 102
+        },
+        "domain_similarity_stats": {
+          "mean": 0.5352484583854675,
+          "std": 0.07265666127204895
+        }
+      },
+      "emotional": {
+        "threshold": 0.37,
+        "metrics": {
+          "threshold": 0.37,
+          "true_positives": 3815,
+          "false_negatives": 184,
+          "true_negatives": 2177,
+          "false_positives": 79,
+          "domain_acceptance_rate": 0.953988497124281,
+          "offtopic_rejection_rate": 0.9649822695035462,
+          "precision": 0.9797123780174628,
+          "recall": 0.953988497124281,
+          "f1_score": 0.9666793361206131,
+          "accuracy": 0.9579536370903278,
+          "total_domain": 3999,
+          "total_offtopic": 2256
+        },
+        "domain_similarity_stats": {
+          "mean": 0.5372517704963684,
+          "std": 0.09129960089921951
+        }
+      },
+      "learning": {
+        "threshold": 0.39,
+        "metrics": {
+          "threshold": 0.39,
+          "true_positives": 2848,
+          "false_negatives": 141,
+          "true_negatives": 170,
+          "false_positives": 36,
+          "domain_acceptance_rate": 0.9528270324523251,
+          "offtopic_rejection_rate": 0.8252427184466019,
+          "precision": 0.9875173370319001,
+          "recall": 0.9528270324523251,
+          "f1_score": 0.9698620807083262,
+          "accuracy": 0.9446009389671362,
+          "total_domain": 2989,
+          "total_offtopic": 206
+        },
+        "domain_similarity_stats": {
+          "mean": 0.5735930800437927,
+          "std": 0.0990920290350914
+        }
+      },
+      "professional": {
+        "threshold": 0.2,
+        "metrics": {
+          "threshold": 0.2,
+          "true_positives": 3946,
+          "false_negatives": 59,
+          "true_negatives": 7,
+          "false_positives": 1,
+          "domain_acceptance_rate": 0.9852684144818976,
+          "offtopic_rejection_rate": 0.875,
+          "precision": 0.9997466430200151,
+          "recall": 0.9852684144818976,
+          "f1_score": 0.9924547283702213,
+          "accuracy": 0.9850485920757538,
+          "total_domain": 4005,
+          "total_offtopic": 8
+        },
+        "domain_similarity_stats": {
+          "mean": 0.5693299174308777,
+          "std": 0.14587558805942535
+        }
+      },
+      "psychological": {
+        "threshold": 0.43,
+        "metrics": {
+          "threshold": 0.43,
+          "true_positives": 3840,
+          "false_negatives": 143,
+          "true_negatives": 550,
+          "false_positives": 9,
+          "domain_acceptance_rate": 0.9640974140095405,
+          "offtopic_rejection_rate": 0.9838998211091234,
+          "precision": 0.9976617303195635,
+          "recall": 0.9640974140095405,
+          "f1_score": 0.9805924412665986,
+          "accuracy": 0.9665345662703655,
+          "total_domain": 3983,
+          "total_offtopic": 559
+        },
+        "domain_similarity_stats": {
+          "mean": 0.5828291177749634,
+          "std": 0.08118321746587753
+        }
+      },
+      "rag_query": {
+        "threshold": 0.23,
+        "metrics": {
+          "threshold": 0.23,
+          "true_positives": 3921,
+          "false_negatives": 107,
+          "true_negatives": 1270,
+          "false_positives": 5,
+          "domain_acceptance_rate": 0.9734359483614697,
+          "offtopic_rejection_rate": 0.996078431372549,
+          "precision": 0.9987264391237901,
+          "recall": 0.9734359483614697,
+          "f1_score": 0.9859190344480765,
+          "accuracy": 0.9788798793135961,
+          "total_domain": 4028,
+          "total_offtopic": 1275
+        },
+        "domain_similarity_stats": {
+          "mean": 0.42141982913017273,
+          "std": 0.10099832713603973
+        }
+      },
+      "social": {
+        "threshold": 0.35000000000000003,
+        "metrics": {
+          "threshold": 0.35000000000000003,
+          "true_positives": 3932,
+          "false_negatives": 41,
+          "true_negatives": 258,
+          "false_positives": 0,
+          "domain_acceptance_rate": 0.9896803423105965,
+          "offtopic_rejection_rate": 1.0,
+          "precision": 1.0,
+          "recall": 0.9896803423105965,
+          "f1_score": 0.9948134092346615,
+          "accuracy": 0.9903096194753014,
+          "total_domain": 3973,
+          "total_offtopic": 258
+        },
+        "domain_similarity_stats": {
+          "mean": 0.5737715363502502,
+          "std": 0.09148340672254562
         }
       }
     },
     "secondary": {
-      "professional": {
-        "current_position": {
-          "threshold": 0.43,
-          "metrics": {
-            "threshold": 0.43,
-            "true_positives": 397,
-            "false_negatives": 18,
-            "true_negatives": 74,
-            "false_positives": 3,
-            "domain_acceptance_rate": 0.9566265060240964,
-            "offtopic_rejection_rate": 0.961038961038961,
-            "precision": 0.9925,
-            "recall": 0.9566265060240964,
-            "f1_score": 0.9742331288343559,
-            "accuracy": 0.9573170731707317,
-            "total_domain": 415,
-            "total_offtopic": 77
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6118022203445435,
-            "std": 0.0899864211678505
-          }
-        },
-        "skills": {
-          "threshold": 0.41,
-          "metrics": {
-            "threshold": 0.41000000000000003,
-            "true_positives": 347,
-            "false_negatives": 12,
-            "true_negatives": 74,
-            "false_positives": 3,
-            "domain_acceptance_rate": 0.9665738161559888,
-            "offtopic_rejection_rate": 0.961038961038961,
-            "precision": 0.9914285714285714,
-            "recall": 0.9665738161559888,
-            "f1_score": 0.9788434414668546,
-            "accuracy": 0.9655963302752294,
-            "total_domain": 359,
-            "total_offtopic": 77
-          },
-          "domain_similarity_stats": {
-            "mean": 0.5807095766067505,
-            "std": 0.08611489832401276
-          }
-        },
-        "certifications": {
+      "aspirational": {
+        "dream_roles": {
           "threshold": 0.39,
           "metrics": {
             "threshold": 0.39,
-            "true_positives": 191,
-            "false_negatives": 6,
-            "true_negatives": 76,
-            "false_positives": 1,
-            "domain_acceptance_rate": 0.9695431472081218,
-            "offtopic_rejection_rate": 0.987012987012987,
-            "precision": 0.9947916666666666,
-            "recall": 0.9695431472081218,
-            "f1_score": 0.9820051413881749,
-            "accuracy": 0.9744525547445255,
-            "total_domain": 197,
-            "total_offtopic": 77
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6350039839744568,
-            "std": 0.11149031668901443
-          }
-        },
-        "experiences": {
-          "threshold": 0.27,
-          "metrics": {
-            "threshold": 0.27,
-            "true_positives": 23,
-            "false_negatives": 0,
-            "true_negatives": 73,
-            "false_positives": 4,
-            "domain_acceptance_rate": 1.0,
-            "offtopic_rejection_rate": 0.948051948051948,
-            "precision": 0.8518518518518519,
-            "recall": 1.0,
-            "f1_score": 0.92,
-            "accuracy": 0.96,
-            "total_domain": 23,
-            "total_offtopic": 77
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6324154734611511,
-            "std": 0.13536685705184937
-          }
-        }
-      },
-      "psychological": {
-        "personality_profile": {
-          "threshold": 0.47,
-          "metrics": {
-            "threshold": 0.47000000000000003,
-            "true_positives": 314,
-            "false_negatives": 4,
-            "true_negatives": 648,
-            "false_positives": 1,
-            "domain_acceptance_rate": 0.9874213836477987,
-            "offtopic_rejection_rate": 0.9984591679506933,
-            "precision": 0.9968253968253968,
-            "recall": 0.9874213836477987,
-            "f1_score": 0.9921011058451816,
-            "accuracy": 0.9948293691830403,
-            "total_domain": 318,
-            "total_offtopic": 649
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6363784670829773,
-            "std": 0.06881741434335709
-          }
-        },
-        "values_hierarchy": {
-          "threshold": 0.43,
-          "metrics": {
-            "threshold": 0.43,
-            "true_positives": 245,
-            "false_negatives": 0,
-            "true_negatives": 648,
-            "false_positives": 1,
-            "domain_acceptance_rate": 1.0,
-            "offtopic_rejection_rate": 0.9984591679506933,
-            "precision": 0.9959349593495935,
-            "recall": 1.0,
-            "f1_score": 0.9979633401221996,
-            "accuracy": 0.9988814317673378,
-            "total_domain": 245,
-            "total_offtopic": 649
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6604361534118652,
-            "std": 0.06850401312112808
-          }
-        },
-        "working_styles": {
-          "threshold": 0.49,
-          "metrics": {
-            "threshold": 0.49,
-            "true_positives": 243,
+            "true_positives": 981,
             "false_negatives": 8,
-            "true_negatives": 645,
-            "false_positives": 4,
-            "domain_acceptance_rate": 0.9681274900398407,
-            "offtopic_rejection_rate": 0.9938366718027735,
-            "precision": 0.9838056680161943,
-            "recall": 0.9681274900398407,
-            "f1_score": 0.9759036144578314,
-            "accuracy": 0.9866666666666667,
-            "total_domain": 251,
-            "total_offtopic": 649
+            "true_negatives": 199,
+            "false_positives": 1,
+            "domain_acceptance_rate": 0.9919110212335692,
+            "offtopic_rejection_rate": 0.995,
+            "precision": 0.9989816700610998,
+            "recall": 0.9919110212335692,
+            "f1_score": 0.9954337899543378,
+            "accuracy": 0.992430613961312,
+            "total_domain": 989,
+            "total_offtopic": 200
           },
           "domain_similarity_stats": {
-            "mean": 0.6512660384178162,
-            "std": 0.07442684471607208
-          }
-        },
-        "motivations_core": {
-          "threshold": 0.56,
-          "metrics": {
-            "threshold": 0.56,
-            "true_positives": 174,
-            "false_negatives": 8,
-            "true_negatives": 649,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9560439560439561,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9560439560439561,
-            "f1_score": 0.9775280898876404,
-            "accuracy": 0.9903730445246691,
-            "total_domain": 182,
-            "total_offtopic": 649
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6934142112731934,
-            "std": 0.08101903647184372
-          }
-        }
-      },
-      "learning": {
-        "preferred_format": {
-          "threshold": 0.49,
-          "metrics": {
-            "threshold": 0.49,
-            "true_positives": 486,
-            "false_negatives": 25,
-            "true_negatives": 985,
-            "false_positives": 14,
-            "domain_acceptance_rate": 0.9510763209393346,
-            "offtopic_rejection_rate": 0.985985985985986,
-            "precision": 0.972,
-            "recall": 0.9510763209393346,
-            "f1_score": 0.9614243323442137,
-            "accuracy": 0.9741721854304636,
-            "total_domain": 511,
-            "total_offtopic": 999
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6305464506149292,
-            "std": 0.07760609686374664
-          }
-        },
-        "knowledge": {
-          "threshold": 0.44,
-          "metrics": {
-            "threshold": 0.44,
-            "true_positives": 265,
-            "false_negatives": 12,
-            "true_negatives": 963,
-            "false_positives": 36,
-            "domain_acceptance_rate": 0.9566787003610109,
-            "offtopic_rejection_rate": 0.963963963963964,
-            "precision": 0.8803986710963455,
-            "recall": 0.9566787003610109,
-            "f1_score": 0.9169550173010381,
-            "accuracy": 0.9623824451410659,
-            "total_domain": 277,
-            "total_offtopic": 999
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6105751991271973,
-            "std": 0.09005612134933472
-          }
-        },
-        "learning_velocity": {
-          "threshold": 0.45,
-          "metrics": {
-            "threshold": 0.45,
-            "true_positives": 204,
-            "false_negatives": 7,
-            "true_negatives": 910,
-            "false_positives": 89,
-            "domain_acceptance_rate": 0.966824644549763,
-            "offtopic_rejection_rate": 0.9109109109109109,
-            "precision": 0.6962457337883959,
-            "recall": 0.966824644549763,
-            "f1_score": 0.8095238095238096,
-            "accuracy": 0.9206611570247933,
-            "total_domain": 211,
-            "total_offtopic": 999
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6255787014961243,
-            "std": 0.0898638665676117
-          }
-        }
-      },
-      "social": {
-        "people_helped": {
-          "threshold": 0.42,
-          "metrics": {
-            "threshold": 0.42,
-            "true_positives": 225,
-            "false_negatives": 4,
-            "true_negatives": 302,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.982532751091703,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.982532751091703,
-            "f1_score": 0.9911894273127753,
-            "accuracy": 0.992467043314501,
-            "total_domain": 229,
-            "total_offtopic": 302
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6290227174758911,
-            "std": 0.08261962980031967
-          }
-        },
-        "testimonials": {
-          "threshold": 0.4,
-          "metrics": {
-            "threshold": 0.4,
-            "true_positives": 261,
-            "false_negatives": 2,
-            "true_negatives": 302,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9923954372623575,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9923954372623575,
-            "f1_score": 0.9961832061068702,
-            "accuracy": 0.9964601769911504,
-            "total_domain": 263,
-            "total_offtopic": 302
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6182436347007751,
-            "std": 0.08808983117341995
-          }
-        },
-        "journey_peers": {
-          "threshold": 0.45,
-          "metrics": {
-            "threshold": 0.45,
-            "true_positives": 321,
-            "false_negatives": 14,
-            "true_negatives": 302,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9582089552238806,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9582089552238806,
-            "f1_score": 0.9786585365853658,
-            "accuracy": 0.978021978021978,
-            "total_domain": 335,
-            "total_offtopic": 302
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6127861738204956,
-            "std": 0.0890064388513565
-          }
-        },
-        "mentors": {
-          "threshold": 0.37,
-          "metrics": {
-            "threshold": 0.37,
-            "true_positives": 172,
-            "false_negatives": 0,
-            "true_negatives": 302,
-            "false_positives": 0,
-            "domain_acceptance_rate": 1.0,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 1.0,
-            "f1_score": 1.0,
-            "accuracy": 1.0,
-            "total_domain": 172,
-            "total_offtopic": 302
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6575590372085571,
-            "std": 0.1151663213968277
-          }
-        }
-      },
-      "emotional": {
-        "energy_patterns": {
-          "threshold": 0.45,
-          "metrics": {
-            "threshold": 0.45,
-            "true_positives": 279,
-            "false_negatives": 14,
-            "true_negatives": 744,
-            "false_positives": 16,
-            "domain_acceptance_rate": 0.9522184300341296,
-            "offtopic_rejection_rate": 0.9789473684210527,
-            "precision": 0.9457627118644067,
-            "recall": 0.9522184300341296,
-            "f1_score": 0.9489795918367346,
-            "accuracy": 0.9715099715099715,
-            "total_domain": 293,
-            "total_offtopic": 760
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6284400224685669,
-            "std": 0.10200054943561554
-          }
-        },
-        "confidence": {
-          "threshold": 0.41,
-          "metrics": {
-            "threshold": 0.41000000000000003,
-            "true_positives": 164,
-            "false_negatives": 4,
-            "true_negatives": 760,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9761904761904762,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9761904761904762,
-            "f1_score": 0.9879518072289156,
-            "accuracy": 0.9956896551724138,
-            "total_domain": 168,
-            "total_offtopic": 760
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6275057792663574,
-            "std": 0.1051325723528862
-          }
-        },
-        "stress_triggers": {
-          "threshold": 0.44,
-          "metrics": {
-            "threshold": 0.44,
-            "true_positives": 263,
-            "false_negatives": 9,
-            "true_negatives": 745,
-            "false_positives": 15,
-            "domain_acceptance_rate": 0.9669117647058824,
-            "offtopic_rejection_rate": 0.9802631578947368,
-            "precision": 0.9460431654676259,
-            "recall": 0.9669117647058824,
-            "f1_score": 0.9563636363636363,
-            "accuracy": 0.9767441860465116,
-            "total_domain": 272,
-            "total_offtopic": 760
-          },
-          "domain_similarity_stats": {
-            "mean": 0.5962186455726624,
-            "std": 0.08546696603298187
-          }
-        },
-        "celebration_moments": {
-          "threshold": 0.47,
-          "metrics": {
-            "threshold": 0.47000000000000003,
-            "true_positives": 252,
-            "false_negatives": 13,
-            "true_negatives": 757,
-            "false_positives": 3,
-            "domain_acceptance_rate": 0.9509433962264151,
-            "offtopic_rejection_rate": 0.9960526315789474,
-            "precision": 0.9882352941176471,
-            "recall": 0.9509433962264151,
-            "f1_score": 0.9692307692307692,
-            "accuracy": 0.984390243902439,
-            "total_domain": 265,
-            "total_offtopic": 760
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6158746480941772,
-            "std": 0.0874137207865715
-          }
-        }
-      },
-      "aspirational": {
-        "dream_roles": {
-          "threshold": 0.47,
-          "metrics": {
-            "threshold": 0.47000000000000003,
-            "true_positives": 417,
-            "false_negatives": 5,
-            "true_negatives": 136,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9881516587677726,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9881516587677726,
-            "f1_score": 0.9940405244338498,
-            "accuracy": 0.9910394265232975,
-            "total_domain": 422,
-            "total_offtopic": 136
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6697717308998108,
-            "std": 0.07446181774139404
-          }
-        },
-        "salary_expectations": {
-          "threshold": 0.45,
-          "metrics": {
-            "threshold": 0.45,
-            "true_positives": 21,
-            "false_negatives": 0,
-            "true_negatives": 136,
-            "false_positives": 0,
-            "domain_acceptance_rate": 1.0,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 1.0,
-            "f1_score": 1.0,
-            "accuracy": 1.0,
-            "total_domain": 21,
-            "total_offtopic": 136
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6691954135894775,
-            "std": 0.09315601736307144
-          }
-        },
-        "impact_legacy": {
-          "threshold": 0.48,
-          "metrics": {
-            "threshold": 0.48,
-            "true_positives": 186,
-            "false_negatives": 7,
-            "true_negatives": 136,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9637305699481865,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9637305699481865,
-            "f1_score": 0.9815303430079156,
-            "accuracy": 0.9787234042553191,
-            "total_domain": 193,
-            "total_offtopic": 136
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6511457562446594,
-            "std": 0.08880295604467392
-          }
-        },
-        "skill_expertise": {
-          "threshold": 0.46,
-          "metrics": {
-            "threshold": 0.46,
-            "true_positives": 189,
-            "false_negatives": 9,
-            "true_negatives": 136,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.9545454545454546,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.9545454545454546,
-            "f1_score": 0.9767441860465117,
-            "accuracy": 0.9730538922155688,
-            "total_domain": 198,
-            "total_offtopic": 136
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6469608545303345,
-            "std": 0.0951724499464035
-          }
-        },
-        "values": {
-          "threshold": 0.51,
-          "metrics": {
-            "threshold": 0.51,
-            "true_positives": 118,
-            "false_negatives": 5,
-            "true_negatives": 136,
-            "false_positives": 0,
-            "domain_acceptance_rate": 0.959349593495935,
-            "offtopic_rejection_rate": 1.0,
-            "precision": 1.0,
-            "recall": 0.959349593495935,
-            "f1_score": 0.979253112033195,
-            "accuracy": 0.9806949806949807,
-            "total_domain": 123,
-            "total_offtopic": 136
-          },
-          "domain_similarity_stats": {
-            "mean": 0.6774663329124451,
-            "std": 0.08138572424650192
+            "mean": 0.5918154120445251,
+            "std": 0.0817456990480423
           }
         },
         "life_goals": {
           "threshold": 0.43,
           "metrics": {
             "threshold": 0.43,
-            "true_positives": 38,
-            "false_negatives": 2,
-            "true_negatives": 120,
-            "false_positives": 16,
-            "domain_acceptance_rate": 0.95,
-            "offtopic_rejection_rate": 0.8823529411764706,
-            "precision": 0.7037037037037037,
-            "recall": 0.95,
-            "f1_score": 0.8085106382978724,
-            "accuracy": 0.8977272727272727,
-            "total_domain": 40,
-            "total_offtopic": 136
+            "true_positives": 946,
+            "false_negatives": 49,
+            "true_negatives": 284,
+            "false_positives": 62,
+            "domain_acceptance_rate": 0.9507537688442211,
+            "offtopic_rejection_rate": 0.8208092485549133,
+            "precision": 0.9384920634920635,
+            "recall": 0.9507537688442211,
+            "f1_score": 0.944583125312032,
+            "accuracy": 0.9172259507829977,
+            "total_domain": 995,
+            "total_offtopic": 346
           },
           "domain_similarity_stats": {
-            "mean": 0.6256996393203735,
-            "std": 0.10696054250001907
+            "mean": 0.5634854435920715,
+            "std": 0.07544587552547455
+          }
+        },
+        "impact_legacy": {
+          "threshold": 0.38,
+          "metrics": {
+            "threshold": 0.38,
+            "true_positives": 977,
+            "false_negatives": 15,
+            "true_negatives": 200,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9848790322580645,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9848790322580645,
+            "f1_score": 0.9923819197562215,
+            "accuracy": 0.9874161073825504,
+            "total_domain": 992,
+            "total_offtopic": 200
+          },
+          "domain_similarity_stats": {
+            "mean": 0.5806035399436951,
+            "std": 0.08760941028594971
+          }
+        },
+        "skill_expertise": {
+          "threshold": 0.37,
+          "metrics": {
+            "threshold": 0.37,
+            "true_positives": 960,
+            "false_negatives": 32,
+            "true_negatives": 199,
+            "false_positives": 1,
+            "domain_acceptance_rate": 0.967741935483871,
+            "offtopic_rejection_rate": 0.995,
+            "precision": 0.9989594172736732,
+            "recall": 0.967741935483871,
+            "f1_score": 0.9831029185867897,
+            "accuracy": 0.9723154362416108,
+            "total_domain": 992,
+            "total_offtopic": 200
+          },
+          "domain_similarity_stats": {
+            "mean": 0.564782977104187,
+            "std": 0.09726621210575104
+          }
+        }
+      },
+      "emotional": {
+        "confidence": {
+          "threshold": 0.4,
+          "metrics": {
+            "threshold": 0.4,
+            "true_positives": 995,
+            "false_negatives": 9,
+            "true_negatives": 86,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9910358565737052,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9910358565737052,
+            "f1_score": 0.9954977488744372,
+            "accuracy": 0.9917431192660551,
+            "total_domain": 1004,
+            "total_offtopic": 86
+          },
+          "domain_similarity_stats": {
+            "mean": 0.5933259129524231,
+            "std": 0.07705149054527283
+          }
+        },
+        "energy_patterns": {
+          "threshold": 0.45,
+          "metrics": {
+            "threshold": 0.45,
+            "true_positives": 953,
+            "false_negatives": 45,
+            "true_negatives": 732,
+            "false_positives": 21,
+            "domain_acceptance_rate": 0.9549098196392786,
+            "offtopic_rejection_rate": 0.9721115537848606,
+            "precision": 0.9784394250513347,
+            "recall": 0.9549098196392786,
+            "f1_score": 0.9665314401622718,
+            "accuracy": 0.9623072529982867,
+            "total_domain": 998,
+            "total_offtopic": 753
+          },
+          "domain_similarity_stats": {
+            "mean": 0.6111711263656616,
+            "std": 0.08660566061735153
+          }
+        },
+        "stress_triggers": {
+          "threshold": 0.44,
+          "metrics": {
+            "threshold": 0.44,
+            "true_positives": 966,
+            "false_negatives": 36,
+            "true_negatives": 75,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9640718562874252,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9640718562874252,
+            "f1_score": 0.9817073170731708,
+            "accuracy": 0.9665738161559888,
+            "total_domain": 1002,
+            "total_offtopic": 75
+          },
+          "domain_similarity_stats": {
+            "mean": 0.6083700656890869,
+            "std": 0.08743350207805634
+          }
+        },
+        "celebration_moments": {
+          "threshold": 0.41000000000000003,
+          "metrics": {
+            "threshold": 0.41000000000000003,
+            "true_positives": 950,
+            "false_negatives": 45,
+            "true_negatives": 1294,
+            "false_positives": 48,
+            "domain_acceptance_rate": 0.9547738693467337,
+            "offtopic_rejection_rate": 0.9642324888226528,
+            "precision": 0.9519038076152304,
+            "recall": 0.9547738693467337,
+            "f1_score": 0.9533366783743101,
+            "accuracy": 0.9602053915275995,
+            "total_domain": 995,
+            "total_offtopic": 1342
+          },
+          "domain_similarity_stats": {
+            "mean": 0.5819590091705322,
+            "std": 0.09197580069303513
+          }
+        }
+      },
+      "learning": {
+        "knowledge": {
+          "threshold": 0.37,
+          "metrics": {
+            "threshold": 0.37,
+            "true_positives": 957,
+            "false_negatives": 44,
+            "true_negatives": 38,
+            "false_positives": 8,
+            "domain_acceptance_rate": 0.9560439560439561,
+            "offtopic_rejection_rate": 0.8260869565217391,
+            "precision": 0.9917098445595854,
+            "recall": 0.9560439560439561,
+            "f1_score": 0.9735503560528992,
+            "accuracy": 0.9503342884431709,
+            "total_domain": 1001,
+            "total_offtopic": 46
+          },
+          "domain_similarity_stats": {
+            "mean": 0.5338813662528992,
+            "std": 0.09103891998529434
+          }
+        },
+        "learning_velocity": {
+          "threshold": 0.45,
+          "metrics": {
+            "threshold": 0.45,
+            "true_positives": 947,
+            "false_negatives": 43,
+            "true_negatives": 130,
+            "false_positives": 13,
+            "domain_acceptance_rate": 0.9565656565656566,
+            "offtopic_rejection_rate": 0.9090909090909091,
+            "precision": 0.9864583333333333,
+            "recall": 0.9565656565656566,
+            "f1_score": 0.9712820512820513,
+            "accuracy": 0.9505736981465137,
+            "total_domain": 990,
+            "total_offtopic": 143
+          },
+          "domain_similarity_stats": {
+            "mean": 0.619622528553009,
+            "std": 0.08904130011796951
+          }
+        },
+        "preferred_format": {
+          "threshold": 0.37,
+          "metrics": {
+            "threshold": 0.37,
+            "true_positives": 994,
+            "false_negatives": 4,
+            "true_negatives": 17,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9959919839679359,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9959919839679359,
+            "f1_score": 0.9979919678714859,
+            "accuracy": 0.9960591133004926,
+            "total_domain": 998,
+            "total_offtopic": 17
+          },
+          "domain_similarity_stats": {
+            "mean": 0.6232735514640808,
+            "std": 0.08582542836666107
+          }
+        }
+      },
+      "professional": {},
+      "psychological": {
+        "personality_profile": {
+          "threshold": 0.41000000000000003,
+          "metrics": {
+            "threshold": 0.41000000000000003,
+            "true_positives": 987,
+            "false_negatives": 9,
+            "true_negatives": 144,
+            "false_positives": 1,
+            "domain_acceptance_rate": 0.9909638554216867,
+            "offtopic_rejection_rate": 0.993103448275862,
+            "precision": 0.9989878542510121,
+            "recall": 0.9909638554216867,
+            "f1_score": 0.9949596774193549,
+            "accuracy": 0.9912357581069238,
+            "total_domain": 996,
+            "total_offtopic": 145
+          },
+          "domain_similarity_stats": {
+            "mean": 0.605131208896637,
+            "std": 0.0700329914689064
+          }
+        },
+        "values_hierarchy": {
+          "threshold": 0.38,
+          "metrics": {
+            "threshold": 0.38,
+            "true_positives": 995,
+            "false_negatives": 3,
+            "true_negatives": 61,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.996993987975952,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.996993987975952,
+            "f1_score": 0.9984947315604616,
+            "accuracy": 0.9971671388101983,
+            "total_domain": 998,
+            "total_offtopic": 61
+          },
+          "domain_similarity_stats": {
+            "mean": 0.616331160068512,
+            "std": 0.07721462845802307
+          }
+        },
+        "motivations_core": {
+          "threshold": 0.45,
+          "metrics": {
+            "threshold": 0.45,
+            "true_positives": 956,
+            "false_negatives": 43,
+            "true_negatives": 294,
+            "false_positives": 12,
+            "domain_acceptance_rate": 0.9569569569569569,
+            "offtopic_rejection_rate": 0.9607843137254902,
+            "precision": 0.987603305785124,
+            "recall": 0.9569569569569569,
+            "f1_score": 0.9720386375190646,
+            "accuracy": 0.9578544061302682,
+            "total_domain": 999,
+            "total_offtopic": 306
+          },
+          "domain_similarity_stats": {
+            "mean": 0.607978343963623,
+            "std": 0.08585304021835327
+          }
+        },
+        "working_styles": {
+          "threshold": 0.46,
+          "metrics": {
+            "threshold": 0.46,
+            "true_positives": 962,
+            "false_negatives": 28,
+            "true_negatives": 47,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9717171717171718,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9717171717171718,
+            "f1_score": 0.9856557377049181,
+            "accuracy": 0.9729990356798457,
+            "total_domain": 990,
+            "total_offtopic": 47
+          },
+          "domain_similarity_stats": {
+            "mean": 0.6425469517707825,
+            "std": 0.07792417705059052
+          }
+        }
+      },
+      "social": {
+        "mentors": {
+          "threshold": 0.36,
+          "metrics": {
+            "threshold": 0.36,
+            "true_positives": 993,
+            "false_negatives": 5,
+            "true_negatives": 42,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9949899799599199,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9949899799599199,
+            "f1_score": 0.9974886991461578,
+            "accuracy": 0.9951923076923077,
+            "total_domain": 998,
+            "total_offtopic": 42
+          },
+          "domain_similarity_stats": {
+            "mean": 0.640658974647522,
+            "std": 0.09429802000522614
+          }
+        },
+        "journey_peers": {
+          "threshold": 0.36,
+          "metrics": {
+            "threshold": 0.36,
+            "true_positives": 980,
+            "false_negatives": 5,
+            "true_negatives": 124,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9949238578680203,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9949238578680203,
+            "f1_score": 0.9974554707379135,
+            "accuracy": 0.9954914337240758,
+            "total_domain": 985,
+            "total_offtopic": 124
+          },
+          "domain_similarity_stats": {
+            "mean": 0.5860613584518433,
+            "std": 0.0769713744521141
+          }
+        },
+        "testimonials": {
+          "threshold": 0.3,
+          "metrics": {
+            "threshold": 0.3,
+            "true_positives": 995,
+            "false_negatives": 2,
+            "true_negatives": 83,
+            "false_positives": 0,
+            "domain_acceptance_rate": 0.9979939819458375,
+            "offtopic_rejection_rate": 1.0,
+            "precision": 1.0,
+            "recall": 0.9979939819458375,
+            "f1_score": 0.998995983935743,
+            "accuracy": 0.9981481481481481,
+            "total_domain": 997,
+            "total_offtopic": 83
+          },
+          "domain_similarity_stats": {
+            "mean": 0.609338641166687,
+            "std": 0.09153018146753311
           }
         }
       }
@@ -807,14 +644,14 @@
   },
   "offtopic_distribution": {
     "primary": {
-      "emotional": 760,
-      "learning": 999,
-      "chitchat": 2049,
-      "psychological": 649,
-      "rag_query": 19,
-      "social": 302,
-      "aspirational": 136,
-      "professional": 77
+      "emotional": 2256,
+      "rag_query": 1275,
+      "psychological": 559,
+      "aspirational": 352,
+      "social": 258,
+      "learning": 206,
+      "chitchat": 102,
+      "professional": 8
     }
   }
 }

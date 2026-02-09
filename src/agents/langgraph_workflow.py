@@ -28,67 +28,6 @@ from src.utils.conversation_memory import format_conversation_context, search_co
 from src.utils.rag import hybrid_search
 
 # =============================================================================
-# Language Detection (lingua-py — accurate, local, no API calls)
-# =============================================================================
-
-_lingua_detector = None
-
-
-def _get_lingua_detector():
-    """Get or create the lingua language detector (singleton, lazy-loaded)."""
-    global _lingua_detector
-    if _lingua_detector is None:
-        from lingua import Language, LanguageDetectorBuilder
-
-        languages = [
-            Language.ENGLISH, Language.SPANISH, Language.FRENCH, Language.GERMAN,
-            Language.PORTUGUESE, Language.ITALIAN, Language.DUTCH, Language.RUSSIAN,
-            Language.ARABIC, Language.CHINESE, Language.JAPANESE, Language.KOREAN,
-            Language.HINDI, Language.TURKISH, Language.POLISH, Language.SWEDISH,
-            Language.DANISH, Language.BOKMAL, Language.FINNISH,
-        ]
-        _lingua_detector = LanguageDetectorBuilder.from_languages(*languages).build()
-    return _lingua_detector
-
-
-# Mapping from lingua Language to ISO 639-1 code
-_LINGUA_TO_ISO = None
-
-
-def _get_lingua_iso_map():
-    """Build lingua Language → ISO 639-1 code mapping (lazy)."""
-    global _LINGUA_TO_ISO
-    if _LINGUA_TO_ISO is None:
-        from lingua import Language
-        _LINGUA_TO_ISO = {
-            Language.ENGLISH: "en", Language.SPANISH: "es", Language.FRENCH: "fr",
-            Language.GERMAN: "de", Language.PORTUGUESE: "pt", Language.ITALIAN: "it",
-            Language.DUTCH: "nl", Language.RUSSIAN: "ru", Language.ARABIC: "ar",
-            Language.CHINESE: "zh", Language.JAPANESE: "ja", Language.KOREAN: "ko",
-            Language.HINDI: "hi", Language.TURKISH: "tr", Language.POLISH: "pl",
-            Language.SWEDISH: "sv", Language.DANISH: "da", Language.BOKMAL: "no",
-            Language.FINNISH: "fi",
-        }
-    return _LINGUA_TO_ISO
-
-
-def _detect_language_lingua(text: str) -> str:
-    """
-    Detect language using lingua-py (local, fast, accurate for short text).
-
-    Returns ISO 639-1 code (e.g., "en", "es", "fr").
-    Falls back to "en" if detection fails.
-    """
-    detector = _get_lingua_detector()
-    iso_map = _get_lingua_iso_map()
-
-    result = detector.detect_language_of(text)
-    if result is None:
-        return "en"
-    return iso_map.get(result, "en")
-
-
-# =============================================================================
 # Intent Classification Models
 # =============================================================================
 
@@ -430,7 +369,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     The response will be translated back to the original language at the end.
 
     Flow:
-    1. Detect message language using lingua-py (local, accurate)
+    1. Detect message language using fast library (langdetect)
     2. If not English, translate to English using LLM
     3. Store original message and language info in state
     4. Update message field with translated version (or original if English)
@@ -443,9 +382,19 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     # Store original message
     state["original_message"] = message
 
-    # Detect language using lingua-py (accurate, local, no API calls)
+    # Detect language using fast library (langdetect)
     try:
-        language_code = _detect_language_lingua(message)
+        # Try to import langdetect (lazy import to avoid startup dependency)
+        try:
+            from langdetect import DetectorFactory, detect
+
+            # Set seed for consistent results
+            DetectorFactory.seed = 0
+        except ImportError:
+            raise ImportError("langdetect library not found. Install with: pip install langdetect")
+
+        # Detect language (fast, no API call)
+        language_code = detect(message).lower()
 
         # Map language code to full name
         language_names = {
@@ -458,7 +407,8 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             "nl": "Dutch",
             "ru": "Russian",
             "ar": "Arabic",
-            "zh": "Chinese",
+            "zh-cn": "Chinese (Simplified)",
+            "zh-tw": "Chinese (Traditional)",
             "ja": "Japanese",
             "ko": "Korean",
             "hi": "Hindi",
@@ -474,7 +424,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
         state["detected_language"] = language_code
         state["language_name"] = language_name
 
-        print(f"[WORKFLOW] Language Detection: Detected {language_name} ({language_code}) [lingua]")
+        print(f"[WORKFLOW] Language Detection: Detected {language_name} ({language_code}) [langdetect]")
         state["workflow_process"].append(f"  ✅ Detected language: {language_name} ({language_code})")
 
         # If not English, translate to English
@@ -482,33 +432,44 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             print(f"[WORKFLOW] Translation: Translating from {language_name} to English...")
             state["workflow_process"].append(f"  🔄 Translating from {language_name} to English")
 
-            # Use deep-translator (Google Translate — free, fast, local)
+            # Try Google Translate first (fast, free)
             translated_message = None
             translation_method = None
 
             try:
-                from deep_translator import GoogleTranslator
+                from googletrans import Translator
 
-                translated_message = GoogleTranslator(source=language_code, target="en").translate(message)
+                translator = Translator()
+                result = await translator.translate(message, src=language_code, dest="en")
+                translated_message = result.text
                 translation_method = "Google Translate"
-                print("[WORKFLOW] Translation: Using Google Translate (free, via deep-translator)")
+                print("[WORKFLOW] Translation: Using Google Translate (fast, free)")
             except Exception as e:
                 print(f"[WORKFLOW] Translation: Google Translate failed ({str(e)}), falling back to LLM")
                 state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
 
-            # Fallback to LLM only if Google Translate fails
+            # Fallback to LLM if Google Translate fails
             if translated_message is None:
                 translation_prompt = f"""Translate the following text from {language_name} to English.
-Return ONLY the English translation, nothing else."""
+
+IMPORTANT:
+- Preserve the original meaning and intent
+- Maintain the tone (casual, formal, emotional, etc.)
+- Keep the same level of detail
+- Do NOT add explanations or notes
+- Return ONLY the English translation
+
+Text to translate:
+"""
 
                 translation_response = chat_client.chat.completions.create(
                     model=state["chat_model"],
                     messages=[{"role": "system", "content": translation_prompt}, {"role": "user", "content": message}],
-                    temperature=0.1,
+                    temperature=0.3,
                 )
 
                 translated_message = translation_response.choices[0].message.content.strip()
-                translation_method = "LLM fallback"
+                translation_method = "LLM (OpenAI)"
                 print("[WORKFLOW] Translation: Using LLM fallback")
 
             # Update message with translation
@@ -531,9 +492,9 @@ Return ONLY the English translation, nothing else."""
         state["metadata"]["is_translated"] = state["is_translated"]
 
     except ImportError as e:
-        # lingua-py not installed, assume English and continue
-        print(f"[WORKFLOW] Language Detection: lingua not installed - {str(e)}, assuming English")
-        state["workflow_process"].append("  ⚠️ lingua not installed, assuming English")
+        # langdetect not installed, assume English and continue
+        print(f"[WORKFLOW] Language Detection: Library not installed - {str(e)}, assuming English")
+        state["workflow_process"].append("  ⚠️ langdetect not installed, assuming English")
         state["detected_language"] = "en"
         state["language_name"] = "English"
         state["is_translated"] = False
@@ -918,17 +879,6 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
         (should_pass, primary_similarity, best_primary, best_secondary, secondary_similarity) = gate.check_message(
             state["message"], classification.category.value, predicted_subcategory
         )
-
-        # Classifier confidence bypass: if classifier is highly confident,
-        # trust it over the semantic gate (avoids false blocks on valid messages
-        # like "i feel depressed" where embedding similarity may be low but
-        # the classifier correctly identifies the category)
-        if not should_pass and classification.confidence >= 0.65:
-            should_pass = True
-            print(f"[WORKFLOW] Semantic Gate: Confidence bypass ({classification.confidence:.0%} >= 65%), allowing through despite low similarity")
-            state["workflow_process"].append(
-                f"  🔓 Confidence bypass: classifier {classification.confidence:.0%} >= 65%, overriding semantic gate block"
-            )
 
         # Get thresholds for predicted category/subcategory
         primary_threshold = gate.get_threshold(classification.category.value)
@@ -1394,30 +1344,42 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
         translated_response = None
         translation_method = None
 
-        # Use deep-translator (Google Translate — free, fast, local)
+        # Try Google Translate first (fast, free)
         try:
-            from deep_translator import GoogleTranslator
+            from googletrans import Translator
 
-            translated_response = GoogleTranslator(source="en", target=language_code).translate(state["response"])
+            translator = Translator()
+            result = await translator.translate(state["response"], src="en", dest=language_code)
+            translated_response = result.text
             translation_method = "Google Translate"
-            print("[WORKFLOW] Response Translation: Using Google Translate (free, via deep-translator)")
+            print("[WORKFLOW] Response Translation: Using Google Translate (fast, free)")
         except Exception as e:
             print(f"[WORKFLOW] Response Translation: Google Translate failed ({str(e)}), falling back to LLM")
             state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
 
-        # Fallback to LLM only if Google Translate fails
+        # Fallback to LLM if Google Translate fails
         if translated_response is None:
             translation_prompt = f"""Translate the following career coaching response from English to {language_name}.
-Return ONLY the {language_name} translation, nothing else."""
+
+IMPORTANT:
+- Preserve the professional and empathetic tone
+- Maintain all meaning and nuance
+- Keep the same level of formality
+- Adapt cultural references if needed for {language_name} speakers
+- Do NOT add explanations or notes
+- Return ONLY the {language_name} translation
+
+Response to translate:
+"""
 
             translation_response = chat_client.chat.completions.create(
                 model=state["chat_model"],
                 messages=[{"role": "system", "content": translation_prompt}, {"role": "user", "content": state["response"]}],
-                temperature=0.1,
+                temperature=0.3,
             )
 
             translated_response = translation_response.choices[0].message.content.strip()
-            translation_method = "LLM fallback"
+            translation_method = "LLM (OpenAI)"
             print("[WORKFLOW] Response Translation: Using LLM fallback")
 
         print(f"[WORKFLOW] Response Translation: Translated ({len(translated_response)} characters) [{translation_method}]")
