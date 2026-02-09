@@ -3,7 +3,7 @@
 # ===========================================
 
 # API Framework
-fastapi>=0.104.0
+fastapi>=0.104.0,<1.0
 uvicorn[standard]>=0.24.0
 
 # LLM & Embeddings
@@ -16,7 +16,7 @@ supabase>=2.3.0
 
 # ML Inference (ONNX - lightweight, ~50MB total)
 onnxruntime>=1.16.0
-transformers>=4.36.0
+transformers>=4.36.0,<5.0
 numpy>=1.24.0
 
 # Model Hub (download ONNX models from HuggingFace)
