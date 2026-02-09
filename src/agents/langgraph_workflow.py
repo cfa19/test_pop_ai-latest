@@ -402,8 +402,9 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
         top_result = lang_results[0]
         language_code = str(top_result.lang).lower()
 
-        # If confidence is low (<80%) or message is very short, default to English
-        if top_result.prob < 0.80 or len(message.split()) <= 5:
+        # If confidence is low (<80%) AND message is very short, default to English
+        # (short messages with high confidence are likely correct, e.g. "me siento deprimido" → Spanish)
+        if top_result.prob < 0.80 and len(message.split()) <= 5:
             if language_code != "en":
                 print(f"[WORKFLOW] Language Detection: Low confidence ({top_result.prob:.0%}) or short message, defaulting to English")
                 language_code = "en"
