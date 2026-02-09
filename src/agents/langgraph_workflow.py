@@ -365,157 +365,104 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     """
     Node 0: Language Detection and Translation
 
-    Detects the language of the user message and translates to English if needed.
-    The response will be translated back to the original language at the end.
+    Uses Google Translate (via deep-translator) as the PRIMARY language detector.
+    langdetect is only used as a hint for back-translation language code.
+    No LLM calls — zero cost for translation.
 
-    Flow:
-    1. Detect message language using fast library (langdetect)
-    2. If not English, translate to English using LLM
-    3. Store original message and language info in state
-    4. Update message field with translated version (or original if English)
+    Strategy:
+    1. Always send message to GoogleTranslator(source='auto', target='en')
+    2. If result is same text → message was English, no translation needed
+    3. If result differs → message was non-English, use translated version
+    4. langdetect provides the language code hint for back-translation only
     """
     print("[WORKFLOW] Language Detection: Analyzing message language...")
     state["workflow_process"].append("🌐 Language Detection: Analyzing message language")
 
     message = state["message"]
-
-    # Store original message
     state["original_message"] = message
 
-    # Detect language using fast library (langdetect)
+    # Map language code to full name
+    language_names = {
+        "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+        "pt": "Portuguese", "it": "Italian", "nl": "Dutch", "ru": "Russian",
+        "ar": "Arabic", "zh-cn": "Chinese (Simplified)", "zh-tw": "Chinese (Traditional)",
+        "ja": "Japanese", "ko": "Korean", "hi": "Hindi", "tr": "Turkish",
+        "pl": "Polish", "sv": "Swedish", "da": "Danish", "no": "Norwegian",
+        "fi": "Finnish", "ca": "Catalan", "ro": "Romanian", "hu": "Hungarian",
+        "cs": "Czech", "el": "Greek", "he": "Hebrew", "th": "Thai",
+        "vi": "Vietnamese", "id": "Indonesian", "uk": "Ukrainian",
+        "bg": "Bulgarian", "hr": "Croatian",
+    }
+
+    # === STEP 1: Google Translate as primary detector + translator ===
+    # Google's auto-detect is far more accurate than any local library
     try:
-        # Try to import langdetect (lazy import to avoid startup dependency)
-        try:
-            from langdetect import DetectorFactory, detect
+        from deep_translator import GoogleTranslator
 
-            # Set seed for consistent results
-            DetectorFactory.seed = 0
-        except ImportError:
-            raise ImportError("langdetect library not found. Install with: pip install langdetect")
+        translated_message = GoogleTranslator(source='auto', target='en').translate(message)
 
-        # Detect language (fast, no API call)
-        language_code = detect(message).lower()
+        if translated_message and translated_message.strip():
+            if translated_message.strip().lower() == message.strip().lower():
+                # Google returned same text → message is already English
+                state["detected_language"] = "en"
+                state["language_name"] = "English"
+                state["is_translated"] = False
+                print("[WORKFLOW] Language Detection: Google Translate confirmed English")
+                state["workflow_process"].append("  ✅ Google Translate confirmed: English (no translation needed)")
+            else:
+                # Google translated it → message was non-English
+                state["message"] = translated_message
+                state["is_translated"] = True
 
-        # Map language code to full name
-        language_names = {
-            "en": "English",
-            "es": "Spanish",
-            "fr": "French",
-            "de": "German",
-            "pt": "Portuguese",
-            "it": "Italian",
-            "nl": "Dutch",
-            "ru": "Russian",
-            "ar": "Arabic",
-            "zh-cn": "Chinese (Simplified)",
-            "zh-tw": "Chinese (Traditional)",
-            "ja": "Japanese",
-            "ko": "Korean",
-            "hi": "Hindi",
-            "tr": "Turkish",
-            "pl": "Polish",
-            "sv": "Swedish",
-            "da": "Danish",
-            "no": "Norwegian",
-            "fi": "Finnish",
-        }
-        language_name = language_names.get(language_code, language_code.capitalize())
+                # Use langdetect as a HINT for the language code (for back-translation)
+                lang_hint = _detect_language_hint(message)
+                state["detected_language"] = lang_hint
+                state["language_name"] = language_names.get(lang_hint, lang_hint.capitalize())
 
-        state["detected_language"] = language_code
-        state["language_name"] = language_name
-
-        print(f"[WORKFLOW] Language Detection: Detected {language_name} ({language_code}) [langdetect]")
-        state["workflow_process"].append(f"  ✅ Detected language: {language_name} ({language_code})")
-
-        # If not English, translate to English
-        if language_code != "en" and not language_code.startswith("en-"):
-            print(f"[WORKFLOW] Translation: Translating from {language_name} to English...")
-            state["workflow_process"].append(f"  🔄 Translating from {language_name} to English")
-
-            # Try Google Translate first (fast, free)
-            translated_message = None
-            translation_method = None
-
-            try:
-                from googletrans import Translator
-
-                translator = Translator()
-                result = await translator.translate(message, src=language_code, dest="en")
-                translated_message = result.text
-                translation_method = "Google Translate"
-                print("[WORKFLOW] Translation: Using Google Translate (fast, free)")
-            except Exception as e:
-                print(f"[WORKFLOW] Translation: Google Translate failed ({str(e)}), falling back to LLM")
-                state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
-
-            # Fallback to LLM if Google Translate fails
-            if translated_message is None:
-                translation_prompt = f"""Translate the following text from {language_name} to English.
-
-IMPORTANT:
-- Preserve the original meaning and intent
-- Maintain the tone (casual, formal, emotional, etc.)
-- Keep the same level of detail
-- Do NOT add explanations or notes
-- Return ONLY the English translation
-
-Text to translate:
-"""
-
-                translation_response = chat_client.chat.completions.create(
-                    model=state["chat_model"],
-                    messages=[{"role": "system", "content": translation_prompt}, {"role": "user", "content": message}],
-                    temperature=0.3,
-                )
-
-                translated_message = translation_response.choices[0].message.content.strip()
-                translation_method = "LLM (OpenAI)"
-                print("[WORKFLOW] Translation: Using LLM fallback")
-
-            # Update message with translation
-            state["message"] = translated_message
-            state["is_translated"] = True
-
-            print(f"[WORKFLOW] Translation: '{message[:50]}...' → '{translated_message[:50]}...' [{translation_method}]")
-            state["workflow_process"].append(f"  ✅ Translated to English: '{translated_message[:60]}...' [{translation_method}]")
-
+                print(f"[WORKFLOW] Translation: '{message[:50]}' → '{translated_message[:50]}' [Google Translate]")
+                print(f"[WORKFLOW] Language hint for back-translation: {state['language_name']} ({lang_hint})")
+                state["workflow_process"].append(f"  ✅ Translated to English: '{translated_message[:60]}' [Google Translate]")
+                state["workflow_process"].append(f"  📌 Back-translation target: {state['language_name']} ({lang_hint})")
         else:
-            # Message is already in English
+            # Empty result — assume English
+            state["detected_language"] = "en"
+            state["language_name"] = "English"
             state["is_translated"] = False
-            print("[WORKFLOW] Language Detection: Message is in English, no translation needed")
-            state["workflow_process"].append("  ✅ Message is in English, no translation needed")
-
-        # Update metadata
-        state["metadata"] = state.get("metadata", {})
-        state["metadata"]["detected_language"] = language_code
-        state["metadata"]["language_name"] = language_name
-        state["metadata"]["is_translated"] = state["is_translated"]
-
-    except ImportError as e:
-        # langdetect not installed, assume English and continue
-        print(f"[WORKFLOW] Language Detection: Library not installed - {str(e)}, assuming English")
-        state["workflow_process"].append("  ⚠️ langdetect not installed, assuming English")
-        state["detected_language"] = "en"
-        state["language_name"] = "English"
-        state["is_translated"] = False
-        state["metadata"] = state.get("metadata", {})
-        state["metadata"]["detected_language"] = "en"
-        state["metadata"]["language_name"] = "English"
-        state["metadata"]["is_translated"] = False
+            print("[WORKFLOW] Language Detection: Empty Google Translate result, assuming English")
 
     except Exception as e:
-        # If language detection fails for any reason, assume English and continue
-        print(f"[WORKFLOW] Language Detection: Error - {str(e)}, assuming English")
-        state["workflow_process"].append("  ⚠️ Detection error, assuming English")
+        # If Google Translate fails entirely, fall back to langdetect + no translation
+        print(f"[WORKFLOW] Language Detection: Google Translate failed ({e}), assuming English")
+        state["workflow_process"].append(f"  ⚠️ Google Translate failed: {e}, assuming English")
         state["detected_language"] = "en"
         state["language_name"] = "English"
         state["is_translated"] = False
-        state["metadata"] = state.get("metadata", {})
-        state["metadata"]["detected_language"] = "en"
-        state["metadata"]["language_name"] = "English"
-        state["metadata"]["is_translated"] = False
+
+    # Update metadata
+    state["metadata"] = state.get("metadata", {})
+    state["metadata"]["detected_language"] = state["detected_language"]
+    state["metadata"]["language_name"] = state["language_name"]
+    state["metadata"]["is_translated"] = state["is_translated"]
 
     return state
+
+
+def _detect_language_hint(text: str) -> str:
+    """
+    Use langdetect to get a language code hint for back-translation.
+    This is NOT used for the primary detection (Google Translate handles that).
+    Falls back to 'es' (Spanish) if detection fails, since it's the most common
+    non-English language for this application.
+    """
+    try:
+        from langdetect import DetectorFactory, detect_langs
+
+        DetectorFactory.seed = 0
+        probabilities = detect_langs(text)
+        best = probabilities[0]
+        return best.lang.lower()
+    except Exception:
+        return "es"
 
 
 async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
@@ -1322,11 +1269,7 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
     Final Node: Response Translation
 
     Translates the English response back to the user's original language if needed.
-
-    Flow:
-    1. Check if message was translated (is_translated flag)
-    2. If yes, translate response back to original language
-    3. Update response field with translation
+    Uses deep-translator (Google Translate) — no LLM calls needed.
     """
     # Skip if message was not translated
     if not state.get("is_translated", False):
@@ -1341,59 +1284,23 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
     state["workflow_process"].append(f"🌐 Response Translation: Translating to {language_name}")
 
     try:
-        translated_response = None
-        translation_method = None
+        from deep_translator import GoogleTranslator
 
-        # Try Google Translate first (fast, free)
-        try:
-            from googletrans import Translator
+        translated_response = GoogleTranslator(source='en', target=language_code).translate(state["response"])
 
-            translator = Translator()
-            result = await translator.translate(state["response"], src="en", dest=language_code)
-            translated_response = result.text
-            translation_method = "Google Translate"
-            print("[WORKFLOW] Response Translation: Using Google Translate (fast, free)")
-        except Exception as e:
-            print(f"[WORKFLOW] Response Translation: Google Translate failed ({str(e)}), falling back to LLM")
-            state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
-
-        # Fallback to LLM if Google Translate fails
-        if translated_response is None:
-            translation_prompt = f"""Translate the following career coaching response from English to {language_name}.
-
-IMPORTANT:
-- Preserve the professional and empathetic tone
-- Maintain all meaning and nuance
-- Keep the same level of formality
-- Adapt cultural references if needed for {language_name} speakers
-- Do NOT add explanations or notes
-- Return ONLY the {language_name} translation
-
-Response to translate:
-"""
-
-            translation_response = chat_client.chat.completions.create(
-                model=state["chat_model"],
-                messages=[{"role": "system", "content": translation_prompt}, {"role": "user", "content": state["response"]}],
-                temperature=0.3,
+        if translated_response and translated_response.strip():
+            print(f"[WORKFLOW] Response Translation: Translated ({len(translated_response)} characters) [Google Translate]")
+            state["workflow_process"].append(
+                f"  ✅ Translated response to {language_name} ({len(translated_response)} characters) [Google Translate]"
             )
-
-            translated_response = translation_response.choices[0].message.content.strip()
-            translation_method = "LLM (OpenAI)"
-            print("[WORKFLOW] Response Translation: Using LLM fallback")
-
-        print(f"[WORKFLOW] Response Translation: Translated ({len(translated_response)} characters) [{translation_method}]")
-        state["workflow_process"].append(
-            f"  ✅ Translated response to {language_name} ({len(translated_response)} characters) [{translation_method}]"
-        )
-
-        # Update response with translation
-        state["response"] = translated_response
+            state["response"] = translated_response
+        else:
+            print("[WORKFLOW] Response Translation: Empty result, keeping English response")
+            state["workflow_process"].append("  ⚠️ Empty translation result, keeping English response")
 
     except Exception as e:
-        # If all translation methods fail, keep English response and log error
-        print(f"[WORKFLOW] Response Translation: Error - {str(e)}, keeping English response")
-        state["workflow_process"].append(f"  ⚠️ Translation failed: {str(e)}, keeping English response")
+        print(f"[WORKFLOW] Response Translation: Error - {e}, keeping English response")
+        state["workflow_process"].append(f"  ⚠️ Translation failed: {e}, keeping English response")
 
     return state
 
