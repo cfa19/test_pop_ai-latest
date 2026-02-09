@@ -482,44 +482,33 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             print(f"[WORKFLOW] Translation: Translating from {language_name} to English...")
             state["workflow_process"].append(f"  🔄 Translating from {language_name} to English")
 
-            # Try Google Translate first (fast, free)
+            # Use deep-translator (Google Translate — free, fast, local)
             translated_message = None
             translation_method = None
 
             try:
-                from googletrans import Translator
+                from deep_translator import GoogleTranslator
 
-                translator = Translator()
-                result = await translator.translate(message, src=language_code, dest="en")
-                translated_message = result.text
+                translated_message = GoogleTranslator(source=language_code, target="en").translate(message)
                 translation_method = "Google Translate"
-                print("[WORKFLOW] Translation: Using Google Translate (fast, free)")
+                print("[WORKFLOW] Translation: Using Google Translate (free, via deep-translator)")
             except Exception as e:
                 print(f"[WORKFLOW] Translation: Google Translate failed ({str(e)}), falling back to LLM")
                 state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
 
-            # Fallback to LLM if Google Translate fails
+            # Fallback to LLM only if Google Translate fails
             if translated_message is None:
                 translation_prompt = f"""Translate the following text from {language_name} to English.
-
-IMPORTANT:
-- Preserve the original meaning and intent
-- Maintain the tone (casual, formal, emotional, etc.)
-- Keep the same level of detail
-- Do NOT add explanations or notes
-- Return ONLY the English translation
-
-Text to translate:
-"""
+Return ONLY the English translation, nothing else."""
 
                 translation_response = chat_client.chat.completions.create(
                     model=state["chat_model"],
                     messages=[{"role": "system", "content": translation_prompt}, {"role": "user", "content": message}],
-                    temperature=0.3,
+                    temperature=0.1,
                 )
 
                 translated_message = translation_response.choices[0].message.content.strip()
-                translation_method = "LLM (OpenAI)"
+                translation_method = "LLM fallback"
                 print("[WORKFLOW] Translation: Using LLM fallback")
 
             # Update message with translation
@@ -1405,42 +1394,30 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
         translated_response = None
         translation_method = None
 
-        # Try Google Translate first (fast, free)
+        # Use deep-translator (Google Translate — free, fast, local)
         try:
-            from googletrans import Translator
+            from deep_translator import GoogleTranslator
 
-            translator = Translator()
-            result = await translator.translate(state["response"], src="en", dest=language_code)
-            translated_response = result.text
+            translated_response = GoogleTranslator(source="en", target=language_code).translate(state["response"])
             translation_method = "Google Translate"
-            print("[WORKFLOW] Response Translation: Using Google Translate (fast, free)")
+            print("[WORKFLOW] Response Translation: Using Google Translate (free, via deep-translator)")
         except Exception as e:
             print(f"[WORKFLOW] Response Translation: Google Translate failed ({str(e)}), falling back to LLM")
             state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
 
-        # Fallback to LLM if Google Translate fails
+        # Fallback to LLM only if Google Translate fails
         if translated_response is None:
             translation_prompt = f"""Translate the following career coaching response from English to {language_name}.
-
-IMPORTANT:
-- Preserve the professional and empathetic tone
-- Maintain all meaning and nuance
-- Keep the same level of formality
-- Adapt cultural references if needed for {language_name} speakers
-- Do NOT add explanations or notes
-- Return ONLY the {language_name} translation
-
-Response to translate:
-"""
+Return ONLY the {language_name} translation, nothing else."""
 
             translation_response = chat_client.chat.completions.create(
                 model=state["chat_model"],
                 messages=[{"role": "system", "content": translation_prompt}, {"role": "user", "content": state["response"]}],
-                temperature=0.3,
+                temperature=0.1,
             )
 
             translated_response = translation_response.choices[0].message.content.strip()
-            translation_method = "LLM (OpenAI)"
+            translation_method = "LLM fallback"
             print("[WORKFLOW] Response Translation: Using LLM fallback")
 
         print(f"[WORKFLOW] Response Translation: Translated ({len(translated_response)} characters) [{translation_method}]")
