@@ -33,15 +33,15 @@ app = FastAPI(
 async def preload_models():
     """Preload ML models on startup."""
     from src.config import (
-        INTENT_CLASSIFIER_TYPE,
         INTENT_CLASSIFIER_MODEL_PATH,
+        PRIMARY_INTENT_CLASSIFIER_TYPE,
         SEMANTIC_GATE_ENABLED,
         set_intent_classifier,
-        set_semantic_gate
+        set_semantic_gate,
     )
 
     # Preload intent classifier
-    if INTENT_CLASSIFIER_TYPE == "onnx":
+    if PRIMARY_INTENT_CLASSIFIER_TYPE == "onnx":
         try:
             logger.info("Preloading ONNX intent classifier...")
             from src.agents.onnx_classifier import get_onnx_classifier
@@ -54,7 +54,7 @@ async def preload_models():
             logger.warning(f"Failed to preload ONNX classifier: {e}")
             logger.warning("Will fall back to lazy loading on first request")
     else:
-        logger.info(f"Intent classifier type: {INTENT_CLASSIFIER_TYPE} (no preloading needed)")
+        logger.info(f"Intent classifier type: {PRIMARY_INTENT_CLASSIFIER_TYPE} (no preloading needed)")
 
     # Preload semantic gate if enabled
     if SEMANTIC_GATE_ENABLED:
