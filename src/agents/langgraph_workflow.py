@@ -893,6 +893,17 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
             state["message"], classification.category.value, predicted_subcategory
         )
 
+        # Classifier confidence bypass: if classifier is highly confident,
+        # trust it over the semantic gate (avoids false blocks on valid messages
+        # like "i feel depressed" where embedding similarity may be low but
+        # the classifier correctly identifies the category)
+        if not should_pass and classification.confidence >= 0.65:
+            should_pass = True
+            print(f"[WORKFLOW] Semantic Gate: Confidence bypass ({classification.confidence:.0%} >= 65%), allowing through despite low similarity")
+            state["workflow_process"].append(
+                f"  🔓 Confidence bypass: classifier {classification.confidence:.0%} >= 65%, overriding semantic gate block"
+            )
+
         # Get thresholds for predicted category/subcategory
         primary_threshold = gate.get_threshold(classification.category.value)
         secondary_threshold = gate.get_threshold(classification.category.value, predicted_subcategory) if predicted_subcategory else None
