@@ -111,17 +111,9 @@ CLAUDE.md
 .ruff_cache/
 pyproject.toml
 
-# Training - exclude large model files, keep ONNX quantized for deploy
+# Training - exclude all model files (ONNX models hosted on HuggingFace Hub)
+training/models/
 training/scripts/models/
-training/models/all-MiniLM-L6-v2/
-training/models/all-miniM/
-training/models/full_onnx/
-# Keep ONNX quantized models for deploy:
-# training/models/onnx/classifier/    (~22MB primary)
-# training/models/onnx/secondary/     (~65MB x6 secondary)
-# training/models/onnx/semantic_gate/  (~52KB centroids)
-# Exclude non-quantized ONNX FP32 (large, any depth)
-training/models/onnx/**/model.onnx
 
 # SSH keys
 keys/

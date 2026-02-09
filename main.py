@@ -23,6 +23,34 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Pop Skills Chatbot API", description="API for the chatbot with RAG", version="1.0.0")
 
 
+def download_models():
+    """Download ONNX models from HuggingFace Hub if not available locally."""
+    from pathlib import Path
+
+    from src.config import HF_REPO_ID, INTENT_CLASSIFIER_MODEL_PATH, ONNX_HIERARCHY_PATH
+
+    # Check if models already exist locally (e.g., dev environment)
+    primary_exists = Path(INTENT_CLASSIFIER_MODEL_PATH).exists()
+    hierarchy_exists = (Path(ONNX_HIERARCHY_PATH) / "secondary").exists()
+
+    if primary_exists and hierarchy_exists:
+        logger.info("ONNX models found locally, skipping HF Hub download")
+        return
+
+    logger.info(f"Downloading ONNX models from HuggingFace Hub: {HF_REPO_ID}")
+    from huggingface_hub import snapshot_download
+
+    local_path = snapshot_download(repo_id=HF_REPO_ID)
+
+    # Update config paths to point to downloaded models
+    config.INTENT_CLASSIFIER_MODEL_PATH = str(Path(local_path) / "classifier")
+    config.ONNX_HIERARCHY_PATH = local_path
+
+    logger.info(f"Models downloaded to {local_path}")
+    logger.info(f"  Primary classifier: {config.INTENT_CLASSIFIER_MODEL_PATH}")
+    logger.info(f"  ONNX hierarchy: {config.ONNX_HIERARCHY_PATH}")
+
+
 async def preload_models():
     """Preload ML models on startup."""
     from src.config import (
@@ -70,6 +98,9 @@ async def preload_models():
 async def startup_event():
     """Initialize resources on application startup."""
     logger.info("Starting Pop Skills AI API...")
+
+    # Download ONNX models from HuggingFace Hub (if not available locally)
+    download_models()
 
     # Start message queue for sequential processing
     await start_message_queue()

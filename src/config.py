@@ -55,6 +55,9 @@ SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("
 SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
 SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_tuning.json")
 
+# HuggingFace Hub (model downloads for deployment)
+HF_REPO_ID = os.getenv("HF_REPO_ID", "cfa0819/pop-skills-onnx")
+
 # Groq (fast entity extraction + chat - optional)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")

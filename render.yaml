@@ -32,17 +32,15 @@ services:
       - key: EMBED_PROVIDER
         value: voyage
 
-      # Intent Classifier (ONNX - local, no downloads)
-      - key: INTENT_CLASSIFIER_TYPE
+      # Intent Classifier (ONNX from HuggingFace Hub)
+      - key: PRIMARY_INTENT_CLASSIFIER_TYPE
         value: onnx
-      - key: INTENT_CLASSIFIER_MODEL_PATH
-        value: training/models/onnx/classifier
+      - key: HF_REPO_ID
+        value: cfa0819/pop-skills-onnx
 
-      # Semantic Gate
+      # Semantic Gate (disabled - requires PyTorch)
       - key: SEMANTIC_GATE_ENABLED
-        value: "true"
-      - key: SEMANTIC_GATE_TUNING_PATH
-        value: training/results/semantic_gate_tuning.json
+        value: "false"
 
       # JWT
       - key: JWT_ALGORITHM
