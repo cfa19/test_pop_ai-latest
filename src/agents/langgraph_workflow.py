@@ -453,14 +453,14 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     """
     Node 0: Language Detection and Translation
 
-    Uses Google Translate as the PRIMARY language detector and translator.
+    Uses FastText (lid.176.bin) as the PRIMARY language detector.
+    Google Translate API as fallback detector, and deep-translator for translation.
     No LLM calls — zero cost for translation.
 
     Strategy:
-    1. GoogleTranslator(source='auto', target='en') translates the message
-    2. If result is same text → message was English, no translation needed
-    3. If result differs → message was non-English, use translated version
-    4. FastText detects source language (primary), Google Translate API as fallback
+    1. FastText detects source language (primary), Google API as fallback
+    2. If English → no translation needed
+    3. If non-English → translate to English using GoogleTranslator
     """
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])
@@ -470,49 +470,41 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     message = state["message"]
     state["original_message"] = message
 
-    # === STEP 1: Google Translate as primary detector + translator ===
-    # Google's auto-detect is far more accurate than any local library
-    try:
-        from deep_translator import GoogleTranslator
+    # === STEP 1: Detect language — FastText (primary) → Google API (fallback) ===
+    lang_hint = _detect_language_fasttext(message) or _detect_language_google(message) or "es"
+    state["detected_language"] = lang_hint
+    state["language_name"] = LANGUAGE_NAMES.get(lang_hint, lang_hint.capitalize())
 
-        translated_message = GoogleTranslator(source='auto', target='en').translate(message)
+    if lang_hint == "en":
+        # === English — no translation needed ===
+        state["is_translated"] = False
+        print(f"[WORKFLOW] Language Detection: Detected English (no translation needed)")
+        state["workflow_process"].append(f"  ✅ Detected: English (no translation needed)")
+    else:
+        # === Non-English — translate to English ===
+        print(f"[WORKFLOW] Language Detection: Detected {state['language_name']} ({lang_hint}), translating...")
+        try:
+            from deep_translator import GoogleTranslator
 
-        if translated_message and translated_message.strip():
-            if translated_message.strip().lower() == message.strip().lower():
-                # Google returned same text → message is already English
-                state["detected_language"] = "en"
-                state["language_name"] = "English"
-                state["is_translated"] = False
-                print("[WORKFLOW] Language Detection: Google Translate confirmed English")
-                state["workflow_process"].append("  ✅ Google Translate confirmed: English (no translation needed)")
-            else:
-                # Google translated it → message was non-English
+            translated_message = GoogleTranslator(source=lang_hint, target='en').translate(message)
+
+            if translated_message and translated_message.strip():
                 state["message"] = translated_message
                 state["is_translated"] = True
-
-                # Detect source language: FastText (primary) → Google API (fallback)
-                lang_hint = _detect_language_fasttext(message) or _detect_language_google(message) or "es"
-                state["detected_language"] = lang_hint
-                state["language_name"] = LANGUAGE_NAMES.get(lang_hint, lang_hint.capitalize())
-
                 print(f"[WORKFLOW] Translation: '{message[:50]}' → '{translated_message[:50]}' [Google Translate]")
-                print(f"[WORKFLOW] Language for back-translation: {state['language_name']} ({lang_hint})")
                 state["workflow_process"].append(f"  ✅ Translated to English: '{translated_message[:60]}' [Google Translate]")
                 state["workflow_process"].append(f"  📌 Back-translation target: {state['language_name']} ({lang_hint})")
-        else:
-            # Empty result — assume English
-            state["detected_language"] = "en"
-            state["language_name"] = "English"
-            state["is_translated"] = False
-            print("[WORKFLOW] Language Detection: Empty Google Translate result, assuming English")
+            else:
+                # Empty translation result — keep original
+                state["is_translated"] = False
+                print(f"[WORKFLOW] Translation: Empty result, keeping original message")
+                state["workflow_process"].append(f"  ⚠️ Translation returned empty, keeping original")
 
-    except Exception as e:
-        # If Google Translate fails entirely, fall back to langdetect + no translation
-        print(f"[WORKFLOW] Language Detection: Google Translate failed ({e}), assuming English")
-        state["workflow_process"].append(f"  ⚠️ Google Translate failed: {e}, assuming English")
-        state["detected_language"] = "en"
-        state["language_name"] = "English"
-        state["is_translated"] = False
+        except Exception as e:
+            # Translation failed — keep original message
+            state["is_translated"] = False
+            print(f"[WORKFLOW] Translation failed ({e}), keeping original message")
+            state["workflow_process"].append(f"  ⚠️ Translation failed: {e}, keeping original")
 
     # Update metadata
     state["metadata"] = state.get("metadata", {})
