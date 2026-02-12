@@ -33,9 +33,9 @@ info/
 *.md
 
 # Training - exclude data, scripts, configs (not needed at runtime)
-# Keep: training/models/onnx/ (ONNX models) and training/results/ (thresholds)
+# Keep: training/models/onnx/ (ONNX models), training/results/ (thresholds),
+#        training/constants/info_extraction.py (used by workflow at runtime)
 training/data/
-training/constants/
 training/utils/
 training/scripts/
 training/inference.py
