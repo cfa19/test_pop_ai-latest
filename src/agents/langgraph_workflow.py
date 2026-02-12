@@ -27,7 +27,6 @@ from voyageai.client import Client as VoyageAI
 import src.config as _config
 from src.config import (
     LANG_DETECT_ALLOWED_LANGUAGES,
-    LANG_DETECT_FASTTEXT_MODEL_PATH,
     LANGUAGE_NAMES,
     PRIMARY_INTENT_CLASSIFIER_TYPE,
     SEMANTIC_GATE_ENABLED,
@@ -399,8 +398,8 @@ def _detect_language_fasttext(message: str) -> str:
         c = code.split("-")[0].lower()[:2]
         return c if c in allowed else "fr"
 
-    if not LANG_DETECT_FASTTEXT_MODEL_PATH or not Path(LANG_DETECT_FASTTEXT_MODEL_PATH).exists():
-        print(f"[WORKFLOW] Language Detection: FastText model not found at '{LANG_DETECT_FASTTEXT_MODEL_PATH}', defaulting to 'fr'")
+    if not _config.LANG_DETECT_FASTTEXT_MODEL_PATH or not Path(_config.LANG_DETECT_FASTTEXT_MODEL_PATH).exists():
+        print(f"[WORKFLOW] Language Detection: FastText model not found at '{_config.LANG_DETECT_FASTTEXT_MODEL_PATH}', defaulting to 'fr'")
         return "fr"
 
     try:
@@ -409,8 +408,8 @@ def _detect_language_fasttext(message: str) -> str:
         # Load model once and cache
         if _fasttext_model is None:
             fasttext.FastText.eprint = lambda x: None  # suppress stderr warnings
-            _fasttext_model = fasttext.load_model(LANG_DETECT_FASTTEXT_MODEL_PATH)
-            print(f"[WORKFLOW] Language Detection: FastText model loaded from {LANG_DETECT_FASTTEXT_MODEL_PATH}")
+            _fasttext_model = fasttext.load_model(_config.LANG_DETECT_FASTTEXT_MODEL_PATH)
+            print(f"[WORKFLOW] Language Detection: FastText model loaded from {_config.LANG_DETECT_FASTTEXT_MODEL_PATH}")
 
         pred = _fasttext_model.predict(message.replace("\n", " "))
         if pred and pred[0]:
