@@ -3,6 +3,7 @@ Backend FastAPI for the Chatbot with RAG
 """
 
 import argparse
+import asyncio
 import logging
 import os
 
@@ -114,21 +115,34 @@ async def preload_models():
         logger.info("Semantic gate disabled (no preloading needed)")
 
 
+_models_ready = False
+
+
+async def _background_model_setup():
+    """Download and preload models in background so the server port opens immediately."""
+    global _models_ready
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, download_models)
+        await preload_models()
+        _models_ready = True
+        logger.info("Background model setup complete - ready to serve requests")
+    except Exception as e:
+        logger.error(f"Background model setup failed: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize resources on application startup."""
     logger.info("Starting Pop Skills AI API...")
 
-    # Download ONNX models from HuggingFace Hub (if not available locally)
-    download_models()
-
-    # Start message queue for sequential processing
+    # Start message queue for sequential processing (fast, non-blocking)
     await start_message_queue()
     logger.info("Message queue initialized")
 
-    # Preload ML models (intent classifier, semantic gate)
-    await preload_models()
-    logger.info("Model preloading complete")
+    # Download and preload models in background (don't block port binding)
+    asyncio.create_task(_background_model_setup())
+    logger.info("Model download/preload scheduled in background")
 
 
 @app.on_event("shutdown")
@@ -156,7 +170,7 @@ app.include_router(chat_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "models_ready": _models_ready}
 
 
 if __name__ == "__main__":
