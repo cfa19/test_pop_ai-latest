@@ -433,11 +433,15 @@ def _detect_language_fasttext(message: str) -> str | None:
         pred = _fasttext_model.predict(message.replace("\n", " "))
         if pred and pred[0]:
             label = pred[0][0]
+            confidence = pred[1][0] if pred[1] else 0.0
             if label.startswith("__label__"):
                 raw = label.replace("__label__", "").lower()[:2]
+                print(f"[WORKFLOW] Language Detection: FastText raw prediction = '{raw}' (confidence={confidence:.3f}, allowed={allowed})")
                 if raw in allowed:
                     print(f"[WORKFLOW] Language Detection: FastText detected '{raw}'")
                     return raw
+                else:
+                    print(f"[WORKFLOW] Language Detection: FastText predicted '{raw}' but not in allowed set, ignoring")
     except Exception as e:
         print(f"[WORKFLOW] Language Detection: FastText failed ({e})")
 
