@@ -19,14 +19,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-# Silence noisy health-check access logs (Render pings /health every few seconds)
-class _HealthCheckFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        return '"GET /health' not in record.getMessage()
-
-
-logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
-
 # ===============================
 # FASTAPI APP
 # ===============================
@@ -191,11 +183,6 @@ app.add_middleware(
 
 # Include routes
 app.include_router(chat_router)
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "models_ready": config.MODELS_READY}
 
 
 if __name__ == "__main__":
