@@ -51,20 +51,6 @@ def download_models():
     config.SEMANTIC_GATE_CENTROIDS_DIR = str(Path(local_path) / "semantic_gate")
     config.SEMANTIC_GATE_TUNING_PATH = str(Path(local_path) / "semantic_gate" / "semantic_gate_hierarchical_tuning.json")
 
-    # FastText language detection model (lid.176.bin)
-    fasttext_path = Path(local_path) / "fasttext" / "lid.176.bin"
-    if fasttext_path.exists():
-        config.LANG_DETECT_FASTTEXT_MODEL_PATH = str(fasttext_path)
-        logger.info(f"  FastText model: {fasttext_path} ({fasttext_path.stat().st_size / 1024 / 1024:.1f} MB)")
-    else:
-        logger.warning(f"  FastText model NOT found at {fasttext_path}")
-        # List what's actually in the fasttext directory
-        ft_dir = Path(local_path) / "fasttext"
-        if ft_dir.exists():
-            logger.warning(f"  FastText dir contents: {list(ft_dir.iterdir())}")
-        else:
-            logger.warning(f"  FastText dir does not exist: {ft_dir}")
-
     logger.info(f"Models downloaded to {local_path}")
     logger.info(f"  Primary classifier: {config.INTENT_CLASSIFIER_MODEL_PATH}")
     logger.info(f"  ONNX hierarchy: {config.ONNX_HIERARCHY_PATH}")
@@ -127,18 +113,6 @@ async def preload_models():
 async def _background_model_setup():
     """Download and preload models in background so the server port opens immediately."""
     try:
-        # Log numpy/fasttext versions for debugging
-        try:
-            import numpy as np
-            logger.info(f"NumPy version: {np.__version__}")
-        except Exception as e:
-            logger.warning(f"NumPy import failed: {e}")
-        try:
-            import fasttext
-            logger.info(f"FastText imported successfully (module: {fasttext.__file__})")
-        except Exception as e:
-            logger.warning(f"FastText import failed: {e}")
-
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, download_models)
         await preload_models()
