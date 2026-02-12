@@ -417,7 +417,9 @@ def _detect_language_fasttext(message: str) -> str | None:
 
     allowed = LANG_DETECT_ALLOWED_LANGUAGES or frozenset({"en", "es", "fr"})
 
-    if not _config.LANG_DETECT_FASTTEXT_MODEL_PATH or not Path(_config.LANG_DETECT_FASTTEXT_MODEL_PATH).exists():
+    ft_path = _config.LANG_DETECT_FASTTEXT_MODEL_PATH
+    if not ft_path or not Path(ft_path).exists():
+        print(f"[WORKFLOW] Language Detection: FastText unavailable (path='{ft_path}', exists={bool(ft_path) and Path(ft_path).exists()})")
         return None
 
     try:
