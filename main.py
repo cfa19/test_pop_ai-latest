@@ -18,6 +18,15 @@ from src.utils.message_queue import start_message_queue, stop_message_queue
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+
+# Silence noisy health-check access logs (Render pings /health every few seconds)
+class _HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return '"GET /health' not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
+
 # ===============================
 # FASTAPI APP
 # ===============================
