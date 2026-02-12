@@ -123,12 +123,8 @@ async def preload_models():
         logger.info("Semantic gate disabled (no preloading needed)")
 
 
-_models_ready = False
-
-
 async def _background_model_setup():
     """Download and preload models in background so the server port opens immediately."""
-    global _models_ready
     try:
         # Log numpy/fasttext versions for debugging
         try:
@@ -145,7 +141,7 @@ async def _background_model_setup():
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, download_models)
         await preload_models()
-        _models_ready = True
+        config.MODELS_READY = True
         logger.info("Background model setup complete - ready to serve requests")
     except Exception as e:
         logger.error(f"Background model setup failed: {e}")
@@ -190,7 +186,7 @@ app.include_router(chat_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "models_ready": _models_ready}
+    return {"status": "ok", "models_ready": config.MODELS_READY}
 
 
 if __name__ == "__main__":

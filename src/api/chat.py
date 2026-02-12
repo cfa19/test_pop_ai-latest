@@ -2,6 +2,7 @@
 Single chat endpoint with authentication and conversation memory
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
@@ -62,6 +63,17 @@ async def chat(request_body: ChatRequest, request: Request):
         user_id = user_info["user_id"]
     except AuthenticationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    # Step 1.5: Wait for models to be ready (FastText, ONNX classifier, semantic gate)
+    if not config.MODELS_READY:
+        logger.info("[CHAT] Models not ready yet, waiting for background download to complete...")
+        for _ in range(120):  # wait up to 120 seconds
+            await asyncio.sleep(1)
+            if config.MODELS_READY:
+                break
+        if not config.MODELS_READY:
+            raise HTTPException(status_code=503, detail="Models are still loading. Please retry in a few seconds.")
+        logger.info("[CHAT] Models ready, proceeding with request")
 
     # Step 2: Process chat message with conversation memory
     try:

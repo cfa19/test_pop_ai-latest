@@ -106,6 +106,9 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 # Verbose mode (set by CLI flag -v)
 VERBOSE_MODE = False
 
+# Models readiness flag (set to True after background model download/preload completes)
+MODELS_READY = False
+
 # =============================================================================
 # Constants
 # =============================================================================
