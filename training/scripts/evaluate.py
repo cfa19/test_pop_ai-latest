@@ -107,6 +107,9 @@ def evaluate_intent_classifier(model_path: str, test_data_path: str, output_dir:
         if "message" not in test_df.columns or "category" not in test_df.columns:
             raise ValueError("Test CSV must have 'message' and 'category' columns")
 
+    # Shuffle with fixed seed for reproducibility
+    test_df = test_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
     messages = test_df["message"].tolist()[:n_eval]
     true_labels = test_df["category"].tolist()[:n_eval]
 
@@ -117,6 +120,8 @@ def evaluate_intent_classifier(model_path: str, test_data_path: str, output_dir:
     predictions = model.predict_batch(messages)
     pred_labels = [p["category"] for p in predictions]
     confidences = [p["confidence"] for p in predictions]
+    # stages = [2] * len(predictions)  # All from classifier
+    # similarities = [None] * len(predictions)
 
     end_time = time.time()
 

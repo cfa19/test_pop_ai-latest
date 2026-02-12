@@ -158,7 +158,7 @@ def _extract_quoted_strings(text: str) -> List[str]:
         # Find opening quote
         if text[i] == '"':
             i += 1
-            string_start = i
+            # string_start = i
             string_content = []
 
             # Extract until closing quote (handling escapes)

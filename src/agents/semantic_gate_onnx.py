@@ -90,7 +90,7 @@ class SemanticGateONNX:
         else:
             self.primary_thresholds = self.tuning_results.get("recommendation", {}).get("thresholds", {})
             self.secondary_thresholds = {}
-            print(f"[SEMANTIC GATE ONNX] Loaded non-hierarchical thresholds (legacy)")
+            print("[SEMANTIC GATE ONNX] Loaded non-hierarchical thresholds (legacy)")
 
         # Load ONNX model
         onnx_file = model_dir / "model_quantized.onnx"

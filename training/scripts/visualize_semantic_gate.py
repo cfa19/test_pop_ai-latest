@@ -179,18 +179,18 @@ def plot_per_category_thresholds(results: dict, ax):
     """Plot per-category thresholds and metrics (bar charts)."""
     pcr = results["per_category_results"]
     categories = list(pcr.keys())
-    thresholds = [pcr[c]["threshold"] for c in categories]
-    domain_acceptance = [pcr[c]["metrics"]["domain_acceptance_rate"] for c in categories]
-    offtopic_rejection = [pcr[c]["metrics"]["offtopic_rejection_rate"] for c in categories]
-    f1_scores = [pcr[c]["metrics"]["f1_score"] for c in categories]
+    # thresholds = [pcr[c]["threshold"] for c in categories]
+    # domain_acceptance = [pcr[c]["metrics"]["domain_acceptance_rate"] for c in categories]
+    # offtopic_rejection = [pcr[c]["metrics"]["offtopic_rejection_rate"] for c in categories]
+    # f1_scores = [pcr[c]["metrics"]["f1_score"] for c in categories]
 
     x = np.arange(len(categories))
     width = 0.25
 
-    ax.bar(x - width, thresholds, width, label="Threshold", color="#3498db")
-    ax.bar(x, domain_acceptance, width, label="Domain Acceptance", color="#2ecc71")
-    ax.bar(x + width, offtopic_rejection, width, label="Off-topic Rejection", color="#e74c3c")
-    ax.bar(x + 2 * width, f1_scores, width, label="F1 Score", color="#9b59b6")
+    # bars1 = ax.bar(x - width, thresholds, width, label="Threshold", color="#3498db")
+    # bars2 = ax.bar(x, domain_acceptance, width, label="Domain Acceptance", color="#2ecc71")
+    # bars3 = ax.bar(x + width, offtopic_rejection, width, label="Off-topic Rejection", color="#e74c3c")
+    # bars4 = ax.bar(x + 2 * width, f1_scores, width, label="F1 Score", color="#9b59b6")
 
     ax.set_xticks(x + width / 2)
     ax.set_xticklabels(categories, rotation=45, ha="right")

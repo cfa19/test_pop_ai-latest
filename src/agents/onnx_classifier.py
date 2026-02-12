@@ -29,7 +29,9 @@ class ONNXIntentClassifier:
             raise FileNotFoundError(f"No ONNX model found in {model_dir}")
 
         print(f"[ONNX] Loading model from {onnx_file}...")
-        self.session = ort.InferenceSession(str(onnx_file), providers=["CPUExecutionProvider"])
+        self.session = ort.InferenceSession(
+            str(onnx_file), providers=["CPUExecutionProvider"]
+        )
         self.input_names = [i.name for i in self.session.get_inputs()]
         output_names = [o.name for o in self.session.get_outputs()]
         print(f"[ONNX] Model loaded (inputs: {self.input_names}, outputs: {output_names})")
@@ -48,7 +50,9 @@ class ONNXIntentClassifier:
     async def classify(self, message: str) -> IntentClassification:
         """Classify a message using the ONNX model."""
         # Tokenize
-        inputs = self.tokenizer(message, return_tensors="np", padding=True, truncation=True, max_length=128)
+        inputs = self.tokenizer(
+            message, return_tensors="np", padding=True, truncation=True, max_length=128
+        )
 
         # Build feed dict
         feed = {
@@ -56,7 +60,9 @@ class ONNXIntentClassifier:
             "attention_mask": inputs["attention_mask"],
         }
         if "token_type_ids" in self.input_names:
-            feed["token_type_ids"] = inputs.get("token_type_ids", np.zeros_like(inputs["input_ids"]))
+            feed["token_type_ids"] = inputs.get(
+                "token_type_ids", np.zeros_like(inputs["input_ids"])
+            )
 
         # Run inference
         outputs = self.session.run(None, feed)
