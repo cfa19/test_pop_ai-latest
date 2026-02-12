@@ -380,34 +380,51 @@ class WorkflowState(TypedDict):
 _fasttext_model = None  # Cached FastText model (loaded once)
 
 
-def _detect_language_fasttext(message: str) -> str:
+def _detect_language_google(message: str) -> str | None:
     """
-    Detect language using FastText lid.176.bin model.
-    Only codes in LANG_DETECT_ALLOWED_LANGUAGES are returned; others fall back to "fr".
+    Detect language using Google Translate's free API.
+    Returns ISO 639-1 code (e.g., 'es', 'fr') or None if detection fails.
+    This is more accurate than FastText, especially for short messages.
+    """
+    import requests as _requests
+
+    allowed = LANG_DETECT_ALLOWED_LANGUAGES or frozenset({"en", "es", "fr"})
+    try:
+        resp = _requests.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={"client": "gtx", "sl": "auto", "tl": "en", "dt": "t", "q": message[:500]},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if data and len(data) > 2 and data[2]:
+                raw = str(data[2]).split("-")[0].lower()[:2]
+                if raw in allowed:
+                    print(f"[WORKFLOW] Language Detection: Google API detected '{raw}'")
+                    return raw
+    except Exception as e:
+        print(f"[WORKFLOW] Language Detection: Google API detect failed ({e})")
+    return None
+
+
+def _detect_language_fasttext(message: str) -> str | None:
+    """
+    Detect language using FastText lid.176.bin model (fallback).
+    Returns ISO 639-1 code or None if detection fails.
     Model is loaded once and cached for subsequent calls.
     """
     global _fasttext_model
 
-    allowed = LANG_DETECT_ALLOWED_LANGUAGES
-    if not allowed:
-        allowed = frozenset({"en", "fr"})
-
-    def _normalize(code: str) -> str:
-        if not code or len(code) < 2:
-            return "fr"
-        c = code.split("-")[0].lower()[:2]
-        return c if c in allowed else "fr"
+    allowed = LANG_DETECT_ALLOWED_LANGUAGES or frozenset({"en", "es", "fr"})
 
     if not _config.LANG_DETECT_FASTTEXT_MODEL_PATH or not Path(_config.LANG_DETECT_FASTTEXT_MODEL_PATH).exists():
-        print(f"[WORKFLOW] Language Detection: FastText model not found at '{_config.LANG_DETECT_FASTTEXT_MODEL_PATH}', defaulting to 'fr'")
-        return "fr"
+        return None
 
     try:
         import fasttext  # type: ignore[import-untyped]
 
-        # Load model once and cache
         if _fasttext_model is None:
-            fasttext.FastText.eprint = lambda x: None  # suppress stderr warnings
+            fasttext.FastText.eprint = lambda x: None
             _fasttext_model = fasttext.load_model(_config.LANG_DETECT_FASTTEXT_MODEL_PATH)
             print(f"[WORKFLOW] Language Detection: FastText model loaded from {_config.LANG_DETECT_FASTTEXT_MODEL_PATH}")
 
@@ -416,11 +433,13 @@ def _detect_language_fasttext(message: str) -> str:
             label = pred[0][0]
             if label.startswith("__label__"):
                 raw = label.replace("__label__", "").lower()[:2]
-                return _normalize(raw)
+                if raw in allowed:
+                    print(f"[WORKFLOW] Language Detection: FastText detected '{raw}'")
+                    return raw
     except Exception as e:
-        print(f"[WORKFLOW] Language Detection: FastText failed ({e}), defaulting to 'fr'")
+        print(f"[WORKFLOW] Language Detection: FastText failed ({e})")
 
-    return "fr"
+    return None
 
 
 # =============================================================================
@@ -432,15 +451,14 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     """
     Node 0: Language Detection and Translation
 
-    Uses Google Translate (via deep-translator) as the PRIMARY language detector.
-    langdetect is only used as a hint for back-translation language code.
+    Uses Google Translate as the PRIMARY language detector and translator.
     No LLM calls — zero cost for translation.
 
     Strategy:
-    1. Always send message to GoogleTranslator(source='auto', target='en')
+    1. GoogleTranslator(source='auto', target='en') translates the message
     2. If result is same text → message was English, no translation needed
     3. If result differs → message was non-English, use translated version
-    4. langdetect provides the language code hint for back-translation only
+    4. Google Translate API detects source language (primary), FastText as fallback
     """
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])
@@ -470,13 +488,13 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
                 state["message"] = translated_message
                 state["is_translated"] = True
 
-                # Use FastText for the language code (for back-translation)
-                lang_hint = _detect_language_fasttext(message)
+                # Detect source language: Google API (primary) → FastText (fallback)
+                lang_hint = _detect_language_google(message) or _detect_language_fasttext(message) or "es"
                 state["detected_language"] = lang_hint
                 state["language_name"] = LANGUAGE_NAMES.get(lang_hint, lang_hint.capitalize())
 
                 print(f"[WORKFLOW] Translation: '{message[:50]}' → '{translated_message[:50]}' [Google Translate]")
-                print(f"[WORKFLOW] Language hint for back-translation: {state['language_name']} ({lang_hint})")
+                print(f"[WORKFLOW] Language for back-translation: {state['language_name']} ({lang_hint})")
                 state["workflow_process"].append(f"  ✅ Translated to English: '{translated_message[:60]}' [Google Translate]")
                 state["workflow_process"].append(f"  📌 Back-translation target: {state['language_name']} ({lang_hint})")
         else:
