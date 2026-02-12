@@ -460,7 +460,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     1. GoogleTranslator(source='auto', target='en') translates the message
     2. If result is same text → message was English, no translation needed
     3. If result differs → message was non-English, use translated version
-    4. Google Translate API detects source language (primary), FastText as fallback
+    4. FastText detects source language (primary), Google Translate API as fallback
     """
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])
@@ -490,8 +490,8 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
                 state["message"] = translated_message
                 state["is_translated"] = True
 
-                # Detect source language: Google API (primary) → FastText (fallback)
-                lang_hint = _detect_language_google(message) or _detect_language_fasttext(message) or "es"
+                # Detect source language: FastText (primary) → Google API (fallback)
+                lang_hint = _detect_language_fasttext(message) or _detect_language_google(message) or "es"
                 state["detected_language"] = lang_hint
                 state["language_name"] = LANGUAGE_NAMES.get(lang_hint, lang_hint.capitalize())
 
