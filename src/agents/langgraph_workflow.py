@@ -2,15 +2,20 @@
 LangGraph Workflow for Message Processing
 
 Multi-agent workflow that:
-1. Classifies message into Store A context
-2. Analyzes sentiment (6 dimensions)
-3. Routes to context-specific processing
-4. Generates personalized response
+1. Detects language and translates if needed
+2. Classifies message (primary + secondary categories)
+3. Filters off-topic messages (semantic gate)
+4. Extracts structured information from message
+5. Stores extracted information in Harmonia (memory cards + RAG chunks)
+6. Routes to context-specific processing
+7. Generates personalized response
+8. Translates response back to original language
 """
 
 import json
 import time
 from enum import Enum
+from pathlib import Path
 from typing import Any, TypedDict, Union
 
 from langgraph.graph import END, StateGraph
@@ -21,11 +26,22 @@ from voyageai.client import Client as VoyageAI
 
 import src.config as _config
 from src.config import (
+    LANG_DETECT_ALLOWED_LANGUAGES,
+    LANG_DETECT_FASTTEXT_MODEL_PATH,
+    LANGUAGE_NAMES,
     PRIMARY_INTENT_CLASSIFIER_TYPE,
     SEMANTIC_GATE_ENABLED,
+    SEMANTIC_GATE_MODEL,
 )
 from src.utils.conversation_memory import format_conversation_context, search_conversation_history
 from src.utils.rag import hybrid_search
+from src.utils.harmonia_api import store_extracted_information
+from training.constants.info_extraction import (
+    EXTRACTION_SCHEMAS,
+    EXTRACTION_SYSTEM_MESSAGE,
+    build_extraction_prompt,
+    format_extracted_data
+)
 
 # =============================================================================
 # Intent Classification Models
@@ -314,6 +330,7 @@ class WorkflowState(TypedDict):
     message: str
     user_id: str
     conversation_id: str
+    auth_header: str | None  # Authorization header (Bearer token)
 
     # RAG parameters (passed from API)
     supabase: Any  # Supabase client
@@ -357,6 +374,57 @@ class WorkflowState(TypedDict):
 
 
 # =============================================================================
+# Language detection with redundancy (langdetect + Lingua + FastText)
+# =============================================================================
+
+
+_fasttext_model = None  # Cached FastText model (loaded once)
+
+
+def _detect_language_fasttext(message: str) -> str:
+    """
+    Detect language using FastText lid.176.bin model.
+    Only codes in LANG_DETECT_ALLOWED_LANGUAGES are returned; others fall back to "fr".
+    Model is loaded once and cached for subsequent calls.
+    """
+    global _fasttext_model
+
+    allowed = LANG_DETECT_ALLOWED_LANGUAGES
+    if not allowed:
+        allowed = frozenset({"en", "fr"})
+
+    def _normalize(code: str) -> str:
+        if not code or len(code) < 2:
+            return "fr"
+        c = code.split("-")[0].lower()[:2]
+        return c if c in allowed else "fr"
+
+    if not LANG_DETECT_FASTTEXT_MODEL_PATH or not Path(LANG_DETECT_FASTTEXT_MODEL_PATH).exists():
+        print(f"[WORKFLOW] Language Detection: FastText model not found at '{LANG_DETECT_FASTTEXT_MODEL_PATH}', defaulting to 'fr'")
+        return "fr"
+
+    try:
+        import fasttext  # type: ignore[import-untyped]
+
+        # Load model once and cache
+        if _fasttext_model is None:
+            fasttext.FastText.eprint = lambda x: None  # suppress stderr warnings
+            _fasttext_model = fasttext.load_model(LANG_DETECT_FASTTEXT_MODEL_PATH)
+            print(f"[WORKFLOW] Language Detection: FastText model loaded from {LANG_DETECT_FASTTEXT_MODEL_PATH}")
+
+        pred = _fasttext_model.predict(message.replace("\n", " "))
+        if pred and pred[0]:
+            label = pred[0][0]
+            if label.startswith("__label__"):
+                raw = label.replace("__label__", "").lower()[:2]
+                return _normalize(raw)
+    except Exception as e:
+        print(f"[WORKFLOW] Language Detection: FastText failed ({e}), defaulting to 'fr'")
+
+    return "fr"
+
+
+# =============================================================================
 # Agent Nodes
 # =============================================================================
 
@@ -375,24 +443,13 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     3. If result differs → message was non-English, use translated version
     4. langdetect provides the language code hint for back-translation only
     """
+    t0 = time.perf_counter()
+    step_start_index = len(state["workflow_process"])
     print("[WORKFLOW] Language Detection: Analyzing message language...")
     state["workflow_process"].append("🌐 Language Detection: Analyzing message language")
 
     message = state["message"]
     state["original_message"] = message
-
-    # Map language code to full name
-    language_names = {
-        "en": "English", "es": "Spanish", "fr": "French", "de": "German",
-        "pt": "Portuguese", "it": "Italian", "nl": "Dutch", "ru": "Russian",
-        "ar": "Arabic", "zh-cn": "Chinese (Simplified)", "zh-tw": "Chinese (Traditional)",
-        "ja": "Japanese", "ko": "Korean", "hi": "Hindi", "tr": "Turkish",
-        "pl": "Polish", "sv": "Swedish", "da": "Danish", "no": "Norwegian",
-        "fi": "Finnish", "ca": "Catalan", "ro": "Romanian", "hu": "Hungarian",
-        "cs": "Czech", "el": "Greek", "he": "Hebrew", "th": "Thai",
-        "vi": "Vietnamese", "id": "Indonesian", "uk": "Ukrainian",
-        "bg": "Bulgarian", "hr": "Croatian",
-    }
 
     # === STEP 1: Google Translate as primary detector + translator ===
     # Google's auto-detect is far more accurate than any local library
@@ -414,10 +471,10 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
                 state["message"] = translated_message
                 state["is_translated"] = True
 
-                # Use langdetect as a HINT for the language code (for back-translation)
-                lang_hint = _detect_language_hint(message)
+                # Use FastText for the language code (for back-translation)
+                lang_hint = _detect_language_fasttext(message)
                 state["detected_language"] = lang_hint
-                state["language_name"] = language_names.get(lang_hint, lang_hint.capitalize())
+                state["language_name"] = LANGUAGE_NAMES.get(lang_hint, lang_hint.capitalize())
 
                 print(f"[WORKFLOW] Translation: '{message[:50]}' → '{translated_message[:50]}' [Google Translate]")
                 print(f"[WORKFLOW] Language hint for back-translation: {state['language_name']} ({lang_hint})")
@@ -444,25 +501,10 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
     state["metadata"]["language_name"] = state["language_name"]
     state["metadata"]["is_translated"] = state["is_translated"]
 
+    if len(state["workflow_process"]) > step_start_index:
+        state["workflow_process"][step_start_index] += f" ({time.perf_counter() - t0:.3f}s)"
+
     return state
-
-
-def _detect_language_hint(text: str) -> str:
-    """
-    Use langdetect to get a language code hint for back-translation.
-    This is NOT used for the primary detection (Google Translate handles that).
-    Falls back to 'es' (Spanish) if detection fails, since it's the most common
-    non-English language for this application.
-    """
-    try:
-        from langdetect import DetectorFactory, detect_langs
-
-        DetectorFactory.seed = 0
-        probabilities = detect_langs(text)
-        best = probabilities[0]
-        return best.lang.lower()
-    except Exception:
-        return "es"
 
 
 async def intent_classifier_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
@@ -937,6 +979,170 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
     return state
 
 
+async def information_extraction_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
+    """
+    Node 2.5: Information Extraction
+
+    Extracts structured information from the message based on classification.
+    Examples:
+    - dream_roles → occupations/job titles
+    - salary_expectations → salary amounts/ranges
+    - skills → list of skills
+    - certifications → credentials, licenses
+    - etc.
+    """
+    t0 = time.perf_counter()
+    step_start_index = len(state["workflow_process"])
+    classification = state.get("unified_classification")
+    if not classification or not classification.subcategory:
+        # No subcategory, skip extraction
+        state["extracted_information"] = {}
+        return state
+
+    category = classification.category.value
+    subcategory = classification.subcategory
+    message = state["message"]
+
+    print(f"[WORKFLOW] Information Extraction: Extracting {subcategory} from {category} message...")
+    state["workflow_process"].append(f"📋 Information Extraction: Extracting {subcategory} entities")
+
+    # Get extraction schema from constants
+    schema = EXTRACTION_SCHEMAS.get(subcategory)
+
+    if not schema:
+        # No extraction schema for this subcategory
+        state["extracted_information"] = {}
+        print(f"[WORKFLOW] Information Extraction: No schema for {subcategory}, skipping")
+        state["workflow_process"].pop()  # remove "Extracting ..." line
+        state["workflow_process"].append(f"📋 Information Extraction: No schema for {subcategory}, skipping ({time.perf_counter() - t0:.3f}s)")
+        return state
+
+    # Build extraction prompt using imported function
+    extraction_prompt = build_extraction_prompt(schema, message)
+
+    try:
+        # Call LLM for extraction
+        response = chat_client.chat.completions.create(
+            model=state["chat_model"],
+            messages=[
+                {"role": "system", "content": EXTRACTION_SYSTEM_MESSAGE},
+                {"role": "user", "content": extraction_prompt}
+            ],
+            temperature=0.1,  # Low temperature for precise extraction
+            response_format={"type": "json_object"}
+        )
+
+        extracted = json.loads(response.choices[0].message.content)
+        extracted["content"] = response.choices[0].message.content
+        extracted["type"] = schema["type"]
+        state["extracted_information"] = extracted
+
+        # Log extracted info
+        print(f"[WORKFLOW] Information Extraction: Extracted {len(extracted)} fields")
+        for key, value in extracted.items():
+            if value:  # Only show non-empty values
+                print(f"  - {key}: {value}")
+
+        filled = {k: v for k, v in extracted.items() if v}
+        parts = []
+        for k, v in filled.items():
+            if isinstance(v, list):
+                parts.append(f"{k}=[{', '.join(str(x) for x in v)}]")
+            else:
+                s = str(v)
+                parts.append(f"{k}={s[:80] + '…' if len(s) > 80 else s}")
+        for part in parts:
+            state["workflow_process"].append(f"  ✅ {part}")
+
+        # Store in metadata
+        state["metadata"]["extracted_information"] = extracted
+        state["metadata"]["extraction_subcategory"] = subcategory
+
+    except Exception as e:
+        print(f"[WORKFLOW] Information Extraction: Error - {e}")
+        state["workflow_process"].append(f"  ⚠️ Extraction error: {str(e)}")
+        state["extracted_information"] = {}
+
+    if len(state["workflow_process"]) > step_start_index:
+        state["workflow_process"][step_start_index] += f" ({time.perf_counter() - t0:.3f}s)"
+    return state
+
+
+async def store_information_node(state: WorkflowState) -> WorkflowState:
+    """
+    Node 2.6: Store Information in Harmonia
+
+    Stores extracted information as:
+    1. Memory Cards in Journal Store (Store B)
+    2. RAG Chunks in RAG Index Store (Store C)
+
+    Only runs if information was successfully extracted.
+    """
+    t0 = time.perf_counter()
+    step_start_index = len(state["workflow_process"])
+
+    # Check if we have extracted information
+    extracted_info = state.get("extracted_information", {})
+    if not extracted_info:
+        print("[WORKFLOW] Store Information: No extracted information, skipping")
+        return state
+
+    # Get classification details
+    classification = state.get("unified_classification")
+    if not classification or not classification.subcategory:
+        print("[WORKFLOW] Store Information: No subcategory, skipping")
+        return state
+
+    category = classification.category.value
+    subcategory = classification.subcategory
+    user_id = state.get("user_id")
+    user_token = state.get("auth_header")
+
+    if not user_token:
+        print("[WORKFLOW] Store Information: No user token, skipping")
+        return state
+
+    print(f"[WORKFLOW] Store Information: Storing {subcategory} information...")
+    state["workflow_process"].append(f"💾 Storing Information: Saving {subcategory} data to Harmonia")
+
+    try:
+        # Call Harmonia API to store extracted information
+        result = store_extracted_information(
+            category=category,
+            subcategory=subcategory,
+            extracted_data=extracted_info,
+            user_id=user_id,
+            user_token=user_token
+        )
+
+        if result.get("success"):
+            context = result.get("context", "unknown")
+            resource = result.get("resource", "unknown")
+            created_count = len(result.get("created_ids", []))
+
+            print(f"[WORKFLOW] Store Information: Stored {created_count} items in {context}/{resource}")
+            state["workflow_process"].append(f"  ✅ Stored in {context}/{resource}: {created_count} items")
+
+            # Store IDs in state metadata
+            state["metadata"]["harmonia_context"] = context
+            state["metadata"]["harmonia_resource"] = resource
+            state["metadata"]["harmonia_created_ids"] = result.get("created_ids", [])
+        else:
+            error_msg = result.get("error", "Unknown error")
+            print(f"[WORKFLOW] Store Information: Failed - {error_msg}")
+            state["workflow_process"].append(f"  ⚠️ Storage failed: {error_msg}")
+
+    except Exception as e:
+        print(f"[WORKFLOW] Store Information: Error - {e}")
+        state["workflow_process"].append(f"  ⚠️ Storage error: {str(e)}")
+        # Continue workflow even if storage fails
+
+    if len(state["workflow_process"]) > step_start_index:
+        state["workflow_process"][step_start_index] += f" ({time.perf_counter() - t0:.3f}s)"
+
+    return state
+
+
 async def rag_retrieval_node(state: WorkflowState, chat_client: OpenAI) -> WorkflowState:
     """
     Node 0: RAG Retrieval - Search documents and conversation history
@@ -1335,10 +1541,12 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     0. Language Detection & Translation → Detect language, translate to English if needed
     1. Intent Classifier → Classify into one of 9 categories
     2. Semantic Gate → Check if message passes similarity threshold (Stage 1 filtering)
-    3. Route based on category:
+    3. Information Extraction → Extract structured entities from message
+    4. Store Information → Persist extracted data to Harmonia (memory cards + RAG chunks)
+    5. Route based on category:
        - RAG_QUERY → RAG Retrieval → Context Response
        - All others → Context Response (directly)
-    4. Response Translation → Translate response back to original language if needed
+    6. Response Translation → Translate response back to original language if needed
     """
 
     workflow = StateGraph(WorkflowState)
@@ -1381,10 +1589,18 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     async def response_translation_wrapper(state: WorkflowState) -> WorkflowState:
         return await response_translation_node(state, chat_client)
 
+    async def information_extraction_wrapper(state: WorkflowState) -> WorkflowState:
+        return await information_extraction_node(state, chat_client)
+
+    async def store_information_wrapper(state: WorkflowState) -> WorkflowState:
+        return await store_information_node(state)
+
     # Nodes
     workflow.add_node("language_detection", language_detection_wrapper)
     workflow.add_node("intent_classifier", intent_classifier_wrapper)
     workflow.add_node("semantic_gate", semantic_gate_wrapper)
+    workflow.add_node("information_extraction", information_extraction_wrapper)
+    workflow.add_node("store_information", store_information_wrapper)
     workflow.add_node("rag_retrieval", rag_retrieval_wrapper)
     workflow.add_node("context_response", context_response_wrapper)
     workflow.add_node("response_translation", response_translation_wrapper)
@@ -1398,9 +1614,15 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     # Intent Classifier → Semantic Gate (always)
     workflow.add_edge("intent_classifier", "semantic_gate")
 
-    # Semantic Gate → Router (based on category)
+    # Semantic Gate → Information Extraction (always)
+    workflow.add_edge("semantic_gate", "information_extraction")
+
+    # Information Extraction → Store Information (always)
+    workflow.add_edge("information_extraction", "store_information")
+
+    # Store Information → Router (based on category)
     workflow.add_conditional_edges(
-        "semantic_gate",
+        "store_information",
         route_based_on_category,
         {
             "rag_retrieval": "rag_retrieval",
@@ -1424,12 +1646,13 @@ async def run_workflow(
     message: str,
     user_id: str,
     conversation_id: str,
-    chat_client: OpenAI,
-    embed_client: Union[OpenAI, VoyageAI],
-    supabase: Client,
-    embed_model: str,
-    embed_dimensions: int,
-    chat_model: str,
+    auth_header: str | None = None,
+    chat_client: OpenAI = None,
+    embed_client: Union[OpenAI, VoyageAI] = None,
+    supabase: Client = None,
+    embed_model: str = "",
+    embed_dimensions: int = 1024,
+    chat_model: str = "gpt-4o-mini",
     intent_classifier_type: str | None = None,
     semantic_gate_enabled: bool | None = None,
 ) -> WorkflowState:
@@ -1482,6 +1705,7 @@ async def run_workflow(
         "semantic_gate_passed": True,  # Default to True (passed)
         "semantic_gate_similarity": 1.0,
         "semantic_gate_category": "",
+        "auth_header": auth_header,
         "extracted_information": {},
         "response": "",
         "metadata": {},

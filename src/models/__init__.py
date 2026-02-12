@@ -8,10 +8,13 @@ Subpackages:
 - store_b: Journal/Event Sourcing models (Store B)
 """
 
-from .embeddings import Embedding
+from .chunk import DocumentChunk
+from .embeddings import Embedding, EmbeddingModel
 
 __all__ = [
+    "DocumentChunk",
     "Embedding",
+    "EmbeddingModel",
 ]
 
 __version__ = "1.0.0"

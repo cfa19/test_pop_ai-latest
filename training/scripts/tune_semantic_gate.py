@@ -1,54 +1,69 @@
 """
-Tune Semantic Gate Threshold (Per-Category)
+Tune Hierarchical Semantic Gate Thresholds
 
-This script finds optimal similarity thresholds for the semantic gate (Stage 1)
-using category-specific centroids and classifier-based off-topic grouping.
+This script finds optimal similarity thresholds for both primary and secondary
+categories using hierarchical classifiers and category-specific centroids.
 
 Algorithm:
-1. Load DistilBERT classifier to predict categories for off-topic messages
-2. Group off-topic messages by their predicted (wrong) category
-3. For each category, compute separate centroid and tune threshold
-4. Result: Per-category thresholds that minimize false positives while maximizing off-topic rejection
+1. Load CSV data with message, category, subcategory (including off_topic category)
+2. Load hierarchical classifiers (primary + secondary) to predict categories for off-topic
+3. Compute centroids for both primary categories and subcategories
+4. Tune thresholds hierarchically:
+   - Primary level: Tune thresholds for main categories vs off-topic
+   - Secondary level: Tune thresholds for subcategories within each category
+5. Result: Hierarchical thresholds for two-stage semantic filtering
 
-Goal: Maximize off-topic rejection while minimizing false positives (wrongly rejected in-domain messages).
+Goal: Maximize off-topic rejection while minimizing false positives at both levels.
+
+CSV Format Expected:
+    message,category,subcategory
+    "I want to be a manager",aspirational,dream_roles
+    "What is Python?",off_topic,
+    "I'm good at SQL",professional,skills
 
 Usage:
     python training/scripts/tune_semantic_gate.py \
-        --offtopic-data training/data/off_topic.txt \
-        --domain-data training/data/ \
-        --classifier-model training/models/20260201_203858/final \
-        --output training/results/semantic_gate_tuning.json
+        --data-dir training/data/processed \
+        --hierarchical-model training/models/hierarchical/20260201_203858 \
+        --output training/results/semantic_gate_hierarchical_tuning.json \
+        --model all-MiniLM-L6-v2 \
+        --min-domain-acceptance 0.95
 """
 
 import argparse
 import json
 import os
+import pickle
 import sys
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
+import pandas as pd
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 try:
     from sentence_transformers import SentenceTransformer
-    from sklearn.metrics import confusion_matrix, precision_recall_fscore_support  # noqa: F401
     from sklearn.metrics.pairwise import cosine_similarity
 except ImportError:
     print("ERROR: Required packages not installed.")
-    print("Please install: pip install sentence-transformers scikit-learn")
+    print("Please install: pip install sentence-transformers scikit-learn pandas")
     sys.exit(1)
 
-# Try to import DistilBERT classifier
+# Try to import hierarchical classifier components
 try:
-    from training.inference import IntentClassifierModel
-
-    DISTILBERT_AVAILABLE = True
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    TRANSFORMERS_AVAILABLE = True
 except ImportError:
-    print("WARNING: DistilBERT classifier not available (transformers not installed)")
-    DISTILBERT_AVAILABLE = False
+    print("WARNING: transformers/torch not available (hierarchical classification disabled)")
+    TRANSFORMERS_AVAILABLE = False
+
+# Categories that skip secondary classification
+SKIP_SECONDARY_CATEGORIES = {"rag_query", "chitchat", "off_topic"}
 
 
 def load_messages_from_file(file_path: str) -> List[str]:
@@ -62,26 +77,90 @@ def load_messages_from_file(file_path: str) -> List[str]:
     return messages
 
 
-def load_domain_messages(data_dir: str) -> Dict[str, List[str]]:
+def load_hierarchical_data(data_dir: str) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, List[str]]], List[str]]:
     """
-    Load all in-domain messages from data directory.
+    Load hierarchical data from CSV files, including off-topic messages.
+
+    Expected CSV format: message,category,subcategory
+
+    Args:
+        data_dir: Directory containing CSV files
 
     Returns:
-        Dictionary mapping category to list of messages
+        Tuple of:
+        - primary_messages: Dict mapping primary category to list of messages
+        - secondary_messages: Dict mapping primary category -> subcategory -> list of messages
+        - offtopic_messages: List of off-topic messages
     """
-    categories = ["rag_queries", "professional", "psychological", "learning", "social", "emotional", "aspirational", "chitchat"]
+    print(f"Loading hierarchical data from: {data_dir}")
 
-    domain_messages = {}
+    # Load all CSV files
+    all_dfs = []
+    for filename in os.listdir(data_dir):
+        if not filename.endswith('.csv'):
+            continue
 
-    for category in categories:
-        file_path = os.path.join(data_dir, f"{category}.txt")
-        messages = load_messages_from_file(file_path)
+        filepath = os.path.join(data_dir, filename)
+        try:
+            df = pd.read_csv(filepath)
 
-        if messages:
-            domain_messages[category] = messages
-            print(f"  Loaded {len(messages)} messages from {category}")
+            # Validate columns
+            if 'message' not in df.columns or 'category' not in df.columns:
+                print(f"  Warning: {filename} missing required columns, skipping")
+                continue
 
-    return domain_messages
+            all_dfs.append(df)
+            print(f"  Loaded {len(df)} messages from {filename}")
+        except Exception as e:
+            print(f"  Error loading {filename}: {e}")
+            continue
+
+    if not all_dfs:
+        print(f"ERROR: No valid CSV files found in {data_dir}")
+        return {}, {}, []
+
+    # Combine all dataframes
+    full_df = pd.concat(all_dfs, ignore_index=True)
+
+    print(f"\nTotal messages loaded: {len(full_df)}")
+
+    # Extract off-topic messages
+    offtopic_df = full_df[full_df['category'] == 'off_topic']
+    offtopic_messages = offtopic_df['message'].tolist()
+    print(f"  Off-topic messages: {len(offtopic_messages)}")
+
+    # Filter to domain messages only (exclude off_topic)
+    domain_df = full_df[full_df['category'] != 'off_topic'].reset_index(drop=True)
+    print(f"  Domain messages: {len(domain_df)}")
+
+    # Build primary messages dictionary
+    primary_messages = {}
+    for category in domain_df['category'].unique():
+        category_df = domain_df[domain_df['category'] == category]
+        primary_messages[category] = category_df['message'].tolist()
+        print(f"    {category}: {len(category_df)} messages")
+
+    # Build secondary messages dictionary (hierarchical)
+    secondary_messages = {}
+
+    for category in domain_df['category'].unique():
+        if category in SKIP_SECONDARY_CATEGORIES:
+            continue
+
+        if 'subcategory' not in domain_df.columns:
+            continue
+
+        category_df = domain_df[domain_df['category'] == category]
+
+        secondary_messages[category] = {}
+        for subcategory in category_df['subcategory'].unique():
+            if pd.isna(subcategory):
+                continue
+            subcat_df = category_df[category_df['subcategory'] == subcategory]
+            secondary_messages[category][subcategory] = subcat_df['message'].tolist()
+            print(f"      {category} -> {subcategory}: {len(subcat_df)} messages")
+
+    return primary_messages, secondary_messages, offtopic_messages
 
 
 def compute_embeddings(messages: List[str], model: SentenceTransformer, batch_size: int = 32) -> np.ndarray:
@@ -265,52 +344,176 @@ def analyze_by_category(domain_messages: Dict[str, List[str]], model: SentenceTr
     return category_stats
 
 
-def classify_offtopic_messages(offtopic_messages: List[str], classifier_model_path: str) -> Dict[str, List[str]]:
+def load_hierarchical_classifier(model_base_path: str):
     """
-    Classify off-topic messages using DistilBERT to see which category they're closest to.
+    Load hierarchical classifiers (primary + all secondary).
+
+    Args:
+        model_base_path: Base path to hierarchical model directory
+
+    Returns:
+        Tuple of (primary_classifier, secondary_classifiers_dict) or None
+    """
+    if not TRANSFORMERS_AVAILABLE:
+        print("  WARNING: transformers not available, cannot load hierarchical classifier")
+        return None
+
+    print(f"\n  Loading hierarchical classifiers from: {model_base_path}")
+
+    try:
+        # Load primary classifier
+        primary_path = os.path.join(model_base_path, "primary", "final")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        print(f"    Loading primary classifier from {primary_path}...")
+        primary_tokenizer = AutoTokenizer.from_pretrained(primary_path, local_files_only=True)
+        primary_model = AutoModelForSequenceClassification.from_pretrained(primary_path, local_files_only=True)
+        primary_model.to(device)
+        primary_model.eval()
+
+        # Load label mappings
+        with open(os.path.join(primary_path, "label_mappings.json"), "r") as f:
+            primary_labels = json.load(f)
+
+        print(f"    ✓ Primary classifier loaded ({len(primary_labels['categories'])} categories)")
+
+        # Load secondary classifiers
+        secondary_classifiers = {}
+        secondary_path = os.path.join(model_base_path, "secondary")
+
+        if os.path.exists(secondary_path):
+            for category in os.listdir(secondary_path):
+                if category in SKIP_SECONDARY_CATEGORIES:
+                    continue
+
+                category_path = os.path.join(secondary_path, category, "final")
+                if not os.path.exists(category_path):
+                    continue
+
+                try:
+                    print(f"    Loading secondary classifier for {category}...")
+                    tokenizer = AutoTokenizer.from_pretrained(category_path, local_files_only=True)
+                    model = AutoModelForSequenceClassification.from_pretrained(category_path, local_files_only=True)
+                    model.to(device)
+                    model.eval()
+
+                    with open(os.path.join(category_path, "label_mappings.json"), "r") as f:
+                        labels = json.load(f)
+
+                    secondary_classifiers[category] = {
+                        'model': model,
+                        'tokenizer': tokenizer,
+                        'labels': labels,
+                        'device': device
+                    }
+                    print(f"      ✓ Loaded ({len(labels['categories'])} subcategories)")
+
+                except Exception as e:
+                    print(f"      ✗ Failed to load {category} classifier: {e}")
+
+        print(f"    ✓ Loaded {len(secondary_classifiers)} secondary classifiers")
+
+        return {
+            'primary': {
+                'model': primary_model,
+                'tokenizer': primary_tokenizer,
+                'labels': primary_labels,
+                'device': device
+            },
+            'secondary': secondary_classifiers
+        }
+
+    except Exception as e:
+        print(f"  ERROR loading hierarchical classifier: {e}")
+        return None
+
+
+def classify_with_hierarchical(message: str, classifiers: Dict) -> Tuple[str, str | None]:
+    """
+    Classify message using hierarchical classifier.
+
+    Args:
+        message: Message to classify
+        classifiers: Dictionary with primary and secondary classifiers
+
+    Returns:
+        Tuple of (primary_category, subcategory)
+    """
+    if not classifiers:
+        return "unknown", None
+
+    # Primary classification
+    primary = classifiers['primary']
+    inputs = primary['tokenizer'](message, return_tensors="pt", truncation=True, max_length=512, padding=True).to(primary['device'])
+
+    with torch.no_grad():
+        outputs = primary['model'](**inputs)
+        logits = outputs.logits
+        probs = torch.softmax(logits, dim=-1)[0]
+        pred_id = torch.argmax(probs).item()
+        primary_category = primary['labels']['id2label'][str(pred_id)]
+
+    # Secondary classification (if available)
+    subcategory = None
+    if primary_category in classifiers['secondary']:
+        secondary = classifiers['secondary'][primary_category]
+        inputs = secondary['tokenizer'](message, return_tensors="pt", truncation=True, max_length=512, padding=True).to(secondary['device'])
+
+        with torch.no_grad():
+            outputs = secondary['model'](**inputs)
+            logits = outputs.logits
+            probs = torch.softmax(logits, dim=-1)[0]
+            pred_id = torch.argmax(probs).item()
+            subcategory = secondary['labels']['id2label'][str(pred_id)]
+
+    return primary_category, subcategory
+
+
+def classify_offtopic_hierarchical(offtopic_messages: List[str], classifiers: Dict) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, List[str]]]]:
+    """
+    Classify off-topic messages using hierarchical classifier.
 
     Args:
         offtopic_messages: List of off-topic messages
-        classifier_model_path: Path to trained DistilBERT model
+        classifiers: Hierarchical classifiers
 
     Returns:
-        Dictionary mapping predicted category to list of messages
+        Tuple of:
+        - primary_grouped: Dict mapping primary category to messages
+        - secondary_grouped: Dict mapping primary -> subcategory -> messages
     """
-    if not DISTILBERT_AVAILABLE:
-        print("  WARNING: DistilBERT not available, skipping classifier-based grouping")
-        return {"unknown": offtopic_messages}
+    if not classifiers:
+        print("  WARNING: No classifiers available, skipping classification")
+        return {"unknown": offtopic_messages}, {}
 
-    print(f"\n  Loading classifier from: {classifier_model_path}")
+    print(f"  Classifying {len(offtopic_messages)} off-topic messages (hierarchical)...")
 
-    try:
-        classifier = IntentClassifierModel(classifier_model_path)
-    except Exception as e:
-        print(f"  ERROR loading classifier: {e}")
-        print("  Falling back to ungrouped off-topic messages")
-        return {"unknown": offtopic_messages}
-
-    print(f"  Classifying {len(offtopic_messages)} off-topic messages...")
-
-    # Group messages by predicted category
-    grouped = defaultdict(list)
+    primary_grouped = defaultdict(list)
+    secondary_grouped = defaultdict(lambda: defaultdict(list))
 
     for i, message in enumerate(offtopic_messages):
         if (i + 1) % 100 == 0:
             print(f"    Classified {i + 1}/{len(offtopic_messages)} messages...")
 
         try:
-            prediction = classifier.predict(message)
-            predicted_category = prediction["category"]
-            grouped[predicted_category].append(message)
+            primary_cat, subcat = classify_with_hierarchical(message, classifiers)
+            primary_grouped[primary_cat].append(message)
+
+            if subcat:
+                secondary_grouped[primary_cat][subcat].append(message)
+
         except Exception as e:
-            print(f"    Warning: Failed to classify message: {e}")
-            grouped["unknown"].append(message)
+            print(f"    Warning: Classification failed: {e}")
+            primary_grouped["unknown"].append(message)
 
     print("\n  ✓ Off-topic messages grouped by predicted category:")
-    for category, messages in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
-        print(f"    {category}: {len(messages)} messages ({len(messages) / len(offtopic_messages) * 100:.1f}%)")
+    for category, messages in sorted(primary_grouped.items(), key=lambda x: len(x[1]), reverse=True):
+        print(f"    {category}: {len(messages)} messages")
+        if category in secondary_grouped:
+            for subcat, subcat_msgs in secondary_grouped[category].items():
+                print(f"      -> {subcat}: {len(subcat_msgs)} messages")
 
-    return dict(grouped)
+    return dict(primary_grouped), {k: dict(v) for k, v in secondary_grouped.items()}
 
 
 def compute_per_category_centroids(domain_messages: Dict[str, List[str]], model: SentenceTransformer) -> Dict[str, np.ndarray]:
@@ -429,54 +632,351 @@ def tune_per_category_thresholds(
     return category_results
 
 
-def save_results(
-    output_path: str, category_results: Dict[str, Dict], offtopic_grouped: Dict[str, List[str]], model_name: str, use_per_category: bool = True
-):
-    """Save tuning results to JSON file."""
+def tune_hierarchical_thresholds(
+    primary_messages: Dict[str, List[str]],
+    secondary_messages: Dict[str, Dict[str, List[str]]],
+    offtopic_primary_grouped: Dict[str, List[str]],
+    offtopic_secondary_grouped: Dict[str, Dict[str, List[str]]],
+    model: SentenceTransformer,
+    min_domain_acceptance: float = 0.95
+) -> Tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]]]:
+    """
+    Tune thresholds hierarchically for both primary and secondary categories.
 
-    # Compute global metrics (average across categories)
-    global_metrics = {
-        "mean_threshold": np.mean([r["threshold"] for r in category_results.values()]),
-        "mean_domain_acceptance": np.mean([r["metrics"]["domain_acceptance_rate"] for r in category_results.values()]),
-        "mean_offtopic_rejection": np.mean([r["metrics"]["offtopic_rejection_rate"] for r in category_results.values()]),
-        "mean_f1_score": np.mean([r["metrics"]["f1_score"] for r in category_results.values()]),
+    Args:
+        primary_messages: Dict mapping primary category to messages
+        secondary_messages: Dict mapping primary -> subcategory -> messages
+        offtopic_primary_grouped: Off-topic messages grouped by predicted primary category
+        offtopic_secondary_grouped: Off-topic messages grouped by primary -> subcategory
+        model: SentenceTransformer model
+        min_domain_acceptance: Minimum domain acceptance rate
+
+    Returns:
+        Tuple of (primary_results, secondary_results, primary_centroids, secondary_centroids)
+    """
+    print("\n" + "=" * 80)
+    print("HIERARCHICAL THRESHOLD TUNING")
+    print("=" * 80)
+
+    # =========================================================================
+    # STEP 1: Tune Primary Category Thresholds
+    # =========================================================================
+
+    print("\n[PRIMARY LEVEL] Tuning primary category thresholds...")
+    print("-" * 80)
+
+    # Compute primary centroids
+    primary_centroids = {}
+    for category, messages in primary_messages.items():
+        embeddings = compute_embeddings(messages, model)
+        centroid = compute_centroid(embeddings)
+        primary_centroids[category] = centroid
+        print(f"  ✓ {category}: centroid from {len(messages)} messages")
+
+    # Tune threshold for each primary category
+    primary_results = {}
+
+    for category in primary_messages.keys():
+        print(f"\n[PRIMARY: {category.upper()}]")
+
+        category_domain_messages = primary_messages[category]
+        category_offtopic_messages = offtopic_primary_grouped.get(category, [])
+
+        if not category_offtopic_messages:
+            # Use sample from all off-topic
+            all_offtopic = []
+            for msgs in offtopic_primary_grouped.values():
+                all_offtopic.extend(msgs)
+            category_offtopic_messages = all_offtopic[:min(500, len(all_offtopic))]
+
+        print(f"  Domain: {len(category_domain_messages)} messages")
+        print(f"  Off-topic: {len(category_offtopic_messages)} messages")
+
+        # Compute similarities
+        domain_embeddings = compute_embeddings(category_domain_messages, model)
+        offtopic_embeddings = compute_embeddings(category_offtopic_messages, model)
+
+        category_centroid = primary_centroids[category]
+        domain_similarities = cosine_similarity(domain_embeddings, category_centroid).flatten()
+        offtopic_similarities = cosine_similarity(offtopic_embeddings, category_centroid).flatten()
+
+        # Find optimal threshold
+        optimal_threshold, optimal_metrics = find_optimal_threshold(
+            domain_similarities, offtopic_similarities, min_domain_acceptance=min_domain_acceptance
+        )
+
+        print(f"  ✓ Threshold: {optimal_threshold:.4f}")
+        print(f"    Domain acceptance: {optimal_metrics['domain_acceptance_rate'] * 100:.2f}%")
+        print(f"    Off-topic rejection: {optimal_metrics['offtopic_rejection_rate'] * 100:.2f}%")
+
+        primary_results[category] = {
+            "threshold": optimal_threshold,
+            "metrics": optimal_metrics,
+            "domain_similarity_stats": {
+                "mean": float(np.mean(domain_similarities)),
+                "std": float(np.std(domain_similarities)),
+            },
+        }
+
+    # =========================================================================
+    # STEP 2: Tune Secondary Category Thresholds
+    # =========================================================================
+
+    print("\n" + "=" * 80)
+    print("[SECONDARY LEVEL] Tuning subcategory thresholds...")
+    print("-" * 80)
+
+    secondary_results = {}
+    secondary_centroids = {}
+
+    for primary_category, subcategories_dict in secondary_messages.items():
+        if primary_category in SKIP_SECONDARY_CATEGORIES:
+            continue
+
+        print(f"\n[SECONDARY: {primary_category.upper()}]")
+        secondary_results[primary_category] = {}
+        secondary_centroids[primary_category] = {}
+
+        # Compute secondary centroids for this primary category
+        for subcategory, messages in subcategories_dict.items():
+            print(f"\n  [{primary_category} -> {subcategory}]")
+
+            # Get off-topic messages for this subcategory
+            subcat_offtopic = []
+            if primary_category in offtopic_secondary_grouped:
+                subcat_offtopic = offtopic_secondary_grouped[primary_category].get(subcategory, [])
+
+            if not subcat_offtopic:
+                # Use all off-topic from this primary category
+                if primary_category in offtopic_primary_grouped:
+                    subcat_offtopic = offtopic_primary_grouped[primary_category][:min(200, len(offtopic_primary_grouped[primary_category]))]
+
+            print(f"    Domain: {len(messages)} messages")
+            print(f"    Off-topic: {len(subcat_offtopic)} messages")
+
+            if len(subcat_offtopic) < 10:
+                print("    ⚠️ Too few off-topic messages, skipping")
+                continue
+
+            # Compute embeddings
+            domain_embeddings = compute_embeddings(messages, model)
+            offtopic_embeddings = compute_embeddings(subcat_offtopic, model)
+
+            # Compute subcategory centroid
+            subcat_centroid = compute_centroid(domain_embeddings)
+
+            # Store centroid
+            secondary_centroids[primary_category][subcategory] = subcat_centroid
+
+            # Compute similarities
+            domain_similarities = cosine_similarity(domain_embeddings, subcat_centroid).flatten()
+            offtopic_similarities = cosine_similarity(offtopic_embeddings, subcat_centroid).flatten()
+
+            # Find optimal threshold
+            optimal_threshold, optimal_metrics = find_optimal_threshold(
+                domain_similarities, offtopic_similarities, min_domain_acceptance=min_domain_acceptance
+            )
+
+            print(f"    ✓ Threshold: {optimal_threshold:.4f}")
+            print(f"      Domain acceptance: {optimal_metrics['domain_acceptance_rate'] * 100:.2f}%")
+            print(f"      Off-topic rejection: {optimal_metrics['offtopic_rejection_rate'] * 100:.2f}%")
+
+            secondary_results[primary_category][subcategory] = {
+                "threshold": optimal_threshold,
+                "metrics": optimal_metrics,
+                "domain_similarity_stats": {
+                    "mean": float(np.mean(domain_similarities)),
+                    "std": float(np.std(domain_similarities)),
+                },
+            }
+
+    return primary_results, secondary_results, primary_centroids, secondary_centroids
+
+
+def save_hierarchical_results(
+    output_path: str,
+    primary_results: Dict[str, Dict],
+    secondary_results: Dict[str, Dict[str, Dict]],
+    primary_centroids: Dict[str, np.ndarray],
+    secondary_centroids: Dict[str, Dict[str, np.ndarray]],
+    offtopic_primary_grouped: Dict[str, List[str]],
+    model_path: str,
+    model_name: str
+):
+    """Save hierarchical tuning results to JSON file and centroids to pickle files."""
+
+    # Compute global metrics
+    primary_metrics = {
+        "mean_threshold": np.mean([r["threshold"] for r in primary_results.values()]),
+        "mean_domain_acceptance": np.mean([r["metrics"]["domain_acceptance_rate"] for r in primary_results.values()]),
+        "mean_offtopic_rejection": np.mean([r["metrics"]["offtopic_rejection_rate"] for r in primary_results.values()]),
+        "mean_f1_score": np.mean([r["metrics"]["f1_score"] for r in primary_results.values()]),
     }
+
+    # Count total secondary categories
+    total_secondary = sum(len(subcats) for subcats in secondary_results.values())
 
     results = {
         "model_name": model_name,
-        "use_per_category_thresholds": use_per_category,
-        "global_metrics": global_metrics,
-        "per_category_results": category_results,
-        "offtopic_distribution": {category: len(messages) for category, messages in offtopic_grouped.items()},
-        "recommendation": {
-            "approach": "per-category thresholds" if use_per_category else "global threshold",
-            "thresholds": {category: result["threshold"] for category, result in category_results.items()},
-            "usage": "Use category-specific thresholds in semantic gate configuration",
+        "model_path": model_path,
+        "approach": "hierarchical_thresholds",
+        "hierarchical": True,
+        "primary_categories": len(primary_results),
+        "secondary_categories": total_secondary,
+        "global_metrics": {
+            "primary": primary_metrics,
+            "mean_domain_acceptance": primary_metrics["mean_domain_acceptance"],
+            "mean_offtopic_rejection": primary_metrics["mean_offtopic_rejection"],
+        },
+        "primary_thresholds": {
+            category: result["threshold"] for category, result in primary_results.items()
+        },
+        "secondary_thresholds": {
+            category: {subcat: result["threshold"] for subcat, result in subcats.items()}
+            for category, subcats in secondary_results.items()
+        },
+        "detailed_results": {
+            "primary": primary_results,
+            "secondary": secondary_results,
+        },
+        "offtopic_distribution": {
+            "primary": {category: len(messages) for category, messages in offtopic_primary_grouped.items()},
         },
     }
 
     # Create output directory if needed
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Save to JSON
+    # Save thresholds and metrics to JSON
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n✓ Results saved to: {output_path}")
+    print(f"\n✓ Thresholds saved to: {output_path}")
+
+    # Save centroids to models directory
+    centroids_dir = Path(model_path) / "semantic_gate"
+    centroids_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save primary centroids
+    primary_centroids_path = centroids_dir / "primary_centroids.pkl"
+    with open(primary_centroids_path, "wb") as f:
+        pickle.dump(primary_centroids, f)
+    print(f"✓ Primary centroids saved to: {primary_centroids_path}")
+
+    # Save secondary centroids
+    secondary_centroids_path = centroids_dir / "secondary_centroids.pkl"
+    with open(secondary_centroids_path, "wb") as f:
+        pickle.dump(secondary_centroids, f)
+    print(f"✓ Secondary centroids saved to: {secondary_centroids_path}")
 
 
-def print_summary(category_results: Dict[str, Dict], offtopic_grouped: Dict[str, List[str]]):
-    """Print summary of per-category tuning results."""
-    print("\n" + "=" * 80)
-    print("SEMANTIC GATE TUNING RESULTS (PER-CATEGORY)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Tune hierarchical semantic gate thresholds for both primary and secondary categories")
+    parser.add_argument("--data-dir", type=str, required=True, help="Directory containing CSV files with message,category,subcategory (includes off_topic)")
+    parser.add_argument(
+        "--hierarchical-model", type=str, default=None, help="Path to hierarchical model directory (optional, for classifying off-topic)"
+    )
+    parser.add_argument("--output", type=str, default="training/results/semantic_gate_hierarchical_tuning.json", help="Output path for results")
+    parser.add_argument("--model", type=str, default="all-MiniLM-L6-v2", help="SentenceTransformer model (default: all-MiniLM-L6-v2)")
+    parser.add_argument("--min-domain-acceptance", type=float, default=0.95, help="Minimum domain acceptance rate (default: 0.95)")
+
+    args = parser.parse_args()
+
+    print("=" * 80)
+    print("HIERARCHICAL SEMANTIC GATE THRESHOLD TUNING")
     print("=" * 80)
 
-    # Print per-category thresholds
-    print("\n📊 OPTIMAL THRESHOLDS BY CATEGORY:")
+    # 1. Load data
+    print("\n[1/5] Loading hierarchical data...")
+    primary_messages, secondary_messages, offtopic_messages = load_hierarchical_data(args.data_dir)
+
+    if not offtopic_messages:
+        print(f"ERROR: No off-topic messages found in {args.data_dir}")
+        print("  Make sure CSV files contain messages with category='off_topic'")
+        sys.exit(1)
+
+    if not primary_messages:
+        print(f"ERROR: No domain messages found in {args.data_dir}")
+        sys.exit(1)
+
+    print("\nData Summary:")
+    print(f"  Off-topic messages: {len(offtopic_messages):,}")
+    print(f"  Primary categories: {len(primary_messages)}")
+    total_domain = sum(len(msgs) for msgs in primary_messages.values())
+    print(f"  Total domain messages: {total_domain:,}")
+    total_secondary = sum(len(subcats) for subcats in secondary_messages.values())
+    print(f"  Secondary categories: {total_secondary}")
+
+    # 2. Load embedding model
+    print(f"\n[2/5] Loading embedding model: {args.model}...")
+    model = SentenceTransformer(args.model)
+    print(f"  ✓ Model loaded (embedding dim: {model.get_sentence_embedding_dimension()})")
+
+    # 3. Classify off-topic messages using hierarchical classifier (if provided)
+    print("\n[3/5] Classifying off-topic messages...")
+    if args.hierarchical_model and TRANSFORMERS_AVAILABLE:
+        classifiers = load_hierarchical_classifier(args.hierarchical_model)
+        if classifiers:
+            offtopic_primary_grouped, offtopic_secondary_grouped = classify_offtopic_hierarchical(offtopic_messages, classifiers)
+        else:
+            print("  Classifier loading failed, using ungrouped off-topic messages")
+            offtopic_primary_grouped = {cat: offtopic_messages for cat in primary_messages.keys()}
+            offtopic_secondary_grouped = {}
+    else:
+        if args.hierarchical_model and not TRANSFORMERS_AVAILABLE:
+            print("  WARNING: Model path provided but transformers not available")
+        print("  Using all off-topic messages for each category (no classification)")
+        offtopic_primary_grouped = {cat: offtopic_messages for cat in primary_messages.keys()}
+        offtopic_secondary_grouped = {}
+
+    # 4. Tune hierarchical thresholds
+    print("\n[4/5] Tuning hierarchical thresholds...")
+    primary_results, secondary_results, primary_centroids, secondary_centroids = tune_hierarchical_thresholds(
+        primary_messages,
+        secondary_messages,
+        offtopic_primary_grouped,
+        offtopic_secondary_grouped,
+        model,
+        min_domain_acceptance=args.min_domain_acceptance
+    )
+
+    # 5. Save results
+    print("\n[5/5] Saving results...")
+    save_hierarchical_results(
+        args.output,
+        primary_results,
+        secondary_results,
+        primary_centroids,
+        secondary_centroids,
+        offtopic_primary_grouped,
+        args.classifier_model,
+        args.model
+    )
+
+    # 6. Print summary
+    print_hierarchical_summary(primary_results, secondary_results, offtopic_primary_grouped)
+
+    print("\n✅ Hierarchical tuning complete!")
+
+
+def print_hierarchical_summary(
+    primary_results: Dict[str, Dict],
+    secondary_results: Dict[str, Dict[str, Dict]],
+    offtopic_primary_grouped: Dict[str, List[str]]
+):
+    """Print summary of hierarchical tuning results."""
+    print("\n" + "=" * 80)
+    print("HIERARCHICAL SEMANTIC GATE TUNING RESULTS")
+    print("=" * 80)
+
+    # Primary thresholds
+    print("\n📊 PRIMARY CATEGORY THRESHOLDS:")
     print(f"\n{'Category':<20} {'Threshold':<12} {'Domain Acc':<12} {'Off-topic Rej':<15} {'F1 Score':<10}")
     print("-" * 80)
 
-    for category, result in sorted(category_results.items()):
+    for category, result in sorted(primary_results.items()):
         threshold = result["threshold"]
         metrics = result["metrics"]
         print(
@@ -484,101 +984,62 @@ def print_summary(category_results: Dict[str, Dict], offtopic_grouped: Dict[str,
             f"{metrics['offtopic_rejection_rate'] * 100:<14.2f}% {metrics['f1_score']:<10.4f}"
         )
 
-    # Compute global statistics
-    mean_threshold = np.mean([r["threshold"] for r in category_results.values()])
-    mean_acceptance = np.mean([r["metrics"]["domain_acceptance_rate"] for r in category_results.values()])
-    mean_rejection = np.mean([r["metrics"]["offtopic_rejection_rate"] for r in category_results.values()])
-    mean_f1 = np.mean([r["metrics"]["f1_score"] for r in category_results.values()])
+    # Compute primary averages
+    mean_threshold = np.mean([r["threshold"] for r in primary_results.values()])
+    mean_acceptance = np.mean([r["metrics"]["domain_acceptance_rate"] for r in primary_results.values()])
+    mean_rejection = np.mean([r["metrics"]["offtopic_rejection_rate"] for r in primary_results.values()])
+    mean_f1 = np.mean([r["metrics"]["f1_score"] for r in primary_results.values()])
 
     print("-" * 80)
     print(f"{'AVERAGE':<20} {mean_threshold:<12.4f} {mean_acceptance * 100:<11.2f}% {mean_rejection * 100:<14.2f}% {mean_f1:<10.4f}")
 
-    # Print off-topic distribution
+    # Secondary thresholds
+    if secondary_results:
+        print("\n📊 SECONDARY CATEGORY THRESHOLDS:")
+
+        for category in sorted(secondary_results.keys()):
+            print(f"\n  [{category.upper()}]")
+            print(f"  {'Subcategory':<25} {'Threshold':<12} {'Domain Acc':<12} {'Off-topic Rej':<15}")
+            print("  " + "-" * 75)
+
+            for subcat, result in sorted(secondary_results[category].items()):
+                threshold = result["threshold"]
+                metrics = result["metrics"]
+                print(
+                    f"  {subcat:<25} {threshold:<12.4f} {metrics['domain_acceptance_rate'] * 100:<11.2f}% "
+                    f"{metrics['offtopic_rejection_rate'] * 100:<14.2f}%"
+                )
+
+    # Off-topic distribution
     print("\n🔍 OFF-TOPIC MESSAGE DISTRIBUTION:")
-    total_offtopic = sum(len(msgs) for msgs in offtopic_grouped.values())
-    for category, messages in sorted(offtopic_grouped.items(), key=lambda x: len(x[1]), reverse=True):
+    total_offtopic = sum(len(msgs) for msgs in offtopic_primary_grouped.values())
+    for category, messages in sorted(offtopic_primary_grouped.items(), key=lambda x: len(x[1]), reverse=True):
         percentage = len(messages) / total_offtopic * 100
         print(f"  {category:<20} {len(messages):>5} messages ({percentage:>5.1f}%)")
 
-    print("\n💡 RECOMMENDATION:")
-    print("  Use per-category thresholds in semantic gate configuration:")
-    print("  ")
-    print("  category_thresholds = {")
-    for category, result in sorted(category_results.items()):
-        print(f"      '{category}': {result['threshold']:.4f},")
+    # Recommendations
+    print("\n💡 RECOMMENDATIONS:")
+    print("  Primary thresholds:")
+    print("  {")
+    for category, result in sorted(primary_results.items()):
+        print(f"    '{category}': {result['threshold']:.4f},")
     print("  }")
 
-    print("\n" + "=" * 80)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Tune semantic gate thresholds (per-category) for optimal off-topic filtering")
-    parser.add_argument("--offtopic-data", type=str, required=True, help="Path to off_topic.txt file")
-    parser.add_argument("--domain-data", type=str, required=True, help="Directory containing domain message files (rag_queries.txt, etc.)")
-    parser.add_argument(
-        "--classifier-model", type=str, default=None, help="Path to trained DistilBERT classifier (optional, for grouping off-topic messages)"
-    )
-    parser.add_argument("--output", type=str, default="training/results/semantic_gate_tuning.json", help="Output path for tuning results")
-    parser.add_argument("--model", type=str, default="all-MiniLM-L6-v2", help="SentenceTransformer model name (default: all-MiniLM-L6-v2)")
-    parser.add_argument("--min-domain-acceptance", type=float, default=0.95, help="Minimum domain acceptance rate constraint (default: 0.95)")
-
-    args = parser.parse_args()
-
-    print("=" * 80)
-    print("SEMANTIC GATE THRESHOLD TUNING (PER-CATEGORY)")
-    print("=" * 80)
-
-    # 1. Load data
-    print("\n[1/6] Loading data...")
-    offtopic_messages = load_messages_from_file(args.offtopic_data)
-    domain_messages = load_domain_messages(args.domain_data)
-
-    if not offtopic_messages:
-        print(f"ERROR: No off-topic messages found at {args.offtopic_data}")
-        sys.exit(1)
-
-    if not domain_messages:
-        print(f"ERROR: No domain messages found in {args.domain_data}")
-        sys.exit(1)
-
-    print(f"\n  Off-topic messages: {len(offtopic_messages):,}")
-    print(f"  Domain categories: {len(domain_messages)}")
-    total_domain = sum(len(msgs) for msgs in domain_messages.values())
-    print(f"  Total domain messages: {total_domain:,}")
-
-    # 2. Load embedding model
-    print(f"\n[2/6] Loading embedding model: {args.model}...")
-    model = SentenceTransformer(args.model)
-    print(f"  ✓ Model loaded (embedding dim: {model.get_sentence_embedding_dimension()})")
-
-    # 3. Classify off-topic messages using DistilBERT (if classifier provided)
-    print("\n[3/6] Classifying off-topic messages...")
-    if args.classifier_model and DISTILBERT_AVAILABLE:
-        offtopic_grouped = classify_offtopic_messages(offtopic_messages, args.classifier_model)
-    else:
-        if args.classifier_model and not DISTILBERT_AVAILABLE:
-            print("  WARNING: Classifier model path provided but DistilBERT not available")
-        print("  Using all off-topic messages for each category (no grouping)")
-        # Distribute off-topic messages equally across categories for testing
-        offtopic_grouped = {category: offtopic_messages for category in domain_messages.keys()}
-
-    # 4. Tune per-category thresholds
-    print("\n[4/6] Tuning per-category thresholds...")
-    category_results = tune_per_category_thresholds(domain_messages, offtopic_grouped, model, min_domain_acceptance=args.min_domain_acceptance)
-
-    # 5. Save results
-    print("\n[5/6] Saving results...")
-    save_results(args.output, category_results, offtopic_grouped, args.model, use_per_category=True)
-
-    # 6. Print summary
-    print("\n[6/6] Generating summary...")
-    print_summary(category_results, offtopic_grouped)
+    if secondary_results:
+        print("\n  Secondary thresholds:")
+        print("  {")
+        for category, subcats in sorted(secondary_results.items()):
+            print(f"    '{category}': {{")
+            for subcat, result in sorted(subcats.items()):
+                print(f"      '{subcat}': {result['threshold']:.4f},")
+            print("    },")
+        print("  }")
 
     # Additional insights
     print("\n📝 INSIGHTS:")
 
     # Find categories with lowest acceptance
-    lowest_acceptance_category = min(category_results.items(), key=lambda x: x[1]["metrics"]["domain_acceptance_rate"])
+    lowest_acceptance_category = min(primary_results.items(), key=lambda x: x[1]["metrics"]["domain_acceptance_rate"])
     print(
         f"  Lowest domain acceptance: {lowest_acceptance_category[0]} "
         f"({lowest_acceptance_category[1]['metrics']['domain_acceptance_rate'] * 100:.2f}%)"
@@ -586,23 +1047,28 @@ def main():
     print(f"    Threshold: {lowest_acceptance_category[1]['threshold']:.4f}")
 
     # Find categories with lowest rejection
-    lowest_rejection_category = min(category_results.items(), key=lambda x: x[1]["metrics"]["offtopic_rejection_rate"])
+    lowest_rejection_category = min(primary_results.items(), key=lambda x: x[1]["metrics"]["offtopic_rejection_rate"])
     print(
         f"\n  Lowest off-topic rejection: {lowest_rejection_category[0]} "
         f"({lowest_rejection_category[1]['metrics']['offtopic_rejection_rate'] * 100:.2f}%)"
     )
     print("    → Off-topic messages most commonly misclassified as this category")
 
-    # Check separation for each category
+    # Check separation
     print("\n  Per-category domain vs off-topic separation:")
-    for category, result in sorted(category_results.items()):
+    for category, result in sorted(primary_results.items()):
         domain_mean = result["domain_similarity_stats"]["mean"]
-        offtopic_mean = result["offtopic_similarity_stats"]["mean"]
-        separation = domain_mean - offtopic_mean
-        status = "✓" if separation > 0.2 else "⚠️" if separation > 0.1 else "❌"
-        print(f"    {status} {category:<20} {separation:>6.4f}")
+        if "offtopic_similarity_stats" in result:
+            offtopic_mean = result.get("offtopic_similarity_stats", {}).get("mean", 0)
+            separation = domain_mean - offtopic_mean
+            status = "✓" if separation > 0.2 else "⚠️" if separation > 0.1 else "❌"
+            print(f"    {status} {category:<20} {separation:>6.4f}")
 
-    print("\n✅ Tuning complete!")
+    print("\n" + "=" * 80)
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":

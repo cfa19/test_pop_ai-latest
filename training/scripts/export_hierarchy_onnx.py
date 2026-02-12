@@ -1,15 +1,11 @@
 """
 Export all hierarchical classifier models (primary + secondary) to ONNX format.
 
-Reads models from training/models/all-miniM/ (local) and exports to
-training/models/full_onnx/
-
 Converts:
   - Primary model (BertForSequenceClassification / all-MiniLM-L6-v2, 8 categories)
   - 6 Secondary models (DistilBertForSequenceClassification / distilbert-base-uncased)
 
 Each model is exported to ONNX FP32, then quantized to INT8 (~3-4x smaller).
-Also copies semantic gate centroids data.
 
 Usage:
     python -m training.scripts.export_hierarchy_onnx
@@ -23,20 +19,17 @@ Output structure:
     │   ├── model_quantized.onnx
     │   ├── config.json
     │   ├── label_mappings.json
+    │   ├── centroids.pkl
+    │   ├── centroid_metadata.json
     │   ├── tokenizer.json
     │   └── tokenizer_config.json
-    ├── secondary/
-    │   ├── aspirational/
-    │   ├── emotional/
-    │   ├── learning/
-    │   ├── professional/
-    │   ├── psychological/
-    │   └── social/
-    └── semantic_gate/
-        ├── primary_centroids.pkl
-        ├── primary_centroid_metadata.json
-        ├── secondary_centroids.pkl
-        └── secondary_centroid_metadata.json
+    └── secondary/
+        ├── aspirational/
+        ├── emotional/
+        ├── learning/
+        ├── professional/
+        ├── psychological/
+        └── social/
 """
 
 import json
@@ -49,12 +42,12 @@ PYLIB = r"D:\pylib"
 if PYLIB not in sys.path:
     sys.path.insert(0, PYLIB)
 
-import numpy as np  # noqa: E402
-import torch  # noqa: E402
-from transformers import AutoModelForSequenceClassification, AutoTokenizer  # noqa: E402
+import numpy as np
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-# Paths — source from local all-miniM, output to full_onnx
-SOURCE_DIR = Path("training/models/all-miniM")
+# Paths
+HIERARCHY_DIR = Path("training/models/hierarchy")
 OUTPUT_DIR = Path("training/models/full_onnx")
 
 # Files to copy alongside each ONNX model
@@ -70,11 +63,11 @@ COPY_FILES = [
 
 def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> bool:
     """Export a single model to ONNX with INT8 quantization."""
-    print(f"\n{'=' * 60}")
+    print(f"\n{'='*60}")
     print(f"Exporting: {model_name}")
     print(f"  Source:  {model_dir}")
     print(f"  Output:  {output_dir}")
-    print(f"{'=' * 60}")
+    print(f"{'='*60}")
 
     if not model_dir.exists():
         print(f"  [ERROR] Source directory not found: {model_dir}")
@@ -198,12 +191,10 @@ def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> 
 def main():
     print("=" * 60)
     print("Hierarchical Models -> ONNX Export (Primary + Secondary)")
-    print(f"  Source: {SOURCE_DIR}")
-    print(f"  Output: {OUTPUT_DIR}")
     print("=" * 60)
 
-    if not SOURCE_DIR.exists():
-        print(f"[ERROR] Source directory not found: {SOURCE_DIR}")
+    if not HIERARCHY_DIR.exists():
+        print(f"[ERROR] Hierarchy directory not found: {HIERARCHY_DIR}")
         sys.exit(1)
 
     # Clean output directory
@@ -214,48 +205,41 @@ def main():
     results = {}
 
     # 1. Export primary model
-    primary_src = SOURCE_DIR / "primary" / "final"
+    primary_src = HIERARCHY_DIR / "primary" / "final"
     primary_out = OUTPUT_DIR / "primary"
     results["primary"] = export_model_to_onnx(primary_src, primary_out, "PRIMARY (8 categories)")
 
     # 2. Export each secondary model
-    secondary_dir = SOURCE_DIR / "secondary"
-    categories = sorted([d.name for d in secondary_dir.iterdir() if d.is_dir() and (d / "final" / "model.safetensors").exists()])
+    secondary_dir = HIERARCHY_DIR / "secondary"
+    categories = sorted([
+        d.name for d in secondary_dir.iterdir()
+        if d.is_dir() and (d / "final" / "model.safetensors").exists()
+    ])
 
     print(f"\nFound {len(categories)} secondary models: {categories}")
 
     for category in categories:
         src = secondary_dir / category / "final"
         out = OUTPUT_DIR / "secondary" / category
-        results[f"secondary/{category}"] = export_model_to_onnx(src, out, f"SECONDARY: {category}")
+        results[f"secondary/{category}"] = export_model_to_onnx(
+            src, out, f"SECONDARY: {category}"
+        )
 
     # Copy metadata files
-    metadata_src = SOURCE_DIR / "hierarchy_metadata.json"
+    metadata_src = HIERARCHY_DIR / "hierarchy_metadata.json"
     if metadata_src.exists():
         shutil.copy2(str(metadata_src), str(OUTPUT_DIR / "hierarchy_metadata.json"))
         print("\nCopied hierarchy_metadata.json")
 
-    secondary_meta = SOURCE_DIR / "secondary" / "secondary_metadata.json"
+    secondary_meta = HIERARCHY_DIR / "secondary" / "secondary_metadata.json"
     if secondary_meta.exists():
         shutil.copy2(str(secondary_meta), str(OUTPUT_DIR / "secondary_metadata.json"))
         print("Copied secondary_metadata.json")
 
-    # Copy semantic gate data
-    semantic_gate_src = SOURCE_DIR / "semantic_gate"
-    semantic_gate_out = OUTPUT_DIR / "semantic_gate"
-    if semantic_gate_src.exists():
-        semantic_gate_out.mkdir(parents=True, exist_ok=True)
-        for sg_file in semantic_gate_src.iterdir():
-            if sg_file.is_file():
-                shutil.copy2(str(sg_file), str(semantic_gate_out / sg_file.name))
-                print(f"Copied semantic_gate/{sg_file.name}")
-    else:
-        print("\n[WARNING] No semantic_gate directory found in source")
-
     # Summary
-    print(f"\n{'=' * 60}")
+    print(f"\n{'='*60}")
     print("EXPORT SUMMARY")
-    print(f"{'=' * 60}")
+    print(f"{'='*60}")
     total = len(results)
     success = sum(1 for v in results.values() if v)
 
@@ -278,7 +262,7 @@ def main():
             total_size += size
             rel = f.relative_to(OUTPUT_DIR)
             print(f"  {rel}: {size / 1024:.1f} KB")
-    print(f"\nTotal output size: {total_size / (1024 * 1024):.1f} MB")
+    print(f"\nTotal output size: {total_size / (1024*1024):.1f} MB")
 
 
 if __name__ == "__main__":

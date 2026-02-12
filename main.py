@@ -49,6 +49,12 @@ def download_models():
     config.SEMANTIC_GATE_CENTROIDS_DIR = str(Path(local_path) / "semantic_gate")
     config.SEMANTIC_GATE_TUNING_PATH = str(Path(local_path) / "semantic_gate" / "semantic_gate_hierarchical_tuning.json")
 
+    # FastText language detection model (lid.176.bin)
+    fasttext_path = Path(local_path) / "fasttext" / "lid.176.bin"
+    if fasttext_path.exists():
+        config.LANG_DETECT_FASTTEXT_MODEL_PATH = str(fasttext_path)
+        logger.info(f"  FastText model: {fasttext_path}")
+
     logger.info(f"Models downloaded to {local_path}")
     logger.info(f"  Primary classifier: {config.INTENT_CLASSIFIER_MODEL_PATH}")
     logger.info(f"  ONNX hierarchy: {config.ONNX_HIERARCHY_PATH}")
@@ -61,6 +67,7 @@ async def preload_models():
         INTENT_CLASSIFIER_MODEL_PATH,
         PRIMARY_INTENT_CLASSIFIER_TYPE,
         SEMANTIC_GATE_ENABLED,
+        SEMANTIC_GATE_MODEL,
         set_intent_classifier,
         set_semantic_gate,
     )
@@ -97,7 +104,7 @@ async def preload_models():
                 logger.info("Trying PyTorch semantic gate as fallback...")
                 from src.agents.semantic_gate import get_semantic_gate
 
-                gate = get_semantic_gate()
+                gate = get_semantic_gate(model_name=SEMANTIC_GATE_MODEL)
                 set_semantic_gate(gate)
                 logger.info("PyTorch semantic gate loaded successfully")
             except Exception as e2:

@@ -130,7 +130,16 @@ class SemanticGate:
 
         # Initialize embedding model
         print(f"[SEMANTIC GATE] Loading SentenceTransformer: {model_name}...")
-        self.model = _sentence_transformer(model_name)
+        try:
+            from src.config import SEMANTIC_GATE_LOCAL_FILES_ONLY, SEMANTIC_GATE_MODEL_PATH
+        except ImportError:
+            SEMANTIC_GATE_LOCAL_FILES_ONLY = True
+            SEMANTIC_GATE_MODEL_PATH = "training/models/sentence_transformers"
+        self.model = _sentence_transformer(
+            model_name,
+            cache_folder=SEMANTIC_GATE_MODEL_PATH,
+            local_files_only=SEMANTIC_GATE_LOCAL_FILES_ONLY,
+        )
         self.model_name = model_name
 
         # Load centroids from models directory (pickle files)
@@ -343,11 +352,19 @@ class SemanticGate:
 _semantic_gate_instance = None
 
 
-def get_semantic_gate(centroids_dir: str = None, tuning_results_path: str = None, force_reload: bool = False) -> SemanticGate:
+def get_semantic_gate(
+    centroids_dir: str = None,
+    tuning_results_path: str = None,
+    model_name: str = "all-MiniLM-L6-v2",
+    force_reload: bool = False,
+) -> SemanticGate:
     """
     Get or create the global semantic gate instance (singleton pattern).
 
     Args:
+        centroids_dir: Directory containing centroid pickle files
+        tuning_results_path: Path to tuning results JSON
+        model_name: SentenceTransformer model name (must match tuning)
         force_reload: If True, recreate the semantic gate
 
     Returns:
@@ -356,6 +373,10 @@ def get_semantic_gate(centroids_dir: str = None, tuning_results_path: str = None
     global _semantic_gate_instance
 
     if _semantic_gate_instance is None or force_reload:
-        _semantic_gate_instance = SemanticGate(centroids_dir=centroids_dir, tuning_results_path=tuning_results_path)
+        _semantic_gate_instance = SemanticGate(
+            centroids_dir=centroids_dir,
+            tuning_results_path=tuning_results_path,
+            model_name=model_name,
+        )
 
     return _semantic_gate_instance

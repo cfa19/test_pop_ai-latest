@@ -89,6 +89,7 @@ async def chat(request_body: ChatRequest, request: Request):
             message=request_body.message,
             user_id=user_id,
             conversation_id=conversation_id,
+            auth_header=auth_header,
             chat_client=chat_client,
             embed_client=embed_client,
             supabase=get_supabase(),

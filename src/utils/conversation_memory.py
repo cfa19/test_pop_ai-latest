@@ -174,6 +174,35 @@ def search_conversation_history(
     return relevant_messages
 
 
+def get_recent_messages(supabase: Client, conversation_id: str, user_id: str, limit: int = 5) -> List[Dict]:
+    """
+    Get the most recent messages from a conversation (for context window)
+
+    Args:
+        supabase: Supabase client
+        conversation_id: Conversation ID
+        user_id: User ID for filtering
+        limit: Number of recent messages to retrieve
+
+    Returns:
+        List of recent messages in chronological order
+    """
+    result = (
+        supabase.table(Tables.CONVERSATION_HISTORY)
+        .select("id, role, message, created_at")
+        .eq("conversation_id", conversation_id)
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    # Reverse to get chronological order (oldest to newest)
+    messages = list(reversed(result.data))
+
+    return messages
+
+
 def generate_conversation_id() -> str:
     """
     Generate a unique conversation ID
