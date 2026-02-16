@@ -983,35 +983,44 @@ def _collect_sub_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str
     """
     Collect all (context, entity, sub_entity) paths from the hierarchical classification.
 
-    Some sub-entity models output actual sub-entity names (e.g. dream_roles,
-    compensation_expectations) that match EXTRACTION_SCHEMAS keys.  Others output
-    field names (e.g. role, company) that don't.  For the latter case we fall
-    back to using the entity name itself as the schema key.
+    The ONNX classifier provides context + entity (2 levels).
+    Sub-entities are looked up from CONTEXT_REGISTRY (the taxonomy) and the
+    LLM extraction node decides which ones are actually present in the message.
 
     Returns list of tuples like:
         [("professional", "professional_aspirations", "dream_roles"),
          ("professional", "professional_aspirations", "compensation_expectations"),
-         ("professional", "current_position", "current_position")]
+         ...]
     """
     hier = state.get("hierarchical_classification")
     if not hier or not hier.contexts:
         return []
 
+    # Load taxonomy for sub-entity lookups
+    try:
+        from training.constants import CONTEXT_REGISTRY
+    except ImportError:
+        CONTEXT_REGISTRY = {}
+
     paths = []
     for ctx in hier.contexts:
         for ent in ctx.entities:
-            if ent.sub_entities:
-                # Check if any sub-entity has an extraction schema
-                has_schema = any(EXTRACTION_SCHEMAS.get(sub) for sub in ent.sub_entities)
-                if has_schema:
-                    # Sub-entities are real taxonomy names (dream_roles, etc.)
-                    for sub in ent.sub_entities:
-                        paths.append((ctx.context, ent.entity, sub))
-                else:
-                    # Sub-entities are field names (role, company) — use entity name
+            # Look up ALL sub-entities from taxonomy for this entity
+            taxonomy_subs = {}
+            if ctx.context in CONTEXT_REGISTRY:
+                entity_info = CONTEXT_REGISTRY[ctx.context]["entities"].get(ent.entity, {})
+                taxonomy_subs = entity_info.get("sub_entities", {})
+
+            if taxonomy_subs:
+                for sub_key in taxonomy_subs:
+                    # Only add if there's an extraction schema for this sub-entity
+                    if EXTRACTION_SCHEMAS.get(sub_key):
+                        paths.append((ctx.context, ent.entity, sub_key))
+                # If no sub-entity had a schema, fall back to entity name
+                if not any(EXTRACTION_SCHEMAS.get(s) for s in taxonomy_subs):
                     paths.append((ctx.context, ent.entity, ent.entity))
             else:
-                # No sub-entities activated — try entity name as schema key
+                # No taxonomy info — try entity name as schema key
                 paths.append((ctx.context, ent.entity, ent.entity))
     return paths
 

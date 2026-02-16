@@ -428,14 +428,43 @@ def generate_full_context(
             results["multi_label"].extend(msgs)
             time.sleep(1)
 
-    # 3. Cross-context (this context + others)
+    # 3. Cross-context (this context + others) — weighted by realistic co-occurrence
     if cross_context_messages > 0:
-        other_contexts = [c for c in CONTEXT_REGISTRY if c != context]
-        for other in random.sample(other_contexts, min(2, len(other_contexts))):
+        # Realistic pair weights: which contexts naturally appear together?
+        # Higher weight = more likely to be mentioned in the same message
+        CROSS_CONTEXT_WEIGHTS = {
+            ("professional", "learning"):      5,  # "I know Python and want to be CTO"
+            ("professional", "psychological"):  4,  # "I'm a manager but burnout is killing me"
+            ("professional", "personal"):       3,  # "I want a promotion but can't relocate (kids)"
+            ("professional", "social"):         4,  # "My mentor says I should switch companies"
+            ("learning", "psychological"):      3,  # "I want to learn leadership but lack confidence"
+            ("learning", "personal"):           2,  # "I'm studying an MBA while raising kids"
+            ("learning", "social"):             2,  # "My network recommended this certification"
+            ("psychological", "personal"):      4,  # "Work stress is affecting my family life"
+            ("psychological", "social"):        2,  # "I feel isolated at work, no mentors"
+            ("personal", "social"):             2,  # "My family situation limits my networking"
+        }
+
+        # Get weighted pairs for this context
+        weighted_pairs = []
+        for (c1, c2), weight in CROSS_CONTEXT_WEIGHTS.items():
+            if c1 == context:
+                weighted_pairs.extend([(c2, weight)])
+            elif c2 == context:
+                weighted_pairs.extend([(c1, weight)])
+
+        if not weighted_pairs:
+            # Fallback: all other contexts with equal weight
+            weighted_pairs = [(c, 1) for c in CONTEXT_REGISTRY if c != context]
+
+        # Sample proportionally to weights
+        total_weight = sum(w for _, w in weighted_pairs)
+        for other, weight in weighted_pairs:
+            count = max(1, int(cross_context_messages * weight / total_weight))
             msgs = generate_cross_context_messages(
                 client,
                 contexts=[context, other],
-                num_messages=cross_context_messages // 2,
+                num_messages=count,
                 num_contexts=2,
                 temperature=temperature + 0.1,
                 batch_size=min(batch_size, 10),

@@ -250,26 +250,14 @@ class HierarchicalONNXClassifier:
                 if model:
                     self.entity_models[ctx] = model
 
-        # Level 3: Sub-entity models (one per entity)
+        # Level 3: Sub-entity models skipped — LLM extraction handles sub-entities
+        # The classifier only needs to identify context + entity (2 levels).
+        # Sub-entities are looked up from CONTEXT_REGISTRY and extracted by the LLM.
         self.sub_entity_models: dict[str, dict[str, ONNXModel]] = {}
-        for ctx in CONTEXT_TYPES:
-            ctx_dir = model_dir / ctx
-            if not ctx_dir.exists():
-                continue
-            for sub_dir in sorted(ctx_dir.iterdir()):
-                if sub_dir.name == "entities" or not sub_dir.is_dir():
-                    continue
-                if (sub_dir / "model_quantized.onnx").exists() or (sub_dir / "model.onnx").exists():
-                    model = self._load_model(sub_dir, f"{ctx}/{sub_dir.name}")
-                    if model:
-                        if ctx not in self.sub_entity_models:
-                            self.sub_entity_models[ctx] = {}
-                        self.sub_entity_models[ctx][sub_dir.name] = model
 
         # Summary
         n_entity = len(self.entity_models)
-        n_sub = sum(len(v) for v in self.sub_entity_models.values())
-        print(f"[HIERARCHICAL ONNX] Loaded: routing + contexts + {n_entity} entity models + {n_sub} sub-entity models")
+        print(f"[HIERARCHICAL ONNX] Loaded: routing + contexts + {n_entity} entity models (sub-entities handled by LLM)")
 
     def _load_model(self, model_dir: Path, name: str) -> Optional[ONNXModel]:
         """Load a single ONNX model, returning None if not found."""
@@ -383,31 +371,14 @@ class HierarchicalONNXClassifier:
                 detected_entities = self._get_entities_above_threshold(entity_probs)
 
                 for entity, entity_conf in detected_entities:
-                    # Get sub-entities for this entity (multi-label)
-                    sub_entities = []
-                    sub_probs = {}
-
-                    if ctx in self.sub_entity_models and entity in self.sub_entity_models[ctx]:
-                        sub_model = self.sub_entity_models[ctx][entity]
-                        sub_entities, sub_probs = sub_model.predict_multi_label(message)
-
-                    if sub_entities:
-                        entity_results.append(SubEntityResult(
-                            entity=entity,
-                            sub_entities=sub_entities,
-                            probabilities=sub_probs,
-                        ))
-                        reasoning_parts.append(
-                            f"{ctx}.{entity} ({entity_conf:.0%}) → [{', '.join(sub_entities)}]"
-                        )
-                    elif entity_conf >= self.ENTITY_THRESHOLD:
-                        # Entity detected but no sub-entity model or no active sub-entities
-                        entity_results.append(SubEntityResult(
-                            entity=entity,
-                            sub_entities=[],
-                            probabilities={},
-                        ))
-                        reasoning_parts.append(f"{ctx}.{entity} ({entity_conf:.0%})")
+                    # Sub-entities are resolved downstream by the LLM extraction node
+                    # using CONTEXT_REGISTRY lookups — no Level 3 ONNX model needed.
+                    entity_results.append(SubEntityResult(
+                        entity=entity,
+                        sub_entities=[],
+                        probabilities={},
+                    ))
+                    reasoning_parts.append(f"{ctx}.{entity} ({entity_conf:.0%})")
 
             if entity_results:
                 context_results.append(ContextResult(
