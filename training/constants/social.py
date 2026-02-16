@@ -1,293 +1,294 @@
 """
-Social Category Constants and Prompt Templates
+Social Context Constants for Hierarchical Multi-Label Classification
 
-Contains category definitions and prompt templates for generating
-social context training data.
+Taxonomy: social > entity > sub_entity
+5 entities: mentors, mentees, professional_network, recommendations, networking
 """
 
-from typing import Dict, List
+CONTEXT_NAME = "social"
 
-
-# ==============================================================================
-# SOCIAL CATEGORIES
-# ==============================================================================
-
-SOCIAL_CATEGORIES = {
+ENTITIES = {
     "mentors": {
         "name": "Mentors",
-        "description": "Current or past mentors, coaches, advisors, people who guided career development. VARY THE LANGUAGE—avoid overusing 'mentor'. Use alternatives: coach, advisor, guide, teacher, professor, supervisor who guided you, senior colleague who helped you, etc.",
+        "description": "Current or past mentors, coaches, advisors who guide career development.",
+        "sub_entities": {
+            "mentor_name": "Name of mentor",
+            "mentor_role": "Mentor's role/title",
+            "relationship": "Formal or informal relationship",
+            "frequency": "How often they meet",
+            "guidance_areas": "What the mentor helps with",
+            "impact": "How helpful the mentor is"
+        },
         "examples": [
+            "I have a mentor who's a VP at Stripe she's amazing",
+            "My mentor meets with me monthly to review my career plan",
+            "Sarah helps me with leadership skills and executive presence",
             "I've had a great coach who helped me transition into tech",
-            "my manager at my last job was an amazing guide and advisor",
-            "I don't currently have a mentor but would love to find someone to guide me",
-            "I've worked with several coaches and advisors throughout my career in different areas",
+            "My manager at my last job was an incredible guide and advisor",
+            "I don't currently have a mentor but I really need one",
             "My professor in college was instrumental in helping me find my path",
-            "I had a senior colleague who really took me under their wing and taught me the ropes",
-            "My supervisor has been a great teacher and helped me develop my leadership skills",
-            "I've been fortunate to have advisors from different industries who offer diverse perspectives"
+            "I had a senior colleague who took me under their wing and taught me everything",
+            "My mentor is a retired CEO he gives me brutally honest feedback",
+            "I meet with my career coach biweekly and it's been transformative"
         ]
     },
-    "journey_peers": {
-        "name": "Journey Peers",
-        "description": "SAME-LEVEL peers on similar career paths—horizontal relationships, NOT mentors. People at your level: classmates, fellow students, co-workers at similar seniority, colleagues you collaborate with as equals, friends in similar roles, cohort members, fellow apprentices, etc. Focus on PEER-TO-PEER connections, not guidance relationships.",
+    "mentees": {
+        "name": "Mentees",
+        "description": "People they mentor, guide, or support in their career development.",
+        "sub_entities": {
+            "mentee_name": "Name of mentee",
+            "mentee_background": "Mentee's background and situation",
+            "guidance_provided": "What help is provided",
+            "progress": "How the mentee is progressing"
+        },
         "examples": [
-            "I'm part of a community of backend engineers who meet regularly and share experiences",
-            "I have several peers who are also transitioning into product management—we support each other",
-            "my network includes people from my bootcamp who are now at top tech companies",
-            "I've built strong relationships with colleagues at my level across different companies",
-            "I stay in touch with classmates from nursing school—we're all working at different hospitals now",
-            "I have a group of fellow teachers I met at orientation who I lean on for support",
-            "my cohort from the apprenticeship program still meets up to share what we're learning on the job",
-            "I'm connected with other social workers in the area who are at a similar stage in their careers"
+            "I'm mentoring a junior PM who's transitioning from design",
+            "I help new PMs with product strategy and stakeholder management",
+            "I mentor 3 people informally at my company",
+            "I'm mentoring a college student who wants to get into tech",
+            "I volunteer as a mentor at a coding bootcamp for career changers",
+            "One of my mentees just got promoted which felt amazing",
+            "I mentor a young nurse who reminds me of myself when I started",
+            "I'm guiding two junior engineers on my team through their first year"
         ]
     },
-    "people_helped": {
-        "name": "People Helped",
-        "description": "People mentored, coached, or helped in their careers, mentees, direct reports",
+    "professional_network": {
+        "name": "Professional Network",
+        "description": "Professional connections, peers, colleagues, communities, and groups.",
+        "sub_entities": {
+            "connections": "People in their network (peers, colleagues, acquaintances)",
+            "relationship_strength": "Strong or weak ties",
+            "interaction_frequency": "How often they interact",
+            "collaboration_type": "How they work together",
+            "last_interaction": "When they last connected",
+            "communities": "Professional communities and groups",
+            "community_type": "Online or in-person communities",
+            "membership_status": "Active or inactive member",
+            "engagement_level": "How engaged they are in communities",
+            "community_value": "What they get from communities"
+        },
         "examples": [
-            "I've mentored three junior engineers who are now mid-level",
-            "I regularly help bootcamp graduates break into tech",
-            "I've managed a team of 5 people and helped them grow their careers",
-            "I mentor women in tech through a local organization"
+            "I have an accountability partner for my career goals we check in weekly",
+            "I collaborate with other PMs in my Reforge cohort",
+            "I know the Director of Product at Airbnb from a conference",
+            "I have about 450 LinkedIn connections mostly in tech",
+            "I haven't talked to John in 6 months should really reconnect",
+            "I'm in the Reforge community and it's been super valuable",
+            "I attend SF Product Managers meetups monthly",
+            "I'm active in a Slack group for PMs with about 2000 members",
+            "I'm part of a mastermind group with 5 other founders",
+            "My professional network is pretty weak honestly I need to build it up"
         ]
     },
-    "testimonials": {
-        "name": "Testimonials",
-        "description": "What others say about you, feedback received, recognition, reputation",
+    "recommendations": {
+        "name": "Recommendations",
+        "description": "Testimonials, written recommendations, and professional references.",
+        "sub_entities": {
+            "testimonial_from": "Who wrote the testimonial",
+            "testimonial_text": "The written recommendation text",
+            "permission_to_share": "Whether testimonial can be shared publicly",
+            "reference_name": "Name of reference person",
+            "reference_role": "Reference's title/position",
+            "relationship": "How they know each other"
+        },
         "examples": [
-            "people often tell me I'm a great communicator and teacher",
-            "my teammates say I bring positive energy and help everyone collaborate better",
-            "I received feedback that I'm excellent at breaking down complex problems",
-            "my manager said I'm one of the most reliable people on the team"
+            "My manager wrote me a strong LinkedIn recommendation",
+            "I got a great testimonial from a colleague about my leadership",
+            "John Smith can be a reference for me he was my director",
+            "I can provide 3 professional references from my last 2 jobs",
+            "My former manager Sarah Johnson wrote a detailed recommendation and can serve as a reference",
+            "I have a glowing review from my client at Deloitte",
+            "My professor wrote me a recommendation letter for grad school",
+            "I don't have any professional references yet which worries me"
+        ]
+    },
+    "networking": {
+        "name": "Networking",
+        "description": "Professional networking activities, goals, and preferences.",
+        "sub_entities": {
+            "networking_activities": "Events attended, coffee chats, conferences",
+            "networking_goals": "People they want to meet, events to attend, strategy",
+            "networking_preferences": "Preferred formats, energy impact, networking style"
+        },
+        "examples": [
+            "I attended ProductCon last month and met some great people",
+            "I had coffee with a PM at Google last week super helpful",
+            "I'm going to Stripe Sessions in March to network",
+            "I want to meet more CPOs and VPs of Product",
+            "I'm planning to attend 3 conferences this year for networking",
+            "I prefer 1-on-1 coffee chats over big networking events",
+            "Networking drains me I'm an introvert but I know I need to do it",
+            "I've been cold emailing VPs on LinkedIn with a 15 percent response rate",
+            "I want to build relationships with CTOs at AI companies",
+            "I do my best networking through warm introductions not cold outreach"
         ]
     }
 }
 
-
-# ==============================================================================
-# PROMPT TEMPLATES
-# ==============================================================================
-
-PATTERN_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse message patterns for describing {category_name_lower}.
-
-Category: {category_name}
-Description: {category_description}
-
-Each pattern should:
-1. Include the placeholder [OBJ] where the social detail goes
-2. Be natural and conversational (first-person statements)
-3. Be specifically relevant to {category_name_lower}
-4. Vary in formality and detail level
-5. Use appropriate tense (present for current, past for history)
-
-Context examples for this category:
-{category_examples}
-
-Examples of good patterns for social statements:
-- "I have [OBJ]"
-- "My network includes [OBJ]"
-- "I've [OBJ]"
-- "People say I'm [OBJ]"
-- "I'm part of [OBJ]"
-- "I've helped [OBJ]"
-
-Return ONLY the patterns, one per line, no numbering or bullets.
-Each pattern MUST contain exactly one [OBJ] placeholder."""
-
-
-OBJECT_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse {category_name_lower} statements that someone might share with a career coach.
-
-Category: {category_name}
-Description: {category_description}
-
-Examples of what to generate:
-{category_examples}
-
-Requirements:
-1. Generate realistic, specific social context statements
-2. Cover diverse networking situations and relationships
-3. Be authentic and relatable
-4. Be concrete and specific (not generic)
-5. One statement per line
-
-Return ONLY the statements, no numbering or bullets."""
-
-
-PATTERN_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural, conversational patterns for social context descriptions.
-
-Your patterns should:
-- Feel authentic and natural
-- Use first-person voice ("I", "My", etc.)
-- Include the [OBJ] placeholder exactly once
-- Vary in structure and formality
-- Be appropriate for career coaching context"""
-
-
-OBJECT_GENERATION_SYSTEM_PROMPT = """You are a career coaching expert generating realistic social profiles.
-
-Your statements should:
-- Be specific and concrete
-- Cover diverse networking situations
-- Sound authentic and relatable
-- Avoid overly formal or corporate language
-- Be suitable for career coaching context"""
-
-
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural social context messages. Always respond with valid JSON."""
-
-# Category-specific guidance to prevent overusing certain words and category confusion
-CATEGORY_GUIDANCE = {
+ENTITY_GUIDANCE = {
     "mentors": """
-CRITICAL: MENTORS are people who GUIDE, TEACH, or ADVISE you (vertical/guidance relationship).
-Focus: People MORE SENIOR or EXPERIENCED who help you grow (not same-level peers)
+CRITICAL: People who GUIDE and ADVISE them in their career.
+✓ CORRECT: "My mentor helps me with leadership", "I meet with my coach monthly"
+✗ WRONG: "I mentor junior PMs" (that's mentees—THEY are the mentor!)
+✗ WRONG: "I know a VP at Stripe" (that's professional_network unless that person mentors them!)""",
 
-✓ CORRECT format: Use VARIED terms for people who guided you
-  - "I've had a great coach who helped me transition into tech"
-  - "My professor was instrumental in helping me find my path"
-  - "I had a senior colleague who took me under their wing"
-  - "My supervisor has been a great teacher and guide"
-  - "I've worked with several advisors throughout my career"
-  - "My manager was an amazing guide when I was starting out"
-  - "I don't currently have a mentor but would love to find someone to guide me"
+    "mentees": """
+CRITICAL: People THEY guide and mentor.
+✓ CORRECT: "I mentor a junior PM", "I help new engineers on my team"
+✗ WRONG: "My mentor helps me" (that's mentors—they are the MENTEE!)""",
 
-Varied vocabulary: "coach", "advisor", "guide", "teacher", "professor", "supervisor who guided me", "senior colleague who helped me", "manager who taught me"
+    "professional_network": """
+CRITICAL: Connections, communities, and professional groups. NOT mentoring relationships.
+✓ CORRECT: "I have 500 LinkedIn connections", "I'm in a Slack group for PMs"
+✗ WRONG: "My mentor is a VP" (that's mentors!)
+✗ WRONG: "I attended a conference" (that's networking > networking_activities!)""",
 
-✗ WRONG format: Overusing "mentor/mentored"
-  - "I've had several mentors and they mentored me in..." ← Too repetitive!
-  - "My mentor mentored me through..." ← Use "My coach guided me" or "My advisor helped me"
+    "networking": """
+CRITICAL: MULTI-LABEL entity. Activities, goals, preferences for professional networking.
+- networking_activities: "Attended ProductCon", "Had coffee with a PM"
+- networking_goals: "I want to meet CTOs", "Planning to attend 3 conferences"
+- networking_preferences: "I prefer 1-on-1 over groups", "Networking drains me"
+A message like "I want to meet CTOs at AI conferences, preferably in small settings" touches all three.""",
 
-Rule: Mentors = VERTICAL (guidance). Journey Peers = HORIZONTAL (same-level).""",
-
-    "journey_peers": """
-CRITICAL: JOURNEY PEERS are SAME-LEVEL connections (horizontal/peer-to-peer relationship).
-Focus: People AT YOUR LEVEL, not mentors/guides who are more senior
-
-✓ CORRECT format: Same-level peers and colleagues (horizontal relationships)
-  - "I'm part of a community of nurses at my experience level who meet regularly"
-  - "I have several peers who are also transitioning into management—we support each other"
-  - "I stay in touch with classmates from nursing school—we're all working at different hospitals"
-  - "I have a group of fellow teachers I met at orientation who I lean on for support"
-  - "my cohort from the program still meets up to share what we're learning"
-  - "I'm connected with other electricians who started around the same time I did"
-  - "my network includes people from my bootcamp who are at similar stages in their careers"
-
-Key phrases: "peers", "classmates", "colleagues at my level", "fellow [profession]", "cohort", "at a similar stage"
-
-✗ WRONG format: Mentors or guidance relationships (that's mentors subcategory!)
-  - "My mentor from the nursing field has helped me navigate..." ← NO! That's a mentor (guidance)
-  - "I have a coach who guides me through..." ← NO! That's mentors (vertical relationship)
-  - "My professor has been instrumental..." ← NO! That's a mentor (more senior)
-  - "A senior colleague took me under their wing..." ← NO! That's mentors (guidance)
-
-Rule: Journey Peers = HORIZONTAL (same-level, equals). Mentors = VERTICAL (guidance, more senior).""",
+    "recommendations": """
+CRITICAL: Written testimonials AND professional references.
+✓ CORRECT: "My manager wrote me a LinkedIn recommendation", "John can be my reference"
+✗ WRONG: "I have a great relationship with my manager" (that's professional_network or mentors!)""",
 }
 
+MULTI_LABEL_EXAMPLES = [
+    {
+        "message": "I have a mentor who's a VP at Stripe and she meets with me monthly to work on my executive presence, I also mentor two junior PMs at my company helping them with product strategy and stakeholder management",
+        "entities": ["mentors", "mentees"],
+        "sub_entities": ["mentor_role", "frequency", "guidance_areas", "mentee_background", "guidance_provided"]
+    },
+    {
+        "message": "I attended ProductCon last month and met some great people including a Director at Airbnb, I'm planning to attend 3 more conferences this year and want to meet more CPOs, I prefer smaller networking events over huge conferences",
+        "entities": ["networking", "professional_network"],
+        "sub_entities": ["networking_activities", "networking_goals", "networking_preferences", "connections"]
+    },
+    {
+        "message": "My manager wrote me a strong LinkedIn recommendation and I have 3 professional references ready, I'm also very active in the Reforge community and a PM Slack group with 2000 members which has been great for my career",
+        "entities": ["recommendations", "professional_network"],
+        "sub_entities": ["testimonial_from", "reference_name", "communities", "community_type", "engagement_level", "community_value"]
+    },
+    {
+        "message": "I'm mentoring a career changer from teaching to tech and she's doing great, my own mentor is a retired CEO who gives me brutally honest feedback biweekly, and I just joined a founders mastermind group that meets every Friday",
+        "entities": ["mentees", "mentors", "professional_network"],
+        "sub_entities": ["mentee_background", "progress", "mentor_role", "frequency", "guidance_areas", "communities"]
+    },
+    {
+        "message": "I want to meet more VPs at fintech companies so I've been cold emailing on LinkedIn with about 15 percent response rate, I also had coffee with a PM at Google last week who offered to be a reference for me which was awesome",
+        "entities": ["networking", "recommendations"],
+        "sub_entities": ["networking_goals", "networking_activities", "reference_name", "reference_role", "relationship"]
+    },
+    {
+        "message": "My professional network is pretty weak honestly I only have about 200 LinkedIn connections, I don't have a mentor yet and networking events drain me because I'm an introvert but I know I need to put myself out there more",
+        "entities": ["professional_network", "mentors", "networking"],
+        "sub_entities": ["connections", "relationship_strength", "networking_preferences"]
+    },
+    {
+        "message": "I have a fantastic mentor who helped me land my current role, she wrote me a glowing recommendation on LinkedIn, I also mentor a junior designer who's transitioning to product management and she's making great progress",
+        "entities": ["mentors", "recommendations", "mentees"],
+        "sub_entities": ["impact", "guidance_areas", "testimonial_from", "mentee_background", "guidance_provided", "progress"]
+    },
+    {
+        "message": "I'm part of a startup founders community of about 50 people and I meet with my accountability partner weekly, I'm planning to attend Stripe Sessions and AWS re:Invent to expand my network and meet potential investors",
+        "entities": ["professional_network", "networking"],
+        "sub_entities": ["communities", "connections", "interaction_frequency", "networking_activities", "networking_goals"]
+    }
+]
 
-MESSAGE_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural social messages for career coaching specifically about {category_name}.
+MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural social context messages for career coaching. Generate messages that sound like real people talking about their professional relationships, networks, mentors, and communities. Cover DIVERSE professions and networking styles. Always respond with valid JSON."""
 
-Category: {category_name}
-Description: {category_description}
-{category_guidance}
+SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural social context messages for career coaching specifically about {entity_name} > {sub_entity_name}.
 
-Each message should:
-1. Be a complete, natural sentence expressing social context
-2. Be specifically relevant to {category_name_lower}
-3. Vary in formality and detail level
-4. Be conversational as if spoken by a real person to a career coach
-5. Use appropriate tense (present for current, past for history)
-6. Be authentic and relatable
-7. Vary WIDELY in length: mix very short (5-10 words), short (11-15 words), medium (16-25 words), and long (26-40 words) messages - CREATE SUBSTANTIAL variety
-8. Reflect perspectives from DIVERSE professions: teachers connecting with educators, nurses supporting each other, tradespeople in unions, retail workers forming relationships, artists in creative communities, social workers in professional networks, etc. - NOT just tech/corporate networking
-9. Include REALISTIC TYPOS in some messages: "i have", "collegues", "teh", "freind", "mentro", "thier"
+Context: Social
+Entity: {entity_name}
+Sub-entity: {sub_entity_name} - {sub_entity_description}
+{entity_guidance}
 
-Context examples for this category:
-{category_examples}
+Requirements:
+1. Each message MUST be specifically about {sub_entity_name}
+2. Vary WIDELY in length:
+   - 20% very short (5-12 words): "I have a great mentor"
+   - 30% short-medium (13-25 words)
+   - 30% medium-long (26-50 words)
+   - 20% long paragraphs (51-70 words)
+3. Cover DIVERSE professions and relationship types
+4. Include REALISTIC TYPOS in ~15%: "im", "becuase", "mentro", "refernce"
+5. Vary formulation: "I...", "My...", "We...", fragments
+6. Be authentic—real networking talk
 
-Example messages showing WIDE variety in length and fields:
-- Very short (8 words): "I mentor new nurses on my unit regularly"
-- Short (14 words): "I'm part of a local teachers' group where we share lesson plans and resources"
-- Medium (23 words): "My colleagues often tell me I'm good at explaining complex procedures to patients and families in a way that makes them feel comfortable"
-- Long (36 words): "I've been mentoring apprentice electricians through our union's training program for about five years now, and it's incredibly rewarding to watch them develop their skills and confidence as they work toward becoming licensed journeymen"
-- With typos: "i have a mentro who helps me", "my collegues say i'm good at training", "i don't have many freinds at work"
-- "My manager says I train new hires well"
+Example messages for {entity_name}:
+{entity_examples}
 
-Generate {batch_size} unique, complete messages as a JSON array. Return ONLY valid JSON with no additional text:
+Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
+MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple social topics in a single message.
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
+Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 
-def get_category_name(category_key: str) -> str:
-    """Get display name for category."""
-    return SOCIAL_CATEGORIES[category_key]["name"]
+Requirements:
+1. Each message MUST mention at least {num_labels} different sub-entities
+2. Length: 30-70 words (paragraphs)
+3. Natural and conversational
+4. Cover DIVERSE professions and networking situations
+5. Include REALISTIC TYPOS in ~15%
+
+Example compound messages:
+{multi_label_examples}
+
+Return valid JSON:
+{{"messages": [
+  {{"text": "the message", "sub_entities": ["sub1", "sub2", "sub3"]}},
+  ...
+]}}"""
 
 
-def get_category_description(category_key: str) -> str:
-    """Get description for category."""
-    return SOCIAL_CATEGORIES[category_key]["description"]
+def build_message_generation_prompt(entity_key: str, batch_size: int, sub_entity_key: str = None) -> str:
+    if entity_key not in ENTITIES:
+        raise ValueError(f"Unknown entity: {entity_key}")
 
+    entity = ENTITIES[entity_key]
+    examples_str = "\n".join(f"- {ex}" for ex in entity["examples"])
+    guidance = ENTITY_GUIDANCE.get(entity_key, "")
+    entity_guidance = f"\nImportant:\n{guidance}" if guidance else ""
 
-def get_category_examples(category_key: str) -> List[str]:
-    """Get examples for category."""
-    return SOCIAL_CATEGORIES[category_key]["examples"]
+    if sub_entity_key and sub_entity_key in entity["sub_entities"]:
+        sub_entity_desc = entity["sub_entities"][sub_entity_key]
+        sub_entity_name = sub_entity_key.replace("_", " ").title()
+    else:
+        sub_entity_desc = entity["description"]
+        sub_entity_key = entity_key
+        sub_entity_name = entity["name"]
 
-
-def build_pattern_generation_prompt(category_key: str, batch_size: int) -> str:
-    """Build prompt for generating patterns."""
-    category = SOCIAL_CATEGORIES[category_key]
-    examples_text = "\n".join(f"  - {ex}" for ex in category["examples"])
-
-    return PATTERN_GENERATION_PROMPT_TEMPLATE.format(
+    return SINGLE_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_name_lower=category["name"].lower(),
-        category_description=category["description"],
-        category_examples=examples_text
+        entity_name=entity["name"],
+        sub_entity_name=sub_entity_name,
+        sub_entity_description=sub_entity_desc,
+        entity_guidance=entity_guidance,
+        entity_examples=examples_str
     )
 
 
-def build_object_generation_prompt(category_key: str, batch_size: int) -> str:
-    """Build prompt for generating objects."""
-    category = SOCIAL_CATEGORIES[category_key]
-    examples_text = "\n".join(f"  - {ex}" for ex in category["examples"])
+def build_multilabel_generation_prompt(entity_keys: list, batch_size: int, num_labels: int = 3) -> str:
+    all_sub_entities = []
+    for ek in entity_keys:
+        if ek in ENTITIES:
+            for sk, desc in ENTITIES[ek]["sub_entities"].items():
+                all_sub_entities.append(f"{sk} ({desc})")
 
-    return OBJECT_GENERATION_PROMPT_TEMPLATE.format(
-        batch_size=batch_size,
-        category_name=category["name"],
-        category_name_lower=category["name"].lower(),
-        category_description=category["description"],
-        category_examples=examples_text
+    examples_str = "\n".join(
+        f"- \"{ex['message'][:100]}...\" -> {ex['sub_entities']}"
+        for ex in MULTI_LABEL_EXAMPLES[:5]
     )
 
-
-def build_message_generation_prompt(category_key: str, batch_size: int) -> str:
-    """
-    Build a prompt for generating complete social messages (no patterns/objects).
-
-    Args:
-        category_key: Key from SOCIAL_CATEGORIES
-        batch_size: Number of messages to generate in this batch
-
-    Returns:
-        Formatted prompt string
-    """
-    if category_key not in SOCIAL_CATEGORIES:
-        raise ValueError(f"Unknown category: {category_key}")
-
-    category = SOCIAL_CATEGORIES[category_key]
-    examples_str = "\n".join(f"- {ex}" for ex in category["examples"])
-
-    # Get category-specific guidance if available
-    guidance = CATEGORY_GUIDANCE.get(category_key, "")
-    category_guidance = f"\n{guidance}" if guidance else ""
-
-    return MESSAGE_GENERATION_PROMPT_TEMPLATE.format(
+    return MULTI_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_description=category["description"],
-        category_name_lower=category["name"].lower(),
-        category_examples=examples_str,
-        category_guidance=category_guidance
+        num_labels=num_labels,
+        sub_entity_list=", ".join(all_sub_entities),
+        multi_label_examples=examples_str
     )

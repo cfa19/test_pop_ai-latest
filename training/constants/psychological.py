@@ -1,319 +1,398 @@
 """
-Psychological Category Constants and Prompt Templates
+Psychological Context Constants for Hierarchical Multi-Label Classification
 
-Contains category definitions and prompt templates for generating
-psychological context training data.
+Taxonomy: psychological > entity > sub_entity
+10 entities: personality_profile, values, motivations, working_style_preferences,
+             confidence_and_self_perception, career_decision_making_style,
+             work_environment_preferences, stress_and_coping, emotional_intelligence, growth_mindset
 """
 
-from typing import Dict, List
+CONTEXT_NAME = "psychological"
 
-
-# ==============================================================================
-# PSYCHOLOGICAL CATEGORIES
-# ==============================================================================
-
-PSYCHOLOGICAL_CATEGORIES = {
+ENTITIES = {
     "personality_profile": {
         "name": "Personality Profile",
-        "description": "Personality traits, behavioral tendencies, communication styles, temperament",
+        "description": "Personality type, traits, behavioral tendencies, self-description.",
+        "sub_entities": {
+            "personality_type": "MBTI, Big Five, Enneagram, etc.",
+            "traits": "Key personality traits",
+            "self_description": "How they describe themselves"
+        },
         "examples": [
-            "I'm an introvert who prefers deep one-on-one conversations",
-            "I'm detail-oriented and methodical in my approach",
-            "I thrive in collaborative environments with lots of interaction",
-            "I'm naturally curious and love exploring new ideas"
+            "I'm an INTJ and that pretty much sums me up",
+            "I'm introverted and analytical",
+            "I'm a perfectionist which is both a strength and weakness",
+            "I'm naturally curious and love exploring new ideas",
+            "I'm an extrovert who thrives on interaction and collaboration",
+            "I'm detail-oriented and methodical in my approach to everything",
+            "I'd describe myself as a big picture thinker not a detail person",
+            "I'm an Enneagram 3 the achiever type super driven",
+            "I'm empathetic sometimes too much so it affects my decision making",
+            "I'm a mix of creative and analytical I switch between both modes"
         ]
     },
-    "values_hierarchy": {
-        "name": "Values Hierarchy",
-        "description": "Your internal compass—what matters most to you and in what order. PRIORITIES and PRINCIPLES that guide decision-making, especially when trade-offs appear. Answers: 'What comes first when two good things conflict?' Stable over time. Abstract priorities like integrity, autonomy, impact, stability.",
+    "values": {
+        "name": "Values",
+        "description": "Professional values: what matters at work, value priorities.",
+        "sub_entities": {
+            "professional_values": "What matters to them at work (autonomy, impact, stability, etc.)",
+            "priorities": "Value priorities and trade-offs"
+        },
         "examples": [
-            "Integrity and honesty are my top priorities—I won't compromise on ethics for success",
-            "I value work-life balance above all else, even if it means slower career growth",
-            "Making a positive impact is more important to me than money or status",
-            "I prioritize continuous learning over job security—growth matters most",
-            "Autonomy comes first for me—I need control over how I work",
-            "Stability and predictability matter more than exciting challenges"
+            "I value autonomy and impact above everything at work",
+            "Work-life balance is my top professional priority",
+            "I care deeply about mission alignment in my work",
+            "I need to feel like my work makes a real difference",
+            "Stability matters more to me than excitement",
+            "I value transparency and honesty in leadership",
+            "Career growth opportunity matters more than current salary",
+            "I prioritize team culture over individual achievement",
+            "I need intellectual challenge in my work or I get bored",
+            "Ethics and integrity are non-negotiable for me"
         ]
     },
-    "motivations_core": {
-        "name": "Core Motivations",
-        "description": "Your engine—what drives you to act, choose, or persist. What makes you want to get up and do the work, what sustains effort when things get hard. Answers: 'Why do I do this?' More dynamic and situational than values. CONCRETE DRIVERS like solving problems, helping others, achieving results, gaining mastery.",
+    "motivations": {
+        "name": "Motivations",
+        "description": "What motivates and demotivates them: intrinsic, extrinsic, and negative.",
+        "sub_entities": {
+            "intrinsic_motivations": "Internal motivators (purpose, mastery, autonomy, curiosity)",
+            "extrinsic_motivations": "External motivators (money, status, recognition, promotion)",
+            "demotivators": "What kills their motivation"
+        },
         "examples": [
-            "I'm driven by solving complex technical challenges—that's what gets me excited each day",
-            "Seeing tangible results motivates me—I need to see the impact of my work",
-            "I'm energized by helping others succeed and watching them grow",
-            "Recognition and praise drive me—I need acknowledgment for my contributions",
-            "Mastering new skills is what keeps me engaged and motivated",
-            "Competition pushes me—I perform best when I'm striving to be the best"
+            "I'm motivated by solving hard problems that's what gets me out of bed",
+            "Money isn't my main motivator I'd take less for meaningful work",
+            "Micromanagement completely kills my motivation I shut down",
+            "Recognition and praise really fuel me I need to feel appreciated",
+            "I'm driven by the desire to build something from scratch",
+            "Repetitive work drains me I need variety and novelty",
+            "I'm motivated by helping other people succeed and grow",
+            "Getting promoted motivates me a lot I'm competitive",
+            "Bureaucracy and politics are the biggest demotivators for me",
+            "I thrive when I have a clear sense of purpose in my work"
         ]
     },
-    "working_styles": {
-        "name": "Working Styles",
-        "description": "Preferred work environment, pace, structure, collaboration preferences",
+    "working_style_preferences": {
+        "name": "Working Style Preferences",
+        "description": "How they prefer to work, collaborate, make decisions, and communicate.",
+        "sub_entities": {
+            "work_style": "How they prefer to work (independent, structured, flexible)",
+            "collaboration_style": "How they work with others",
+            "decision_making": "How they make decisions (data-driven, intuitive, consensus)",
+            "communication_style": "How they communicate (direct, diplomatic, written, verbal)"
+        },
         "examples": [
-            "I work best with clear structure and defined processes",
-            "I prefer flexible schedules and remote work",
-            "I thrive in fast-paced, dynamic environments",
-            "I like having autonomy but regular check-ins with my team"
+            "I work best independently with clear goals and minimal oversight",
+            "I like collaborative brainstorming sessions early in a project",
+            "I make decisions quickly based on data not gut feeling",
+            "I prefer written communication over meetings honestly",
+            "I'm very direct in my communication style sometimes too blunt",
+            "I need structure and clear processes to do my best work",
+            "I thrive in ambiguity and figure things out as I go",
+            "I prefer async communication and hate unnecessary meetings",
+            "I'm a consensus builder I like to get everyone aligned before deciding",
+            "I work in bursts of intense focus followed by rest periods"
+        ]
+    },
+    "confidence_and_self_perception": {
+        "name": "Confidence & Self-Perception",
+        "description": "Confidence levels, imposter syndrome, self-doubt, self-talk, validation needs, confidence-building strategies.",
+        "sub_entities": {
+            "confidence_levels": "Overall and domain-specific confidence levels",
+            "imposter_syndrome_and_doubt": "Imposter feelings, self-doubt, comparison patterns, self-efficacy, resilience",
+            "self_talk_and_validation": "Inner critic, self-compassion, need for external validation, reaction to criticism/praise",
+            "confidence_building_strategies": "What builds confidence, what hurts it, current efforts, coping strategies"
+        },
+        "examples": [
+            "I'm feeling pretty confident lately about 7 out of 10",
+            "My confidence dropped after the project failure",
+            "I'm very confident technically 8 out of 10 but not socially",
+            "I have moderate imposter syndrome especially around senior leaders",
+            "I feel like a fraud when presenting to the executive team",
+            "My inner critic is very harsh I beat myself up over small mistakes",
+            "I rely too much on other peoples approval for my self-worth",
+            "Keeping a wins journal has really helped build my confidence",
+            "I dismiss compliments and focus on the negative feedback",
+            "Working with an executive coach on building confidence has been great",
+            "I bounce back quickly from setbacks I'm pretty resilient",
+            "I constantly compare myself to peers who seem more successful"
+        ]
+    },
+    "career_decision_making_style": {
+        "name": "Career Decision Making Style",
+        "description": "How they make career decisions, what influences them, confidence in decisions.",
+        "sub_entities": {
+            "decision_style": "Analytical, intuitive, or mixed decision-making approach",
+            "decision_factors": "What influences career decisions (data, gut, advice, values)",
+            "decision_confidence": "How confident they are in career decisions"
+        },
+        "examples": [
+            "I make career decisions based on data and spreadsheets",
+            "I trust my gut when choosing jobs I know within 5 minutes",
+            "I struggle with big career decisions I overthink everything",
+            "I always consult my mentor before making a big career move",
+            "I make a pros and cons list for every career decision",
+            "I let my values guide me when I'm stuck on a career choice",
+            "I'm indecisive about career moves and it's held me back",
+            "I'm very confident in my career decisions once I commit I don't look back"
+        ]
+    },
+    "work_environment_preferences": {
+        "name": "Work Environment Preferences",
+        "description": "What work environment they thrive in, stressors, and energizers at work.",
+        "sub_entities": {
+            "ideal_environment": "What environment they thrive in",
+            "stressors": "What stresses them at work",
+            "energizers": "What gives them energy at work"
+        },
+        "examples": [
+            "I thrive in fast-paced high-growth environments",
+            "Open offices stress me out I need quiet to focus",
+            "I love working on collaborative cross-functional projects",
+            "I need a calm structured environment to do my best work",
+            "Ambiguity and constant change energize me I love startups",
+            "I hate corporate politics it's the worst part of any job",
+            "I'm energized by building products from zero to one",
+            "I need a small team where everyone knows each other",
+            "I thrive when theres a healthy amount of pressure and deadlines",
+            "I'm drained by large meetings and unnecessary process"
+        ]
+    },
+    "stress_and_coping": {
+        "name": "Stress & Coping",
+        "description": "Current stress level, triggers, coping strategies, and their effectiveness.",
+        "sub_entities": {
+            "stress_level": "Current stress level (scale or description)",
+            "stress_triggers": "What causes stress at work",
+            "coping_strategies": "How they cope with stress",
+            "effectiveness": "What works and what doesn't work"
+        },
+        "examples": [
+            "I'm pretty stressed right now about 7 out of 10",
+            "Tight deadlines stress me out more than anything",
+            "Exercise helps me manage stress I run 3 times a week",
+            "I meditate every morning for 15 minutes it helps a lot",
+            "I tend to overwork when stressed which makes it worse",
+            "My stress level is low right now about a 3 out of 10",
+            "Conflict with colleagues is my biggest stress trigger",
+            "I cope with stress by talking to my therapist weekly",
+            "I've tried meditation but it doesn't work for me honestly",
+            "Taking breaks and going for walks is my most effective stress relief"
+        ]
+    },
+    "emotional_intelligence": {
+        "name": "Emotional Intelligence",
+        "description": "Self-awareness, empathy, emotional regulation abilities.",
+        "sub_entities": {
+            "self_awareness": "Understanding own emotions and their impact",
+            "empathy": "Understanding and responding to others' emotions",
+            "emotional_regulation": "Managing own emotions effectively"
+        },
+        "examples": [
+            "I'm very self-aware about my emotions and triggers",
+            "I'm working on being more empathetic with my team",
+            "I can read a room well I pick up on unspoken dynamics",
+            "I struggle to regulate my emotions when I'm frustrated",
+            "I'm good at empathy but it sometimes becomes people-pleasing",
+            "I can stay calm under pressure that's one of my strengths",
+            "I know when I'm getting stressed before it affects my work",
+            "I have a hard time not taking criticism personally"
+        ]
+    },
+    "growth_mindset": {
+        "name": "Growth Mindset",
+        "description": "Fixed vs growth mindset, beliefs about talent, approach to challenges.",
+        "sub_entities": {
+            "mindset_level": "Fixed, growth, or mixed mindset",
+            "beliefs_about_talent": "Whether abilities are innate or developed",
+            "approach_to_challenges": "How they approach challenges and failures"
+        },
+        "examples": [
+            "I believe abilities can be developed with effort and practice",
+            "I see failures as learning opportunities not defeats",
+            "I love challenging myself with things outside my comfort zone",
+            "I sometimes fall into a fixed mindset when things get hard",
+            "I believe talent is 20 percent innate and 80 percent hard work",
+            "I embrace challenges they make me stronger",
+            "I'm working on not giving up when things get difficult",
+            "I get frustrated when I don't pick things up quickly"
         ]
     }
 }
 
+ENTITY_GUIDANCE = {
+    "values": """
+CRITICAL: PROFESSIONAL values—what matters at WORK.
+✓ CORRECT: "I value autonomy", "Mission alignment matters most"
+✗ WRONG: "Family is my top priority" (that's personal > personal_values!)
+✗ WRONG: "I'm motivated by money" (that's motivations!)""",
 
-# ==============================================================================
-# PROMPT TEMPLATES
-# ==============================================================================
+    "motivations": """
+CRITICAL: What DRIVES or KILLS motivation.
+✓ CORRECT: "I'm motivated by solving problems", "Micromanagement kills my motivation"
+✗ WRONG: "I value autonomy" (that's values—stable priorities, not drivers!)
+✗ WRONG: "I'm stressed by deadlines" (that's stress_and_coping!)""",
 
-PATTERN_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse message patterns for describing {category_name_lower}.
+    "working_style_preferences": """
+CRITICAL: HOW they work, not WHERE or what environment.
+✓ CORRECT: "I prefer async communication", "I make data-driven decisions"
+✗ WRONG: "I thrive in fast-paced environments" (that's work_environment_preferences!)
+✗ WRONG: "I want remote work" (that's professional > desired_work_environment or personal > lifestyle_preferences!)""",
 
-Category: {category_name}
-Description: {category_description}
+    "confidence_and_self_perception": """
+CRITICAL: MULTI-LABEL entity. Confidence, imposter syndrome, self-talk, validation needs.
+- confidence_levels: "I'm 7/10 confident", "My confidence dropped"
+- imposter_syndrome_and_doubt: "I feel like a fraud", "I compare myself to peers"
+- self_talk_and_validation: "My inner critic is harsh", "I need external approval"
+- confidence_building_strategies: "Wins journal helps", "Working with a coach"
+A single message can touch all four.""",
 
-Each pattern should:
-1. Include the placeholder [OBJ] where the psychological trait/value goes
-2. Be natural and conversational (first-person statements)
-3. Be specifically relevant to {category_name_lower}
-4. Vary in formality and certainty level
-5. Use present tense (describing current traits/preferences)
+    "work_environment_preferences": """
+CRITICAL: What ENVIRONMENT they thrive in—not working style.
+✓ CORRECT: "I thrive in startups", "Open offices stress me out"
+✗ WRONG: "I prefer async work" (that's working_style_preferences!)
+✗ WRONG: "I want remote work" (that's professional > desired_work_environment!)""",
 
-Context examples for this category:
-{category_examples}
-
-Examples of good patterns for psychological statements:
-- "I am [OBJ]"
-- "I tend to be [OBJ]"
-- "My personality is [OBJ]"
-- "I value [OBJ]"
-- "I'm someone who [OBJ]"
-- "I prefer [OBJ]"
-
-Return ONLY the patterns, one per line, no numbering or bullets.
-Each pattern MUST contain exactly one [OBJ] placeholder."""
-
-
-OBJECT_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse {category_name_lower} statements that someone might share with a career coach.
-
-Category: {category_name}
-Description: {category_description}
-
-Examples of what to generate:
-{category_examples}
-
-Requirements:
-1. Generate realistic, specific psychological descriptions
-2. Cover diverse personality types and preferences
-3. Be authentic and relatable
-4. Be concrete and specific (not generic)
-5. One statement per line
-
-Return ONLY the statements, no numbering or bullets."""
-
-
-PATTERN_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural, conversational patterns for psychological self-descriptions.
-
-Your patterns should:
-- Feel authentic and natural
-- Use first-person voice ("I", "My", etc.)
-- Include the [OBJ] placeholder exactly once
-- Vary in structure and formality
-- Be appropriate for career coaching context"""
-
-
-OBJECT_GENERATION_SYSTEM_PROMPT = """You are a career coaching expert generating realistic psychological profiles.
-
-Your statements should:
-- Be specific and concrete
-- Cover diverse personality types and preferences
-- Sound authentic and relatable
-- Avoid jargon or overly clinical language
-- Be suitable for career coaching context"""
-
-
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural psychological context messages. Always respond with valid JSON."""
-
-# Category-specific guidance to prevent confusion between values and motivations
-CATEGORY_GUIDANCE = {
-    "personality_profile": """
-CRITICAL: PERSONALITY is WHO YOU ARE—inherent traits, temperament, behavioral tendencies.
-Focus: Core characteristics that define you as a person (not preferences or environment needs)
-
-✓ CORRECT: Inherent traits/characteristics (who you are)
-  - "I'm an introvert who prefers deep one-on-one conversations"
-  - "I'm detail-oriented and methodical in my approach"
-  - "I'm naturally curious and love exploring new ideas"
-  - "I'm a creative thinker who sees connections others miss"
-  - "I tend to be analytical and data-driven"
-
-✗ WRONG: Work preferences/environment needs (that's working_styles!)
-  - "I struggle with rigid structures" ← NO! That's a work environment preference (working_styles)
-  - "I work best with clear structure" ← NO! That's how you work best (working_styles)
-  - "I prefer flexible schedules" ← NO! That's a work preference (working_styles)
-
-Rule: Personality = WHO YOU ARE (traits). Working Styles = HOW YOU WORK BEST (preferences).""",
-
-    "values_hierarchy": """
-CRITICAL: VALUES are your INTERNAL COMPASS—abstract priorities and principles.
-Focus: What matters MOST when trade-offs appear (decision-making criteria)
-
-✓ CORRECT: Abstract priorities/principles (your compass)
-  - "Integrity and honesty are my top priorities—I won't compromise ethics for success"
-  - "I value work-life balance above all else, even if it means slower career growth"
-  - "Making a positive impact is more important to me than money"
-  - "Autonomy comes first—I need control over how I work"
-
-✗ WRONG: Energy/drivers (that's motivations!)
-  - "I'm driven by solving complex problems" ← NO! That's what energizes you (motivations)
-  - "Recognition motivates me" ← NO! That's what drives action (motivations)
-  - "I'm energized by helping others succeed" ← NO! That's your engine (motivations)
-
-Rule: Values = WHAT MATTERS MOST (principles). Motivations = WHAT DRIVES ACTION (energy).""",
-
-    "motivations_core": """
-CRITICAL: MOTIVATIONS are your ENGINE—what drives you to act and sustains effort.
-Focus: What gives you ENERGY, what makes you persist (the force behind action)
-
-✓ CORRECT: Concrete drivers/energizers (your engine)
-  - "I'm driven by solving complex technical challenges—that's what excites me each day"
-  - "Seeing tangible results motivates me—I need to see impact"
-  - "I'm energized by helping others succeed and watching them grow"
-  - "Recognition and praise drive me—I need acknowledgment"
-  - "Competition pushes me—I perform best when striving to be the best"
-
-✗ WRONG: Abstract priorities (that's values!)
-  - "Integrity is my top priority" ← NO! That's what matters most (values)
-  - "I value autonomy above all else" ← NO! That's a principle (values)
-  - "Work-life balance matters most to me" ← NO! That's a priority (values)
-
-Rule: Values = WHAT MATTERS (direction). Motivations = WHAT DRIVES YOU (force).
-
-Key distinction: Values set direction, Motivations supply force.""",
-
-    "working_styles": """
-CRITICAL: WORKING STYLES are HOW YOU WORK BEST—environment, structure, pace preferences.
-Focus: What CONDITIONS and ENVIRONMENTS you need to perform well (not who you are)
-
-✓ CORRECT: Work environment/structure preferences (how you work best)
-  - "I work best with clear structure and defined processes"
-  - "I prefer flexible schedules and remote work"
-  - "I struggle with rigid structures that limit creativity"
-  - "I thrive in fast-paced, dynamic environments"
-  - "I need autonomy but regular check-ins with my team"
-  - "I perform best with minimal supervision and high freedom"
-
-✗ WRONG: Inherent traits (that's personality_profile!)
-  - "I'm creative and artistic" ← NO! That's who you are (personality_profile)
-  - "I'm detail-oriented" ← NO! That's a trait (personality_profile)
-  - "I'm naturally curious" ← NO! That's a characteristic (personality_profile)
-
-Rule: Personality = WHO YOU ARE. Working Styles = CONDITIONS YOU NEED to work well.""",
+    "stress_and_coping": """
+CRITICAL: Stress and how they HANDLE it.
+✓ CORRECT: "I'm stressed 7/10", "Exercise helps me cope"
+✗ WRONG: "I have anxiety" (that's personal > health_and_wellbeing > mental_health!)
+✗ WRONG: "I'm burned out" (borderline—burnout from work = stress_and_coping, clinical burnout = personal > health)""",
 }
 
+MULTI_LABEL_EXAMPLES = [
+    {
+        "message": "I'm an INTJ perfectionist who values autonomy above everything, I'm motivated by solving hard problems but micromanagement completely kills my drive, I work best independently with clear goals and minimal oversight",
+        "entities": ["personality_profile", "values", "motivations", "working_style_preferences"],
+        "sub_entities": ["personality_type", "traits", "professional_values", "intrinsic_motivations", "demotivators", "work_style"]
+    },
+    {
+        "message": "My confidence is about 6 out of 10, I have moderate imposter syndrome especially around senior leaders, my inner critic is very harsh and I rely too much on external validation, working with a coach has been helping though",
+        "entities": ["confidence_and_self_perception"],
+        "sub_entities": ["confidence_levels", "imposter_syndrome_and_doubt", "self_talk_and_validation", "confidence_building_strategies"]
+    },
+    {
+        "message": "I thrive in fast-paced startup environments where I can build from scratch, tight deadlines stress me but exercise and meditation help me cope, I believe challenges make me stronger and I see failures as learning opportunities",
+        "entities": ["work_environment_preferences", "stress_and_coping", "growth_mindset"],
+        "sub_entities": ["ideal_environment", "energizers", "stress_triggers", "coping_strategies", "approach_to_challenges", "mindset_level"]
+    },
+    {
+        "message": "I make career decisions based on data and always consult my mentor, I'm very self-aware about my emotions and I can read a room well but I struggle with not taking criticism personally and that affects my confidence",
+        "entities": ["career_decision_making_style", "emotional_intelligence", "confidence_and_self_perception"],
+        "sub_entities": ["decision_style", "decision_factors", "self_awareness", "empathy", "emotional_regulation", "confidence_levels"]
+    },
+    {
+        "message": "I'm an extrovert who loves collaborative brainstorming but I prefer direct written communication, I'm motivated by recognition and building things from scratch, and I need a small team environment where everyone knows each other",
+        "entities": ["personality_profile", "working_style_preferences", "motivations", "work_environment_preferences"],
+        "sub_entities": ["traits", "self_description", "collaboration_style", "communication_style", "extrinsic_motivations", "intrinsic_motivations", "ideal_environment"]
+    },
+    {
+        "message": "I'm pretty stressed right now about 7 out of 10, conflict with colleagues triggers it most, I try to cope by exercising and talking to my therapist but sometimes I fall into a fixed mindset and just want to give up",
+        "entities": ["stress_and_coping", "growth_mindset"],
+        "sub_entities": ["stress_level", "stress_triggers", "coping_strategies", "effectiveness", "mindset_level", "approach_to_challenges"]
+    },
+    {
+        "message": "I value mission alignment and intellectual challenge at work, I trust my gut for career decisions and I'm very confident once I commit, I believe talent is mostly developed through hard work and I embrace challenges",
+        "entities": ["values", "career_decision_making_style", "growth_mindset"],
+        "sub_entities": ["professional_values", "priorities", "decision_style", "decision_confidence", "beliefs_about_talent", "approach_to_challenges"]
+    },
+    {
+        "message": "I'm empathetic sometimes too much so which leads to people-pleasing, I need external validation more than I'd like to admit, this affects my confidence which dropped after a project failure, I'm trying meditation and coaching to help",
+        "entities": ["emotional_intelligence", "confidence_and_self_perception", "stress_and_coping"],
+        "sub_entities": ["empathy", "emotional_regulation", "self_talk_and_validation", "confidence_levels", "confidence_building_strategies", "coping_strategies"]
+    }
+]
 
-MESSAGE_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural psychological messages for career coaching specifically about {category_name}.
+MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural psychological context messages for career coaching. Generate messages that sound like real people talking about their personality, values, motivations, confidence, stress, and mindset. Be authentic and sometimes vulnerable. Always respond with valid JSON."""
 
-Category: {category_name}
-Description: {category_description}
-{category_guidance}
+SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural psychological messages for career coaching specifically about {entity_name} > {sub_entity_name}.
 
-Each message should:
-1. Be a complete, natural sentence expressing psychological context
-2. Be specifically relevant to {category_name_lower}
-3. Vary in formality and detail level
-4. Be conversational as if spoken by a real person to a career coach
-5. Use present tense (describing current traits/preferences)
-6. Avoid overly clinical or jargon-heavy language
-7. Vary WIDELY in length: mix very short (5-10 words), short (11-15 words), medium (16-25 words), and long (26-40 words) messages - CREATE SUBSTANTIAL variety
-8. Reflect perspectives from DIVERSE professions: teachers, nurses, tradespeople, retail workers, artists, social workers, accountants, service workers, etc. - NOT just office/tech professionals
-9. Include REALISTIC TYPOS in some messages: "i'm", "prefere", "teh", "peple", "somtimes", "wich"
+Context: Psychological
+Entity: {entity_name}
+Sub-entity: {sub_entity_name} - {sub_entity_description}
+{entity_guidance}
 
-Context examples for this category:
-{category_examples}
+Requirements:
+1. Each message MUST be specifically about {sub_entity_name}
+2. Vary WIDELY in length:
+   - 20% very short (5-12 words): "I'm a perfectionist"
+   - 30% short-medium (13-25 words)
+   - 30% medium-long (26-50 words)
+   - 20% long paragraphs (51-70 words)
+3. Cover DIVERSE personality types and psychological profiles
+4. Include REALISTIC TYPOS in ~15%: "im", "becuase", "confindence", "motivaton"
+5. Vary formulation: "I...", "My...", "I tend to...", fragments
+6. Be authentic and vulnerable—real psychological self-reflection
 
-Example messages showing WIDE variety in length and fields:
-- Very short (7 words): "I'm introverted and prefer working alone"
-- Short (13 words): "I value creativity and need freedom to express myself in my work"
-- Medium (21 words): "I'm naturally detail-oriented which serves me well as an accountant, but I sometimes worry I miss the bigger picture"
-- Long (38 words): "I tend to be very empathetic and emotionally invested in my work with clients, which makes me a good therapist but also means I struggle with boundaries and often take on too much of other people's pain"
-- With typos: "i prefere working alone", "I value teh peple i work with", "i'm somtimes to detail oriented"
-- "Helping others is my top priority"
+Example messages for {entity_name}:
+{entity_examples}
 
-Generate {batch_size} unique, complete messages as a JSON array. Return ONLY valid JSON with no additional text:
+Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
+MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple psychological topics in a single message.
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
+Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 
-def get_category_name(category_key: str) -> str:
-    """Get display name for category."""
-    return PSYCHOLOGICAL_CATEGORIES[category_key]["name"]
+Requirements:
+1. Each message MUST mention at least {num_labels} different sub-entities
+2. Length: 30-70 words (paragraphs)
+3. Natural and conversational, authentically self-reflective
+4. Cover DIVERSE psychological profiles
+5. Include REALISTIC TYPOS in ~15%
+
+Example compound messages:
+{multi_label_examples}
+
+Return valid JSON:
+{{"messages": [
+  {{"text": "the message", "sub_entities": ["sub1", "sub2", "sub3"]}},
+  ...
+]}}"""
 
 
-def get_category_description(category_key: str) -> str:
-    """Get description for category."""
-    return PSYCHOLOGICAL_CATEGORIES[category_key]["description"]
+def build_message_generation_prompt(entity_key: str, batch_size: int, sub_entity_key: str = None) -> str:
+    if entity_key not in ENTITIES:
+        raise ValueError(f"Unknown entity: {entity_key}")
 
+    entity = ENTITIES[entity_key]
+    examples_str = "\n".join(f"- {ex}" for ex in entity["examples"])
+    guidance = ENTITY_GUIDANCE.get(entity_key, "")
+    entity_guidance = f"\nImportant:\n{guidance}" if guidance else ""
 
-def get_category_examples(category_key: str) -> List[str]:
-    """Get examples for category."""
-    return PSYCHOLOGICAL_CATEGORIES[category_key]["examples"]
+    if sub_entity_key and sub_entity_key in entity["sub_entities"]:
+        sub_entity_desc = entity["sub_entities"][sub_entity_key]
+        sub_entity_name = sub_entity_key.replace("_", " ").title()
+    else:
+        sub_entity_desc = entity["description"]
+        sub_entity_key = entity_key
+        sub_entity_name = entity["name"]
 
-
-def build_pattern_generation_prompt(category_key: str, batch_size: int) -> str:
-    """Build prompt for generating patterns."""
-    category = PSYCHOLOGICAL_CATEGORIES[category_key]
-    examples_text = "\n".join(f"  - {ex}" for ex in category["examples"])
-
-    return PATTERN_GENERATION_PROMPT_TEMPLATE.format(
+    return SINGLE_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_name_lower=category["name"].lower(),
-        category_description=category["description"],
-        category_examples=examples_text
+        entity_name=entity["name"],
+        sub_entity_name=sub_entity_name,
+        sub_entity_description=sub_entity_desc,
+        entity_guidance=entity_guidance,
+        entity_examples=examples_str
     )
 
 
-def build_object_generation_prompt(category_key: str, batch_size: int) -> str:
-    """Build prompt for generating objects."""
-    category = PSYCHOLOGICAL_CATEGORIES[category_key]
-    examples_text = "\n".join(f"  - {ex}" for ex in category["examples"])
+def build_multilabel_generation_prompt(entity_keys: list, batch_size: int, num_labels: int = 3) -> str:
+    all_sub_entities = []
+    for ek in entity_keys:
+        if ek in ENTITIES:
+            for sk, desc in ENTITIES[ek]["sub_entities"].items():
+                all_sub_entities.append(f"{sk} ({desc})")
 
-    return OBJECT_GENERATION_PROMPT_TEMPLATE.format(
-        batch_size=batch_size,
-        category_name=category["name"],
-        category_name_lower=category["name"].lower(),
-        category_description=category["description"],
-        category_examples=examples_text
+    examples_str = "\n".join(
+        f"- \"{ex['message'][:100]}...\" -> {ex['sub_entities']}"
+        for ex in MULTI_LABEL_EXAMPLES[:5]
     )
 
-
-def build_message_generation_prompt(category_key: str, batch_size: int) -> str:
-    """
-    Build a prompt for generating complete psychological messages (no patterns/objects).
-
-    Args:
-        category_key: Key from PSYCHOLOGICAL_CATEGORIES
-        batch_size: Number of messages to generate in this batch
-
-    Returns:
-        Formatted prompt string
-    """
-    if category_key not in PSYCHOLOGICAL_CATEGORIES:
-        raise ValueError(f"Unknown category: {category_key}")
-
-    category = PSYCHOLOGICAL_CATEGORIES[category_key]
-    examples_str = "\n".join(f"- {ex}" for ex in category["examples"])
-
-    # Get category-specific guidance if available
-    guidance = CATEGORY_GUIDANCE.get(category_key, "")
-    category_guidance = f"\n{guidance}" if guidance else ""
-
-    return MESSAGE_GENERATION_PROMPT_TEMPLATE.format(
+    return MULTI_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_description=category["description"],
-        category_name_lower=category["name"].lower(),
-        category_examples=examples_str,
-        category_guidance=category_guidance
+        num_labels=num_labels,
+        sub_entity_list=", ".join(all_sub_entities),
+        multi_label_examples=examples_str
     )

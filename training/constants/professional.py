@@ -1,281 +1,302 @@
 """
-Professional Category Constants and Prompt Templates
+Professional Context Constants for Hierarchical Multi-Label Classification
 
-Contains category definitions and prompt templates for generating
-professional context training data.
+Taxonomy: professional > entity > sub_entity
+6 entities: current_position, professional_experience, awards, licenses_and_permits,
+            professional_aspirations, volunteer_experience
 """
 
-from typing import Dict, List
+CONTEXT_NAME = "professional"
 
-
-# ==============================================================================
-# PROFESSIONAL CATEGORIES
-# ==============================================================================
-
-PROFESSIONAL_CATEGORIES = {
-    "experiences": {
-        "name": "Experiences",
-        "description": "What you did, where, and in what context. Roles, responsibilities, achievements tied to a job, project, or real-world setting. Answers: What have you actually done? MUST use ACTION VERBS describing real work (Managed..., Led..., Oversaw..., Built..., Taught..., Worked as..., Spent X years doing...). Experience tells the story of your work history.",
-        "examples": [
-            "Managed a team of five technicians at Memorial Hospital, overseeing medical equipment maintenance and repairs.",
-            "Led preventive maintenance operations in a hospital environment for five years, ensuring zero equipment failures during critical procedures.",
-            "Oversaw compliance audits and safety protocol implementation at three nursing homes across the region.",
-            "Started as a line cook at a bistro, worked up to sous chef over six years, handled all seafood prep and menu development.",
-            "Ran my own landscaping business for a decade—designed residential gardens and maintained commercial properties.",
-            "Spent five years doing child protective services casework, managing a caseload of 30-40 families at any given time.",
-            "Built custom cabinets and did finish carpentry on commercial builds for eight years before transitioning into project management.",
-            "Taught third grade for three years, then moved to middle school math and took over the robotics program, grew it from 8 to 45 students."
-        ]
-    },
-    "skills": {
-        "name": "Skills",
-        "description": "What you're capable of doing. Abilities, competencies, knowledge areas—often transferable across jobs. Answers: What can you do well? Use NATURAL CONVERSATIONAL FRAMES wrapping SHORT ABILITY PHRASES. Examples: 'I'm good at team leadership', 'My skills include Python and SQL', 'I have strong patient care abilities'. Skills summarize your capabilities in natural language.",
-        "examples": [
-            "I'm good at team leadership and coordinating staff across departments.",
-            "My skills include patient care, triage, and bedside manner.",
-            "I'm skilled in maintenance planning and equipment troubleshooting.",
-            "My abilities include curriculum design, classroom management, and parent communication.",
-            "I have strong skills in HVAC installation, repair, and system diagnostics.",
-            "I'm proficient in Python, SQL, data analysis, and visualization.",
-            "I'm good at conflict resolution, crisis intervention, and documentation.",
-            "My skills are QuickBooks, payroll processing, and invoicing."
-        ]
-    },
-    "certifications": {
-        "name": "Certifications",
-        "description": "Certifications, degrees, courses, licenses, formal qualifications. VARY THE LANGUAGE—avoid overusing 'certification' or 'certified'. Use alternatives: 'I have my [credential]', 'licensed [profession]', 'earned my [degree]', 'passed [exam]', 'completed [program]', 'I hold [credential]', or just state it directly.",
-        "examples": [
-            "I'm a licensed master electrician.",
-            "I have my RN license and BSN degree, plus wound care specialty training.",
-            "I hold a PMP credential and earned my MBA from State U.",
-            "I completed my cosmetology license last year after finishing the 1500-hour program.",
-            "I have my CDL Class A with hazmat endorsement.",
-            "I hold a teaching credential in single-subject math.",
-            "I passed the CPA exam, just need to finish the experience hours now.",
-            "I have my real estate license for both residential and commercial properties."
-        ]
-    },
+ENTITIES = {
     "current_position": {
         "name": "Current Position",
-        "description": "What you're doing RIGHT NOW professionally. Current job title, role, employer, responsibilities. MUST use PRESENT TENSE or present perfect continuous (I'm working as..., I work at..., I currently..., I've been... for X time and still am). Focus on ONGOING status, not past history.",
+        "description": "Current job title, employer, compensation, and tenure.",
+        "sub_entities": {
+            "role": "Current job title/role",
+            "company": "Current employer",
+            "compensation": "Current salary and total comp",
+            "start_date": "When started current role"
+        },
         "examples": [
-            "I'm currently a senior software engineer at a mid-size tech company.",
-            "I work as an LPN at a community health center, mostly doing geriatric care.",
-            "I run a small HVAC business—I have three employees and we do residential and light commercial work.",
-            "I teach high school math and lead the department; I've been here eight years now.",
-            "I'm a social worker at a nonprofit, currently handling housing case management.",
-            "I'm working as a line supervisor at a packaging plant on the second shift.",
-            "I'm a freelance photographer—I do weddings, events, and some corporate work.",
-            "I work as a receptionist and admin at a dental office, part-time while I finish my degree."
+            "I'm currently a Senior Product Manager at Google",
+            "I make 150k base salary plus equity",
+            "I've been in this role for 2 years now",
+            "I work at a Series B startup as a frontend engineer",
+            "My total comp is about 280k including stock options",
+            "I just started as a marketing director at a mid-size agency",
+            "I'm a staff nurse at Memorial Hospital been here since 2022",
+            "I'm an electrician foreman at a construction company making about 85k",
+            "I'm a high school math teacher in my fourth year",
+            "I work as a sous chef at a fine dining restaurant downtown"
+        ]
+    },
+    "professional_experience": {
+        "name": "Professional Experience",
+        "description": "Past roles, employers, responsibilities, achievements, and duration. MUST use action verbs describing real work.",
+        "sub_entities": {
+            "past_roles": "Previous job titles",
+            "past_companies": "Previous employers",
+            "responsibilities": "What they did in past roles",
+            "achievements": "Accomplishments and impact metrics",
+            "duration": "How long in each role"
+        },
+        "examples": [
+            "I worked at Microsoft for 3 years as a PM",
+            "At my last job I launched a feature that increased revenue by 20 percent",
+            "I led a team of 5 engineers building the payments platform",
+            "Managed a team of five technicians at Memorial Hospital overseeing equipment maintenance",
+            "Started as a line cook at a bistro worked up to sous chef over six years",
+            "Ran my own landscaping business for a decade designing residential gardens",
+            "Spent five years doing child protective services casework managing 30-40 families",
+            "Built custom cabinets and did finish carpentry on commercial builds for eight years",
+            "Taught third grade for three years then moved to middle school math",
+            "I was a junior developer at a startup before it got acquihired by Amazon"
+        ]
+    },
+    "awards": {
+        "name": "Awards",
+        "description": "Professional awards and recognitions from employers or industry bodies.",
+        "sub_entities": {
+            "awards": "Professional awards and recognitions"
+        },
+        "examples": [
+            "I won Product Manager of the Year at our company",
+            "I received Employee of the Month three times this year",
+            "I was recognized as Top Performer in my division",
+            "I got the Presidents Club award for exceeding sales targets",
+            "I won the innovation award at our annual company hackathon",
+            "I was named Nurse of the Year at my hospital",
+            "I received a teaching excellence award from the school district",
+            "My team won the best project award at the company offsite"
+        ]
+    },
+    "licenses_and_permits": {
+        "name": "Licenses & Permits",
+        "description": "Driving licenses, professional licenses, security clearances, operating permits.",
+        "sub_entities": {
+            "driving_licenses": "Driver's licenses (CDL, standard, motorcycle)",
+            "professional_licenses": "Professional licenses (medical, law, CPA, engineering)",
+            "security_clearances": "Government clearances (Secret, Top Secret)",
+            "operating_permits": "Other permits (forklift, crane, hazmat)"
+        },
+        "examples": [
+            "I have a California drivers license",
+            "I have a Secret security clearance that's still active",
+            "My medical license expires next year need to renew",
+            "I'm a licensed CPA in the state of New York",
+            "I have my CDL class A for driving commercial trucks",
+            "I passed the bar exam in two states California and Texas",
+            "I have a forklift operators permit",
+            "I hold a professional engineering license PE in civil engineering"
+        ]
+    },
+    "professional_aspirations": {
+        "name": "Professional Aspirations",
+        "description": "Career goals: dream roles, target companies/industries, salary expectations, desired work environment, career change considerations, job search status.",
+        "sub_entities": {
+            "dream_roles": "Desired roles, target companies, target industries, career goals",
+            "compensation_expectations": "Target salary, minimum acceptable, total comp goals",
+            "desired_work_environment": "Remote/hybrid, company size, culture, deal-breakers",
+            "career_change_considerations": "Considering change, risk tolerance, obstacles",
+            "job_search_status": "Currently searching, applications, interviews, offers"
+        },
+        "examples": [
+            "I want to become a VP of Product in 2 years",
+            "My dream is to be a CPO someday",
+            "My goal is to earn 120k next year",
+            "I need at least 180k base salary to make a move",
+            "I want to work hybrid not fully remote",
+            "I'm looking for a Series C startup with good culture",
+            "I'm thinking about switching from engineering to PM",
+            "I'm casually looking for new opportunities right now",
+            "I have 2 interviews next week at fintech companies",
+            "I'd love to work at Stripe or a similar payments company",
+            "I want to transition into the AI/ML industry",
+            "I got an offer from Google but I'm not sure if I should take it"
+        ]
+    },
+    "volunteer_experience": {
+        "name": "Volunteer Experience",
+        "description": "Volunteer positions, community service, pro-bono work.",
+        "sub_entities": {
+            "volunteer_roles": "Volunteer positions and community service"
+        },
+        "examples": [
+            "I mentor junior PMs at Product School as a volunteer",
+            "I volunteer at Habitat for Humanity on weekends",
+            "I do pro bono consulting for nonprofits in my spare time",
+            "I teach coding workshops at the local community center for free",
+            "I'm on the board of a local food bank",
+            "I volunteer coach a kids basketball team every Saturday",
+            "I help out at the animal shelter twice a month",
+            "I run a free resume review clinic for veterans"
         ]
     }
 }
 
-
-# ==============================================================================
-# PROMPT TEMPLATES
-# ==============================================================================
-
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural professional context messages. Always respond with valid JSON."""
-
-
-# Category-specific guidance for Experience vs Skill distinction (see experience_vs_skill.md)
-CATEGORY_GUIDANCE = {
-    "experiences": """
-CRITICAL: EXPERIENCES describe ACTIONS you took in REAL JOB CONTEXTS.
-✓ CORRECT format: ACTION VERB + specific context/details
-  - "Managed a team of 12 nurses on the night shift at City Hospital"
-  - "Built custom furniture for residential clients over 8 years"
-  - "Spent 5 years teaching high school chemistry and coaching debate"
-
-✗ WRONG format: "X years of experience in [ability/skill]"
-  - "Ten years of experience in team leadership" ← NO! This is listing a skill, not describing what you DID
-  - "Experience in project management" ← NO! This is vague skill mention, not real work
-  - "5 years of technical supervision" ← NO! What did you actually supervise? Where? Be specific!
-
-Rule: If you can't picture the person doing the actual work, it's TOO VAGUE and belongs in Skills instead.""",
-
-    "skills": """
-CRITICAL: SKILLS use NATURAL CONVERSATIONAL FRAMES + SHORT ABILITY PHRASES.
-✓ CORRECT format: Natural frame + ability phrases
-  - "I'm good at team leadership and staff development"
-  - "My skills include Python, SQL, and data visualization"
-  - "I have strong patient care and triage abilities"
-  - "I'm proficient in project management and budgeting"
-  - "My strengths are communication and problem-solving"
-
-Acceptable frames: "I'm good at...", "My skills include...", "I have...", "I'm proficient in...", "My abilities include...", "I'm skilled in...", "My strengths are..."
-
-✗ WRONG format: Action verbs + past context (that's Experience!)
-  - "Managed a team of engineers" ← NO! This is experience
-  - "Led projects from concept to delivery" ← NO! This is what you DID, not what you CAN DO
-  - "Oversaw maintenance operations" ← NO! This describes past work, not transferable ability
-
-Rule: Use conversational frame + ability phrases. Keep ability phrases concise and focused on capabilities.""",
-
-    "certifications": """
-CRITICAL: VARY YOUR LANGUAGE! Don't overuse "certification" or "certified".
-✓ CORRECT format: Use VARIED phrases for credentials
-  - "I'm a licensed master electrician"
-  - "I have my RN license and BSN degree"
-  - "I hold a PMP credential"
-  - "I earned my MBA from State University"
-  - "I passed the CPA exam"
-  - "I completed my cosmetology license last year"
-  - "I have my CDL Class A with hazmat endorsement"
-  - Just state it: "RN, BSN, and wound care specialty"
-
-Varied vocabulary: "licensed", "I have my", "I hold", "I earned", "I passed", "I completed", "trained in", "credentialed"
-
-✗ WRONG format: Overusing "certification/certified"
-  - "I'm certified in nursing" ← Better: "I have my RN license" or "I'm a licensed nurse"
-  - "I have a certification in project management" ← Better: "I hold a PMP credential"
-  - "I'm certified as an electrician" ← Better: "I'm a licensed electrician"
-  - "My certifications include..." repeated too often ← Vary the phrasing!
-
-Rule: Use natural, varied language. Think how people actually talk about their credentials in casual conversation.""",
-
+ENTITY_GUIDANCE = {
     "current_position": """
-CRITICAL: CURRENT POSITION describes what you're doing RIGHT NOW (ongoing).
-✓ CORRECT format: PRESENT TENSE or present perfect continuous
-  - "I'm currently a project manager at ABC Construction"
-  - "I work as a nurse at County Hospital on the night shift"
-  - "I run my own landscaping business with four employees"
-  - "I've been teaching third grade at Lincoln Elementary for five years"
-  - "I'm working as a line cook at a downtown restaurant"
+CRITICAL: Current position = what you do RIGHT NOW. Current employer, current title, current pay.
+✓ CORRECT: "I'm a PM at Google", "I make 150k base"
+✗ WRONG: "I worked at Microsoft" (that's professional_experience—PAST)
+✗ WRONG: "I want to become a VP" (that's professional_aspirations!)""",
 
-Present tense indicators: "I'm...", "I work as...", "I currently...", "I run...", "I teach..."
-Present perfect continuous (ongoing): "I've been working as... for X years" (implies still there)
+    "professional_experience": """
+CRITICAL: PAST work. Previous roles, employers, responsibilities, achievements.
+Must use ACTION VERBS: Managed, Led, Built, Oversaw, Worked as, Spent X years...
+✓ CORRECT: "I worked at Amazon for 3 years", "I led a team of 10"
+✗ WRONG: "I currently work at..." (that's current_position!)""",
 
-✗ WRONG format: Past tense or "my background includes" (that's Experience!)
-  - "My background includes 5 years as a project manager" ← NO! That's past experience
-  - "I was a nurse at County Hospital" ← NO! Past tense = experience
-  - "I worked as a line cook" ← NO! "Worked" is past, use "I work" or "I'm working"
-  - "Spent five years teaching" ← NO! That's completed experience, not current
+    "professional_aspirations": """
+CRITICAL: MULTI-LABEL entity. Dream roles, salary goals, work environment preferences, career change, job search.
+- dream_roles: "I want to be a VP", "I'd love to work at Stripe"
+- compensation_expectations: "I want 200k+", "Need at least 150k base"
+- desired_work_environment: "I want remote work", "Looking for a startup"
+- career_change_considerations: "Thinking of switching to PM"
+- job_search_status: "I'm actively interviewing", "Got 2 offers"
+A message like "I want to be a VP at a fintech startup making 300k" touches dream_roles + compensation_expectations + desired_work_environment.""",
 
-Rule: Use present tense to describe what you're doing NOW. If using time duration, make it clear you're STILL in that role.""",
+    "awards": """
+CRITICAL: Professional awards from EMPLOYERS or INDUSTRY.
+✓ CORRECT: "Employee of the Month", "Presidents Club", "Innovation Award"
+✗ WRONG: "Dean's List" (that's learning > academic_awards!)
+✗ WRONG: "AWS Certified" (that's learning > certifications!)""",
 }
 
-MESSAGE_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural professional messages for career coaching specifically about {category_name}.
+MULTI_LABEL_EXAMPLES = [
+    {
+        "message": "I'm currently a Senior PM at Google making about 280k total comp, but I want to become a VP of Product at a startup in the next 2 years, I'm actively interviewing at a few Series B companies right now",
+        "entities": ["current_position", "professional_aspirations"],
+        "sub_entities": ["role", "company", "compensation", "dream_roles", "desired_work_environment", "job_search_status"]
+    },
+    {
+        "message": "I worked at Amazon for 5 years leading a team of 12 engineers and launched a feature that saved 2M in costs, now I'm at a startup as CTO but honestly I'm thinking about going back to big tech the pay cut is brutal",
+        "entities": ["professional_experience", "current_position", "professional_aspirations"],
+        "sub_entities": ["past_companies", "responsibilities", "achievements", "duration", "role", "career_change_considerations"]
+    },
+    {
+        "message": "I want to earn at least 200k base in my next role, I'm looking for a hybrid setup at a Series C or later company, I won't work at a place without good work-life balance that's a deal-breaker for me",
+        "entities": ["professional_aspirations"],
+        "sub_entities": ["compensation_expectations", "desired_work_environment", "dream_roles"]
+    },
+    {
+        "message": "I have my CPA license and a Secret security clearance, I worked in government contracting for 8 years and won the contractor excellence award twice, now I want to transition to private sector fintech",
+        "entities": ["licenses_and_permits", "professional_experience", "awards", "professional_aspirations"],
+        "sub_entities": ["professional_licenses", "security_clearances", "past_roles", "duration", "awards", "career_change_considerations", "dream_roles"]
+    },
+    {
+        "message": "I've applied to about 15 companies in the last month and have 3 interviews lined up, I also volunteer mentor junior PMs at Product School which gives me energy when the job search gets discouraging",
+        "entities": ["professional_aspirations", "volunteer_experience"],
+        "sub_entities": ["job_search_status", "volunteer_roles"]
+    },
+    {
+        "message": "I'm a licensed electrician making 85k running a crew of 6, I got the safety excellence award last year, but I'm thinking about getting into project management, probably need to accept a pay cut initially",
+        "entities": ["current_position", "licenses_and_permits", "awards", "professional_aspirations"],
+        "sub_entities": ["role", "compensation", "professional_licenses", "awards", "career_change_considerations"]
+    },
+    {
+        "message": "I spent 10 years at Microsoft going from junior dev to senior engineer, my biggest achievement was architecting the new billing system that handles 50M transactions, I got promoted 4 times and won the engineering excellence award",
+        "entities": ["professional_experience", "awards"],
+        "sub_entities": ["past_companies", "past_roles", "duration", "achievements", "responsibilities", "awards"]
+    },
+    {
+        "message": "My dream is to be CPO at a mission-driven company ideally in edtech or healthtech, I need at least 250k total comp and remote work is non-negotiable, I'm not in a rush though I'm giving myself 2 years to make the move",
+        "entities": ["professional_aspirations"],
+        "sub_entities": ["dream_roles", "compensation_expectations", "desired_work_environment", "job_search_status"]
+    }
+]
 
-Category: {category_name}
-Description: {category_description}
-{category_guidance}
+MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural professional context messages for career coaching. Generate messages that sound like real people talking about their career. Cover DIVERSE professions: tech, healthcare, trades, education, finance, creative, service industry, military, government, etc. Always respond with valid JSON."""
 
-Each message should be a complete, natural sentence as if spoken by a real person to a career coach. Use appropriate tense (past for experiences, present for current skills/position). Vary widely in length and formality.
+SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural professional messages for career coaching specifically about {entity_name} > {sub_entity_name}.
+
+Context: Professional
+Entity: {entity_name}
+Sub-entity: {sub_entity_name} - {sub_entity_description}
+{entity_guidance}
 
 Requirements:
-1. Be specifically relevant to {category_name_lower}
-2. Vary WIDELY in length: mix very short (5-10 words), short (11-15 words), medium (16-25 words), and long (26-40 words)
-3. Cover DIVERSE industries: healthcare, education, trades, creative, business, service, law, social work, nonprofit, agriculture, manufacturing, etc. - NOT just tech
-4. Include REALISTIC TYPOS in some messages: "experiance", "managment", "certfied", "teh", "recieve"
-5. Vary FORMULATION: not all "I...". Use "My background...", "Started as...", "Worked at...", "Licensed...", fragments, etc.
+1. Each message MUST be specifically about {sub_entity_name}
+2. Vary WIDELY in length:
+   - 20% very short (5-12 words): "I'm a PM at Google"
+   - 30% short-medium (13-25 words)
+   - 30% medium-long (26-50 words)
+   - 20% long paragraphs (51-70 words)
+3. Cover DIVERSE professions: tech, healthcare, trades, education, finance, creative, service, military
+4. Include REALISTIC TYPOS in ~15%: "im", "becuase", "managment", "recieved"
+5. Vary formulation: "I...", "My...", "Currently...", "Been...", fragments
+6. Be authentic—real career talk
 
-Example messages for {category_name}:
-{category_examples}
+Example messages for {entity_name}:
+{entity_examples}
 
-CRITICAL DISTINCTION - Experiences vs Skills vs Current Position:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-IF GENERATING EXPERIENCES (past work):
-  ✓ DO: Use PAST TENSE action verbs + specific completed context
-     "Managed a team of 10 nurses at County Hospital for three years"
-     "Built custom homes for 15 years in the residential sector"
-     "Taught AP calculus and coached the math team for a decade"
-
-  ✗ DON'T: Use "X years of experience in [skill]" format
-     "Ten years of experience in team management" ← WRONG! Too vague!
-     "Experience in patient care" ← WRONG! What did you actually DO?
-
-IF GENERATING SKILLS (abilities/capabilities):
-  ✓ DO: Use NATURAL CONVERSATIONAL FRAME + ability phrases
-     "I'm good at team leadership and staff training"
-     "My skills include custom carpentry and finish work"
-     "I'm proficient in advanced mathematics and curriculum design"
-     "I have strong communication and problem-solving abilities"
-     "My strengths are Python, SQL, and data visualization"
-
-  ✗ DON'T: Use action verbs + past context (that's experience!)
-     "Managed teams of nurses" ← WRONG! That's experience!
-     "Built homes for clients" ← WRONG! That's what you DID, not what you CAN DO!
-
-  ✗ DON'T: List raw abilities without conversational frame
-     "Team leadership and staff training" ← WRONG! Too raw, add "I'm good at..."
-     "Python, SQL, data analysis" ← WRONG! Too raw, add "My skills include..."
-
-IF GENERATING CURRENT POSITION (what you're doing NOW):
-  ✓ DO: Use PRESENT TENSE (ongoing status)
-     "I'm currently a project manager at ABC Construction"
-     "I work as a nurse at County Hospital on the night shift"
-     "I've been teaching third grade for five years" (implies still teaching)
-     "I run my own landscaping business with four employees"
-
-  ✗ DON'T: Use past tense or "background" language (that's experience!)
-     "My background includes 5 years as a project manager" ← WRONG! Past experience!
-     "I was a nurse at County Hospital" ← WRONG! Past tense = past experience!
-     "Worked as a project manager" ← WRONG! Use "I work" or "I'm working"
-
-IF GENERATING CERTIFICATIONS (credentials/qualifications):
-  ✓ DO: Use VARIED language (avoid overusing "certification/certified")
-     "I'm a licensed master electrician"
-     "I have my RN license and BSN degree"
-     "I hold a PMP credential"
-     "I earned my MBA from State University"
-     "I passed the CPA exam"
-     "I completed my teaching credential last year"
-
-  ✗ DON'T: Overuse "certification" or "certified"
-     "I'm certified in nursing" ← Better: "I have my RN license"
-     "I have a certification in project management" ← Better: "I hold a PMP"
-     "My certifications include..." (repeated) ← Vary your phrasing!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Generate {batch_size} unique, complete messages as a JSON array. Return ONLY valid JSON with no additional text:
+Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
+MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple professional topics in a single message.
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
+Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 
-def get_category_name(category_key: str) -> str:
-    """Get display name for category."""
-    return PROFESSIONAL_CATEGORIES[category_key]["name"]
+Requirements:
+1. Each message MUST mention at least {num_labels} different sub-entities
+2. Length: 30-70 words (paragraphs)
+3. Natural and conversational
+4. Cover DIVERSE professions and career stages
+5. Include REALISTIC TYPOS in ~15%
+
+Example compound messages:
+{multi_label_examples}
+
+Return valid JSON:
+{{"messages": [
+  {{"text": "the message", "sub_entities": ["sub1", "sub2", "sub3"]}},
+  ...
+]}}"""
 
 
-def get_category_description(category_key: str) -> str:
-    """Get description for category."""
-    return PROFESSIONAL_CATEGORIES[category_key]["description"]
+def build_message_generation_prompt(entity_key: str, batch_size: int, sub_entity_key: str = None) -> str:
+    if entity_key not in ENTITIES:
+        raise ValueError(f"Unknown entity: {entity_key}")
 
+    entity = ENTITIES[entity_key]
+    examples_str = "\n".join(f"- {ex}" for ex in entity["examples"])
+    guidance = ENTITY_GUIDANCE.get(entity_key, "")
+    entity_guidance = f"\nImportant:\n{guidance}" if guidance else ""
 
-def get_category_examples(category_key: str) -> List[str]:
-    """Get examples for category."""
-    return PROFESSIONAL_CATEGORIES[category_key]["examples"]
+    if sub_entity_key and sub_entity_key in entity["sub_entities"]:
+        sub_entity_desc = entity["sub_entities"][sub_entity_key]
+        sub_entity_name = sub_entity_key.replace("_", " ").title()
+    else:
+        sub_entity_desc = entity["description"]
+        sub_entity_key = entity_key
+        sub_entity_name = entity["name"]
 
-
-def build_message_generation_prompt(category_key: str, batch_size: int) -> str:
-    """
-    Build a prompt for generating complete professional messages (no patterns/objects).
-
-    Args:
-        category_key: Key from PROFESSIONAL_CATEGORIES
-        batch_size: Number of messages to generate in this batch
-
-    Returns:
-        Formatted prompt string
-    """
-    if category_key not in PROFESSIONAL_CATEGORIES:
-        raise ValueError(f"Unknown category: {category_key}")
-
-    category = PROFESSIONAL_CATEGORIES[category_key]
-    examples_str = "\n".join(f"- {ex}" for ex in category["examples"])
-    guidance = CATEGORY_GUIDANCE.get(category_key, "")
-    category_guidance = f"Important: {guidance}" if guidance else ""
-
-    return MESSAGE_GENERATION_PROMPT_TEMPLATE.format(
+    return SINGLE_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_description=category["description"],
-        category_name_lower=category["name"].lower(),
-        category_examples=examples_str,
-        category_guidance=category_guidance
+        entity_name=entity["name"],
+        sub_entity_name=sub_entity_name,
+        sub_entity_description=sub_entity_desc,
+        entity_guidance=entity_guidance,
+        entity_examples=examples_str
+    )
+
+
+def build_multilabel_generation_prompt(entity_keys: list, batch_size: int, num_labels: int = 3) -> str:
+    all_sub_entities = []
+    for ek in entity_keys:
+        if ek in ENTITIES:
+            for sk, desc in ENTITIES[ek]["sub_entities"].items():
+                all_sub_entities.append(f"{sk} ({desc})")
+
+    examples_str = "\n".join(
+        f"- \"{ex['message'][:100]}...\" -> {ex['sub_entities']}"
+        for ex in MULTI_LABEL_EXAMPLES[:5]
+    )
+
+    return MULTI_LABEL_PROMPT_TEMPLATE.format(
+        batch_size=batch_size,
+        num_labels=num_labels,
+        sub_entity_list=", ".join(all_sub_entities),
+        multi_label_examples=examples_str
     )

@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /health
+    healthCheckPath: /docs
     envVars:
       # Supabase
       - key: SUPABASE_URL

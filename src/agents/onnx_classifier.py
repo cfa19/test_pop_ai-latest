@@ -1,12 +1,32 @@
 """
-ONNX-based Intent Classifier using local fine-tuned model.
+Hierarchical ONNX-based Intent Classifier.
 
-Uses onnxruntime with the fine-tuned SequenceClassification ONNX model.
-Classification via logits (softmax) -- identical to PyTorch but without torch.
-All files loaded from disk, no HuggingFace downloads.
+4-level classification pipeline using ONNX Runtime:
+  1. Routing (softmax 8 classes) → determines context or non-context type
+  2. Contexts (softmax 5 classes) → confirms which context
+  3. Entities (softmax N classes per context) → which entities within context
+  4. Sub-entities (sigmoid multi-label per entity) → which sub-entities (multiple active)
+
+All models loaded from disk as quantized ONNX. No PyTorch required.
+
+Directory structure expected:
+    {model_path}/
+    ├── hierarchy_metadata.json
+    ├── routing/          (model_quantized.onnx, config.json, label_mappings.json, tokenizer)
+    ├── contexts/         (model_quantized.onnx, ...)
+    ├── professional/
+    │   ├── entities/     (model_quantized.onnx, ...)
+    │   ├── current_position/      (model_quantized.onnx, ... multi-label)
+    │   ├── professional_aspirations/
+    │   └── ...
+    ├── learning/
+    │   ├── entities/
+    │   └── ...
+    └── ...
 """
 
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -14,12 +34,55 @@ import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 
-from src.agents.langgraph_workflow import IntentClassification, MessageCategory
+
+# =============================================================================
+# Data types
+# =============================================================================
+
+@dataclass
+class SubEntityResult:
+    """Result of sub-entity multi-label classification."""
+    entity: str
+    sub_entities: list[str]
+    probabilities: dict[str, float]
 
 
-class ONNXIntentClassifier:
-    def __init__(self, model_path: str):
-        model_dir = Path(model_path)
+@dataclass
+class ContextResult:
+    """Result for a single detected context path."""
+    context: str                         # e.g. "professional"
+    context_confidence: float
+    entities: list[SubEntityResult] = field(default_factory=list)  # detected entities + their sub-entities
+
+
+@dataclass
+class HierarchicalClassification:
+    """Full hierarchical classification result."""
+    # Level 0: Routing
+    route: str                           # e.g. "professional", "rag_query", "chitchat"
+    route_confidence: float
+    is_context: bool                     # True if route is one of 5 contexts
+
+    # All detected context paths (multiple contexts possible)
+    contexts: list[ContextResult] = field(default_factory=list)
+
+    # All route probabilities for secondary analysis
+    route_probabilities: dict[str, float] = field(default_factory=dict)
+
+    # Reasoning string
+    reasoning: str = ""
+
+
+# =============================================================================
+# Single ONNX model wrapper
+# =============================================================================
+
+class ONNXModel:
+    """Wrapper for a single ONNX classification model."""
+
+    def __init__(self, model_dir: Path, name: str = ""):
+        self.name = name
+        self.model_dir = model_dir
 
         # Find ONNX model file (prefer quantized)
         onnx_file = model_dir / "model_quantized.onnx"
@@ -28,13 +91,10 @@ class ONNXIntentClassifier:
         if not onnx_file.exists():
             raise FileNotFoundError(f"No ONNX model found in {model_dir}")
 
-        print(f"[ONNX] Loading model from {onnx_file}...")
         self.session = ort.InferenceSession(
             str(onnx_file), providers=["CPUExecutionProvider"]
         )
         self.input_names = [i.name for i in self.session.get_inputs()]
-        output_names = [o.name for o in self.session.get_outputs()]
-        print(f"[ONNX] Model loaded (inputs: {self.input_names}, outputs: {output_names})")
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
@@ -45,26 +105,46 @@ class ONNXIntentClassifier:
             config = json.load(f)
         self.id2label = config.get("id2label", {})
         self.num_labels = len(self.id2label)
-        print(f"[ONNX] {self.num_labels} labels: {list(self.id2label.values())}")
+        self.problem_type = config.get("problem_type", "single_label_classification")
 
-    async def classify(self, message: str) -> IntentClassification:
-        """Classify a message using the ONNX model."""
-        # Tokenize
+        # Check for multi-label config in label_mappings.json
+        label_mappings_file = model_dir / "label_mappings.json"
+        self.threshold = 0.5
+        if label_mappings_file.exists():
+            with open(label_mappings_file) as f:
+                label_config = json.load(f)
+            if label_config.get("problem_type") == "multi_label_classification":
+                self.problem_type = "multi_label_classification"
+            self.threshold = label_config.get("threshold", 0.5)
+            # Use label_mappings from the file if id2label is missing
+            if not self.id2label and "label_mappings" in label_config:
+                self.id2label = label_config["label_mappings"]
+                self.num_labels = len(self.id2label)
+
+        self.is_multilabel = self.problem_type == "multi_label_classification"
+
+    def _tokenize(self, message: str) -> dict:
+        """Tokenize and build feed dict."""
         inputs = self.tokenizer(
             message, return_tensors="np", padding=True, truncation=True, max_length=128
         )
-
-        # Build feed dict
         feed = {
-            "input_ids": inputs["input_ids"],
-            "attention_mask": inputs["attention_mask"],
+            "input_ids": inputs["input_ids"].astype(np.int64),
+            "attention_mask": inputs["attention_mask"].astype(np.int64),
         }
         if "token_type_ids" in self.input_names:
-            feed["token_type_ids"] = inputs.get(
-                "token_type_ids", np.zeros_like(inputs["input_ids"])
-            )
+            tid = inputs.get("token_type_ids", np.zeros_like(inputs["input_ids"]))
+            feed["token_type_ids"] = tid.astype(np.int64)
+        return feed
 
-        # Run inference
+    def predict_single_label(self, message: str) -> tuple[str, float, dict[str, float]]:
+        """
+        Single-label prediction (softmax).
+
+        Returns:
+            (best_label, confidence, all_probabilities)
+        """
+        feed = self._tokenize(message)
         outputs = self.session.run(None, feed)
         logits = outputs[0][0]
 
@@ -72,49 +152,286 @@ class ONNXIntentClassifier:
         exp_logits = np.exp(logits - np.max(logits))
         probs = exp_logits / exp_logits.sum()
 
-        # Best prediction
         best_idx = int(np.argmax(probs))
         best_label = self.id2label.get(str(best_idx), f"label_{best_idx}")
         confidence = float(probs[best_idx])
 
-        # Secondary categories (if second-best > 0.15)
-        sorted_indices = np.argsort(probs)[::-1]
-        secondary = []
-        if len(sorted_indices) > 1:
-            second_idx = sorted_indices[1]
-            if probs[second_idx] > 0.15:
-                second_label = self.id2label.get(str(int(second_idx)), "")
-                try:
-                    secondary.append(MessageCategory(second_label))
-                except ValueError:
-                    pass
+        all_probs = {
+            self.id2label.get(str(i), f"label_{i}"): float(probs[i])
+            for i in range(len(probs))
+        }
 
-        # Map to enum
+        return best_label, confidence, all_probs
+
+    def predict_multi_label(self, message: str, threshold: float = None) -> tuple[list[str], dict[str, float]]:
+        """
+        Multi-label prediction (sigmoid).
+
+        Returns:
+            (active_labels, all_probabilities)
+        """
+        if threshold is None:
+            threshold = self.threshold
+
+        feed = self._tokenize(message)
+        outputs = self.session.run(None, feed)
+        logits = outputs[0][0]
+
+        # Sigmoid
+        probs = 1.0 / (1.0 + np.exp(-logits))
+
+        all_probs = {
+            self.id2label.get(str(i), f"label_{i}"): float(probs[i])
+            for i in range(len(probs))
+        }
+
+        active = [label for label, prob in all_probs.items() if prob >= threshold]
+
+        return active, all_probs
+
+
+# =============================================================================
+# Hierarchical classifier
+# =============================================================================
+
+CONTEXT_TYPES = {"professional", "learning", "social", "psychological", "personal"}
+
+
+class HierarchicalONNXClassifier:
+    """
+    Hierarchical 4-level ONNX classifier with multi-path detection.
+
+    For each message, detects MULTIPLE contexts, entities, and sub-entities
+    using probability thresholds at every level (not just argmax).
+
+    Pipeline:
+      routing (top-N contexts above threshold)
+        → for each context: entities (top-N above threshold)
+          → for each entity: sub-entities (sigmoid multi-label)
+    """
+
+    # Thresholds for secondary detections (primary = argmax, always included)
+    CONTEXT_THRESHOLD = 0.15     # include context if routing prob > 15%
+    ENTITY_THRESHOLD = 0.20      # include entity if softmax prob > 20%
+
+    def __init__(self, model_path: str):
+        model_dir = Path(model_path)
+        if not model_dir.exists():
+            raise FileNotFoundError(f"Model directory not found: {model_dir}")
+
+        print(f"[HIERARCHICAL ONNX] Loading models from {model_dir}...")
+
+        # Load hierarchy metadata
+        metadata_file = model_dir / "hierarchy_metadata.json"
+        self.metadata = {}
+        if metadata_file.exists():
+            with open(metadata_file) as f:
+                self.metadata = json.load(f)
+
+        # Level 0: Routing
+        self.routing_model = self._load_model(model_dir / "routing", "routing")
+
+        # Level 1: Contexts
+        self.contexts_model = self._load_model(model_dir / "contexts", "contexts")
+
+        # Level 2: Entity models (one per context)
+        self.entity_models: dict[str, ONNXModel] = {}
+        for ctx in CONTEXT_TYPES:
+            entity_dir = model_dir / ctx / "entities"
+            if entity_dir.exists():
+                model = self._load_model(entity_dir, f"{ctx}/entities")
+                if model:
+                    self.entity_models[ctx] = model
+
+        # Level 3: Sub-entity models (one per entity)
+        self.sub_entity_models: dict[str, dict[str, ONNXModel]] = {}
+        for ctx in CONTEXT_TYPES:
+            ctx_dir = model_dir / ctx
+            if not ctx_dir.exists():
+                continue
+            for sub_dir in sorted(ctx_dir.iterdir()):
+                if sub_dir.name == "entities" or not sub_dir.is_dir():
+                    continue
+                if (sub_dir / "model_quantized.onnx").exists() or (sub_dir / "model.onnx").exists():
+                    model = self._load_model(sub_dir, f"{ctx}/{sub_dir.name}")
+                    if model:
+                        if ctx not in self.sub_entity_models:
+                            self.sub_entity_models[ctx] = {}
+                        self.sub_entity_models[ctx][sub_dir.name] = model
+
+        # Summary
+        n_entity = len(self.entity_models)
+        n_sub = sum(len(v) for v in self.sub_entity_models.values())
+        print(f"[HIERARCHICAL ONNX] Loaded: routing + contexts + {n_entity} entity models + {n_sub} sub-entity models")
+
+    def _load_model(self, model_dir: Path, name: str) -> Optional[ONNXModel]:
+        """Load a single ONNX model, returning None if not found."""
         try:
-            category_enum = MessageCategory(best_label)
-        except ValueError:
-            category_enum = MessageCategory.CHITCHAT
+            model = ONNXModel(model_dir, name)
+            print(f"  [{name}] {model.num_labels} labels ({'multi-label' if model.is_multilabel else 'single-label'})")
+            return model
+        except FileNotFoundError:
+            print(f"  [{name}] not found, skipping")
+            return None
 
-        return IntentClassification(
-            category=category_enum,
-            confidence=confidence,
-            reasoning=f"ONNX classifier: {best_label} ({confidence:.1%})",
-            key_entities={},
-            secondary_categories=secondary,
+    def _get_contexts_above_threshold(self, route_probs: dict[str, float]) -> list[tuple[str, float]]:
+        """
+        Get all contexts with probability above threshold from routing output.
+
+        Returns list of (context, probability) sorted by probability descending.
+        The primary (argmax) is always included regardless of threshold.
+        """
+        contexts = []
+        for label, prob in route_probs.items():
+            if label in CONTEXT_TYPES and prob >= self.CONTEXT_THRESHOLD:
+                contexts.append((label, prob))
+        contexts.sort(key=lambda x: x[1], reverse=True)
+        return contexts
+
+    def _get_entities_above_threshold(self, entity_probs: dict[str, float]) -> list[tuple[str, float]]:
+        """
+        Get all entities with probability above threshold.
+
+        Returns list of (entity, probability) sorted by probability descending.
+        """
+        entities = []
+        for label, prob in entity_probs.items():
+            if prob >= self.ENTITY_THRESHOLD:
+                entities.append((label, prob))
+        entities.sort(key=lambda x: x[1], reverse=True)
+        return entities
+
+    async def classify(self, message: str) -> HierarchicalClassification:
+        """
+        Run full hierarchical classification with multi-path detection.
+
+        Flow:
+            1. Routing → get ALL contexts above threshold (not just top-1)
+            2. For each context → get ALL entities above threshold
+            3. For each entity → get sub-entities (sigmoid multi-label)
+
+        Example result for "Quiero ser CEO de Apple, gano 100k y sé Python":
+            contexts:
+              - professional (0.65):
+                  - professional_aspirations → [dream_roles, compensation_expectations]
+                  - current_position → [compensation]
+              - learning (0.25):
+                  - current_skills → [skills]
+        """
+        # =====================================================================
+        # STEP 1: Routing (8 classes) → find ALL relevant contexts
+        # =====================================================================
+        if not self.routing_model:
+            return HierarchicalClassification(
+                route="chitchat", route_confidence=0.0, is_context=False,
+                reasoning="No routing model loaded",
+            )
+
+        route, route_conf, route_probs = self.routing_model.predict_single_label(message)
+        is_context = route in CONTEXT_TYPES
+
+        if not is_context:
+            # Non-context type (rag_query, chitchat, off_topic)
+            # But still check if any context has high enough probability
+            secondary_contexts = self._get_contexts_above_threshold(route_probs)
+            if not secondary_contexts:
+                return HierarchicalClassification(
+                    route=route,
+                    route_confidence=route_conf,
+                    is_context=False,
+                    route_probabilities=route_probs,
+                    reasoning=f"Routing: {route} ({route_conf:.1%})",
+                )
+            # Has secondary contexts worth exploring (e.g., rag_query 0.4 + professional 0.3)
+            # Still mark as non-context primary, but explore context paths
+            is_context = True
+
+        # Get all contexts above threshold from routing
+        detected_contexts = self._get_contexts_above_threshold(route_probs)
+
+        # Also use contexts model to refine (if available)
+        if self.contexts_model and detected_contexts:
+            _, _, ctx_probs = self.contexts_model.predict_single_label(message)
+            # Merge: use max probability from either routing or contexts model
+            ctx_set = {}
+            for ctx, prob in detected_contexts:
+                ctx_set[ctx] = prob
+            for ctx, prob in ctx_probs.items():
+                if ctx in CONTEXT_TYPES and prob >= self.CONTEXT_THRESHOLD:
+                    ctx_set[ctx] = max(ctx_set.get(ctx, 0), prob)
+            detected_contexts = sorted(ctx_set.items(), key=lambda x: x[1], reverse=True)
+
+        # =====================================================================
+        # STEP 2 & 3: For each context → entities → sub-entities
+        # =====================================================================
+        context_results = []
+        reasoning_parts = [f"Routing: {route} ({route_conf:.1%})"]
+
+        for ctx, ctx_conf in detected_contexts:
+            # Get entities for this context
+            entity_results = []
+
+            if ctx in self.entity_models:
+                _, _, entity_probs = self.entity_models[ctx].predict_single_label(message)
+                detected_entities = self._get_entities_above_threshold(entity_probs)
+
+                for entity, entity_conf in detected_entities:
+                    # Get sub-entities for this entity (multi-label)
+                    sub_entities = []
+                    sub_probs = {}
+
+                    if ctx in self.sub_entity_models and entity in self.sub_entity_models[ctx]:
+                        sub_model = self.sub_entity_models[ctx][entity]
+                        sub_entities, sub_probs = sub_model.predict_multi_label(message)
+
+                    if sub_entities:
+                        entity_results.append(SubEntityResult(
+                            entity=entity,
+                            sub_entities=sub_entities,
+                            probabilities=sub_probs,
+                        ))
+                        reasoning_parts.append(
+                            f"{ctx}.{entity} ({entity_conf:.0%}) → [{', '.join(sub_entities)}]"
+                        )
+                    elif entity_conf >= self.ENTITY_THRESHOLD:
+                        # Entity detected but no sub-entity model or no active sub-entities
+                        entity_results.append(SubEntityResult(
+                            entity=entity,
+                            sub_entities=[],
+                            probabilities={},
+                        ))
+                        reasoning_parts.append(f"{ctx}.{entity} ({entity_conf:.0%})")
+
+            if entity_results:
+                context_results.append(ContextResult(
+                    context=ctx,
+                    context_confidence=ctx_conf,
+                    entities=entity_results,
+                ))
+
+        return HierarchicalClassification(
+            route=route,
+            route_confidence=route_conf,
+            is_context=bool(context_results),
+            contexts=context_results,
+            route_probabilities=route_probs,
+            reasoning=" | ".join(reasoning_parts),
         )
 
 
+# =============================================================================
 # Singleton
-_classifier_instance: Optional[ONNXIntentClassifier] = None
+# =============================================================================
+
+_classifier_instance: Optional[HierarchicalONNXClassifier] = None
 
 
-def get_onnx_classifier(model_path: str = "") -> ONNXIntentClassifier:
-    """Get or create the ONNX classifier singleton."""
+def get_hierarchical_classifier(model_path: str = "") -> HierarchicalONNXClassifier:
+    """Get or create the hierarchical ONNX classifier singleton."""
     global _classifier_instance
     if _classifier_instance is None:
         if not model_path:
-            from src.config import INTENT_CLASSIFIER_MODEL_PATH
-
-            model_path = INTENT_CLASSIFIER_MODEL_PATH
-        _classifier_instance = ONNXIntentClassifier(model_path)
+            from src.config import HIERARCHICAL_MODEL_PATH
+            model_path = HIERARCHICAL_MODEL_PATH
+        _classifier_instance = HierarchicalONNXClassifier(model_path)
     return _classifier_instance

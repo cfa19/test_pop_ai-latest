@@ -64,8 +64,9 @@ class SemanticGate:
         "psychological": "psychological",
         "learning": "learning",
         "social": "social",
-        "emotional": "emotional",
-        "aspirational": "aspirational",
+        "personal": "personal",
+        "emotional": "personal",  # legacy → personal
+        "aspirational": "personal",  # legacy → personal
         "chitchat": "chitchat",
         "off_topic": "off_topic",
     }

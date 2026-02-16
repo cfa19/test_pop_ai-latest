@@ -52,13 +52,14 @@ PRIMARY_INTENT_CLASSIFIER_TYPE = os.getenv("PRIMARY_INTENT_CLASSIFIER_TYPE", "op
 SECONDARY_INTENT_CLASSIFIER_TYPE = os.getenv("SECONDARY_INTENT_CLASSIFIER_TYPE", "openai")  # "openai" or "bert"
 INTENT_CLASSIFIER_MODEL_PATH = os.getenv("INTENT_CLASSIFIER_MODEL_PATH", "training/models/latest")
 ONNX_HIERARCHY_PATH = os.getenv("ONNX_HIERARCHY_PATH", "training/models/onnx")
+HIERARCHICAL_MODEL_PATH = os.getenv("HIERARCHICAL_MODEL_PATH", "training/models/full_onnx")
 
 # Semantic gate settings (Stage 1 filtering)
 SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("true", "1", "yes")
 SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
 SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_hierarchical_tuning.json")
 SEMANTIC_GATE_ONNX_MODEL_PATH = os.getenv("SEMANTIC_GATE_ONNX_MODEL_PATH", "training/models/onnx/semantic_gate")
-SEMANTIC_GATE_CENTROIDS_DIR = os.getenv("SEMANTIC_GATE_CENTROIDS_DIR", "training/models/onnx/semantic_gate")
+SEMANTIC_GATE_CENTROIDS_DIR = os.getenv("SEMANTIC_GATE_CENTROIDS_DIR", "training/models/semantic_gate")
 # Use only cached model (no network). Set to "true" for offline; model must be in cache_folder first.
 SEMANTIC_GATE_LOCAL_FILES_ONLY = os.getenv("SEMANTIC_GATE_LOCAL_FILES_ONLY", "false").lower() in ("true", "1", "yes")
 SEMANTIC_GATE_MODEL_PATH = os.getenv("SEMANTIC_GATE_MODEL_PATH", "training/models/sentence_transformers")

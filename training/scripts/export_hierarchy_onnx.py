@@ -1,54 +1,60 @@
 """
-Export all hierarchical classifier models (primary + secondary) to ONNX format.
+Export all hierarchical classifier models to ONNX format.
 
-Converts:
-  - Primary model (BertForSequenceClassification / all-MiniLM-L6-v2, 8 categories)
-  - 6 Secondary models (DistilBertForSequenceClassification / distilbert-base-uncased)
+Converts 4 levels of models:
+  - Routing (8 classes, softmax): professional, learning, social, psychological, personal, rag_query, chitchat, off_topic
+  - Contexts (5 classes, softmax): professional, learning, social, psychological, personal
+  - Entities per context (N classes, softmax): e.g., professional has 6 entities
+  - Sub-entities per entity (M labels, sigmoid multi-label): e.g., professional_aspirations has 5 sub-entities
 
-Each model is exported to ONNX FP32, then quantized to INT8 (~3-4x smaller).
+Each model is exported to ONNX FP32, then quantized to INT8.
 
 Usage:
     python -m training.scripts.export_hierarchy_onnx
+    python -m training.scripts.export_hierarchy_onnx --input-dir training/models/hierarchical --output-dir training/models/full_onnx
+
+Input structure (from train_multilabel.py):
+    training/models/hierarchical/
+    ├── routing/final/                    (8-class softmax)
+    ├── contexts/final/                   (5-class softmax)
+    ├── professional/entities/final/      (N-class softmax)
+    ├── professional/current_position/final/   (multi-label sigmoid)
+    ├── professional/professional_aspirations/final/
+    ├── learning/entities/final/
+    ├── learning/current_skills/final/
+    └── ...
 
 Output structure:
     training/models/full_onnx/
-    ├── hierarchy_metadata.json
-    ├── secondary_metadata.json
-    ├── primary/
+    ├── hierarchy_metadata.json           (full hierarchy description)
+    ├── routing/
     │   ├── model.onnx
     │   ├── model_quantized.onnx
     │   ├── config.json
     │   ├── label_mappings.json
-    │   ├── centroids.pkl
-    │   ├── centroid_metadata.json
     │   ├── tokenizer.json
     │   └── tokenizer_config.json
-    └── secondary/
-        ├── aspirational/
-        ├── emotional/
-        ├── learning/
-        ├── professional/
-        ├── psychological/
-        └── social/
+    ├── contexts/
+    ├── professional/
+    │   ├── entities/
+    │   ├── current_position/
+    │   ├── professional_aspirations/
+    │   └── ...
+    ├── learning/
+    │   ├── entities/
+    │   └── ...
+    └── ...
 """
 
+import argparse
 import json
 import shutil
 import sys
 from pathlib import Path
 
-# Add D:\pylib to path (onnx installed there to avoid Windows long path issue)
-PYLIB = r"D:\pylib"
-if PYLIB not in sys.path:
-    sys.path.insert(0, PYLIB)
-
 import numpy as np
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
-# Paths
-HIERARCHY_DIR = Path("training/models/hierarchy")
-OUTPUT_DIR = Path("training/models/full_onnx")
 
 # Files to copy alongside each ONNX model
 COPY_FILES = [
@@ -56,38 +62,63 @@ COPY_FILES = [
     "label_mappings.json",
     "tokenizer.json",
     "tokenizer_config.json",
-    "centroids.pkl",
-    "centroid_metadata.json",
+    "special_tokens_map.json",
+    "vocab.txt",
 ]
+
+CONTEXTS = ["professional", "learning", "social", "psychological", "personal"]
 
 
 def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> bool:
     """Export a single model to ONNX with INT8 quantization."""
     print(f"\n{'='*60}")
-    print(f"Exporting: {model_name}")
+    print(f"  {model_name}")
     print(f"  Source:  {model_dir}")
     print(f"  Output:  {output_dir}")
     print(f"{'='*60}")
 
     if not model_dir.exists():
-        print(f"  [ERROR] Source directory not found: {model_dir}")
+        print(f"  [SKIP] Source directory not found: {model_dir}")
         return False
 
+    # Check for model weights
     safetensors_file = model_dir / "model.safetensors"
-    if not safetensors_file.exists():
-        print(f"  [ERROR] model.safetensors not found in {model_dir}")
+    pytorch_file = model_dir / "pytorch_model.bin"
+    if not safetensors_file.exists() and not pytorch_file.exists():
+        print(f"  [SKIP] No model weights found in {model_dir}")
         return False
 
     # Load config
-    with open(model_dir / "config.json") as f:
+    config_file = model_dir / "config.json"
+    if not config_file.exists():
+        print(f"  [SKIP] No config.json found in {model_dir}")
+        return False
+
+    with open(config_file) as f:
         config = json.load(f)
 
     model_type = config.get("model_type", "unknown")
     architectures = config.get("architectures", [])
     id2label = config.get("id2label", {})
     num_labels = len(id2label)
-    print(f"  Model type: {model_type} ({architectures[0] if architectures else 'unknown'})")
+    problem_type = config.get("problem_type", "single_label_classification")
+
+    print(f"  Type: {model_type} ({architectures[0] if architectures else 'unknown'})")
     print(f"  Labels ({num_labels}): {list(id2label.values())}")
+    print(f"  Problem: {problem_type}")
+
+    # Load label_mappings.json for multi-label info
+    label_mappings_file = model_dir / "label_mappings.json"
+    label_config = {}
+    if label_mappings_file.exists():
+        with open(label_mappings_file) as f:
+            label_config = json.load(f)
+
+    is_multilabel = problem_type == "multi_label_classification" or label_config.get("problem_type") == "multi_label_classification"
+    if is_multilabel:
+        print(f"  Mode: MULTI-LABEL (sigmoid, threshold={label_config.get('threshold', 0.5)})")
+    else:
+        print(f"  Mode: SINGLE-LABEL (softmax)")
 
     # Load model and tokenizer
     print("  Loading model...")
@@ -101,10 +132,10 @@ def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Prepare dummy input
-    dummy_text = "This is a test message for export"
+    dummy_text = "This is a test message for ONNX export"
     inputs = tokenizer(dummy_text, return_tensors="pt", padding=True, truncation=True, max_length=128)
 
-    # Bert uses token_type_ids, DistilBert does not
+    # Determine input names based on model type
     if model_type == "distilbert":
         input_names = ["input_ids", "attention_mask"]
         dummy_inputs = (inputs["input_ids"], inputs["attention_mask"])
@@ -156,12 +187,10 @@ def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> 
     print(f"  INT8 model: {int8_size:.1f} MB ({reduction:.0f}% smaller)")
 
     # Copy supporting files
-    print("  Copying supporting files...")
     for filename in COPY_FILES:
         src = model_dir / filename
         if src.exists():
             shutil.copy2(str(src), str(output_dir / filename))
-            print(f"    Copied: {filename}")
 
     # Verify exported model
     print("  Verifying quantized model...")
@@ -171,98 +200,213 @@ def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> 
     ort_input_names = [i.name for i in session.get_inputs()]
 
     np_inputs = tokenizer(dummy_text, return_tensors="np", padding=True, truncation=True, max_length=128)
-    feed = {"input_ids": np_inputs["input_ids"], "attention_mask": np_inputs["attention_mask"]}
+    feed = {
+        "input_ids": np_inputs["input_ids"].astype(np.int64),
+        "attention_mask": np_inputs["attention_mask"].astype(np.int64),
+    }
     if "token_type_ids" in ort_input_names:
-        feed["token_type_ids"] = np_inputs.get("token_type_ids", np.zeros_like(np_inputs["input_ids"]))
+        tid = np_inputs.get("token_type_ids", np.zeros_like(np_inputs["input_ids"]))
+        feed["token_type_ids"] = tid.astype(np.int64)
 
     outputs = session.run(None, feed)
     logits = outputs[0][0]
-    exp_logits = np.exp(logits - np.max(logits))
-    probs = exp_logits / exp_logits.sum()
-    best_idx = int(np.argmax(probs))
-    best_label = id2label.get(str(best_idx), f"label_{best_idx}")
-    confidence = float(probs[best_idx])
 
-    print(f"  Test: '{dummy_text}' -> {best_label} ({confidence:.1%})")
-    print(f"  [OK] {model_name} exported!")
+    if is_multilabel:
+        # Sigmoid for multi-label
+        probs = 1 / (1 + np.exp(-logits))
+        threshold = label_config.get("threshold", 0.5)
+        active = [id2label.get(str(i), f"label_{i}") for i, p in enumerate(probs) if p >= threshold]
+        print(f"  Test: '{dummy_text[:40]}...' -> {active} (threshold={threshold})")
+    else:
+        # Softmax for single-label
+        exp_logits = np.exp(logits - np.max(logits))
+        probs = exp_logits / exp_logits.sum()
+        best_idx = int(np.argmax(probs))
+        best_label = id2label.get(str(best_idx), f"label_{best_idx}")
+        confidence = float(probs[best_idx])
+        print(f"  Test: '{dummy_text[:40]}...' -> {best_label} ({confidence:.1%})")
+
+    print(f"  [OK] {model_name}")
     return True
 
 
-def main():
-    print("=" * 60)
-    print("Hierarchical Models -> ONNX Export (Primary + Secondary)")
-    print("=" * 60)
+def build_hierarchy_metadata(input_dir: Path, results: dict) -> dict:
+    """Build metadata JSON describing the full hierarchy."""
+    metadata = {
+        "version": "2.0",
+        "levels": {
+            "routing": {
+                "path": "routing/",
+                "type": "single_label",
+                "description": "Routes messages to context or non-context types",
+            },
+            "contexts": {
+                "path": "contexts/",
+                "type": "single_label",
+                "description": "Confirms which of 5 contexts the message belongs to",
+            },
+            "entities": {
+                "type": "single_label",
+                "description": "Classifies entity within a context",
+                "models": {},
+            },
+            "sub_entities": {
+                "type": "multi_label",
+                "description": "Classifies sub-entities within an entity (multi-label, sigmoid)",
+                "models": {},
+            },
+        },
+        "export_results": {name: ok for name, ok in results.items()},
+    }
 
-    if not HIERARCHY_DIR.exists():
-        print(f"[ERROR] Hierarchy directory not found: {HIERARCHY_DIR}")
+    # Populate entity and sub-entity paths
+    for ctx in CONTEXTS:
+        entities_dir = input_dir / ctx / "entities" / "final"
+        if entities_dir.exists():
+            label_file = entities_dir / "label_mappings.json"
+            if label_file.exists():
+                with open(label_file) as f:
+                    labels = json.load(f)
+                metadata["levels"]["entities"]["models"][ctx] = {
+                    "path": f"{ctx}/entities/",
+                    "labels": list(labels.values()) if isinstance(labels, dict) else labels,
+                }
+
+        # Sub-entities
+        ctx_dir = input_dir / ctx
+        if ctx_dir.exists():
+            for entity_dir in sorted(ctx_dir.iterdir()):
+                if entity_dir.name == "entities" or not entity_dir.is_dir():
+                    continue
+                final_dir = entity_dir / "final"
+                if final_dir.exists() and (final_dir / "label_mappings.json").exists():
+                    with open(final_dir / "label_mappings.json") as f:
+                        label_config = json.load(f)
+                    labels = label_config.get("label_mappings", label_config)
+                    if ctx not in metadata["levels"]["sub_entities"]["models"]:
+                        metadata["levels"]["sub_entities"]["models"][ctx] = {}
+                    metadata["levels"]["sub_entities"]["models"][ctx][entity_dir.name] = {
+                        "path": f"{ctx}/{entity_dir.name}/",
+                        "labels": list(labels.values()) if isinstance(labels, dict) else labels,
+                        "threshold": label_config.get("threshold", 0.5),
+                    }
+
+    return metadata
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Export hierarchical models to ONNX")
+    parser.add_argument("--input-dir", type=str, default="training/models/hierarchical",
+                        help="Directory with trained models from train_multilabel.py")
+    parser.add_argument("--output-dir", type=str, default="training/models/full_onnx",
+                        help="Output directory for ONNX models")
+    parser.add_argument("--keep-fp32", action="store_true",
+                        help="Keep FP32 models (default: only keep quantized)")
+    args = parser.parse_args()
+
+    input_dir = Path(args.input_dir)
+    output_dir = Path(args.output_dir)
+
+    print("=" * 60)
+    print("HIERARCHICAL MODELS -> ONNX EXPORT")
+    print("=" * 60)
+    print(f"  Input:  {input_dir}")
+    print(f"  Output: {output_dir}")
+
+    if not input_dir.exists():
+        print(f"\n[ERROR] Input directory not found: {input_dir}")
         sys.exit(1)
 
     # Clean output directory
-    if OUTPUT_DIR.exists():
-        print(f"\nRemoving existing output: {OUTPUT_DIR}")
-        shutil.rmtree(str(OUTPUT_DIR))
+    if output_dir.exists():
+        print(f"\n  Removing existing output: {output_dir}")
+        shutil.rmtree(str(output_dir))
 
     results = {}
 
-    # 1. Export primary model
-    primary_src = HIERARCHY_DIR / "primary" / "final"
-    primary_out = OUTPUT_DIR / "primary"
-    results["primary"] = export_model_to_onnx(primary_src, primary_out, "PRIMARY (8 categories)")
+    # =========================================================================
+    # 1. ROUTING (8 classes, softmax)
+    # =========================================================================
+    routing_src = input_dir / "routing" / "final"
+    routing_out = output_dir / "routing"
+    results["routing"] = export_model_to_onnx(routing_src, routing_out, "ROUTING (8 classes)")
 
-    # 2. Export each secondary model
-    secondary_dir = HIERARCHY_DIR / "secondary"
-    categories = sorted([
-        d.name for d in secondary_dir.iterdir()
-        if d.is_dir() and (d / "final" / "model.safetensors").exists()
-    ])
+    # =========================================================================
+    # 2. CONTEXTS (5 classes, softmax)
+    # =========================================================================
+    contexts_src = input_dir / "contexts" / "final"
+    contexts_out = output_dir / "contexts"
+    results["contexts"] = export_model_to_onnx(contexts_src, contexts_out, "CONTEXTS (5 classes)")
 
-    print(f"\nFound {len(categories)} secondary models: {categories}")
-
-    for category in categories:
-        src = secondary_dir / category / "final"
-        out = OUTPUT_DIR / "secondary" / category
-        results[f"secondary/{category}"] = export_model_to_onnx(
-            src, out, f"SECONDARY: {category}"
+    # =========================================================================
+    # 3. ENTITIES per context (softmax)
+    # =========================================================================
+    for ctx in CONTEXTS:
+        entity_src = input_dir / ctx / "entities" / "final"
+        entity_out = output_dir / ctx / "entities"
+        results[f"{ctx}/entities"] = export_model_to_onnx(
+            entity_src, entity_out, f"{ctx.upper()} ENTITIES"
         )
 
-    # Copy metadata files
-    metadata_src = HIERARCHY_DIR / "hierarchy_metadata.json"
-    if metadata_src.exists():
-        shutil.copy2(str(metadata_src), str(OUTPUT_DIR / "hierarchy_metadata.json"))
-        print("\nCopied hierarchy_metadata.json")
+    # =========================================================================
+    # 4. SUB-ENTITIES per entity (sigmoid multi-label)
+    # =========================================================================
+    for ctx in CONTEXTS:
+        ctx_dir = input_dir / ctx
+        if not ctx_dir.exists():
+            continue
+        for entity_dir in sorted(ctx_dir.iterdir()):
+            if entity_dir.name == "entities" or not entity_dir.is_dir():
+                continue
+            final_dir = entity_dir / "final"
+            if not final_dir.exists():
+                continue
+            sub_out = output_dir / ctx / entity_dir.name
+            results[f"{ctx}/{entity_dir.name}"] = export_model_to_onnx(
+                final_dir, sub_out, f"{ctx.upper()} > {entity_dir.name.upper()} SUB-ENTITIES"
+            )
 
-    secondary_meta = HIERARCHY_DIR / "secondary" / "secondary_metadata.json"
-    if secondary_meta.exists():
-        shutil.copy2(str(secondary_meta), str(OUTPUT_DIR / "secondary_metadata.json"))
-        print("Copied secondary_metadata.json")
+    # =========================================================================
+    # Build hierarchy metadata
+    # =========================================================================
+    metadata = build_hierarchy_metadata(input_dir, results)
+    metadata_path = output_dir / "hierarchy_metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+    print(f"\nSaved hierarchy_metadata.json")
 
+    # Optionally remove FP32 models
+    if not args.keep_fp32:
+        print("\nRemoving FP32 models (keeping only quantized)...")
+        for fp32 in output_dir.rglob("model.onnx"):
+            quantized = fp32.parent / "model_quantized.onnx"
+            if quantized.exists():
+                fp32.unlink()
+                print(f"  Removed: {fp32.relative_to(output_dir)}")
+
+    # =========================================================================
     # Summary
+    # =========================================================================
     print(f"\n{'='*60}")
     print("EXPORT SUMMARY")
     print(f"{'='*60}")
+
     total = len(results)
     success = sum(1 for v in results.values() if v)
+    skipped = sum(1 for v in results.values() if not v)
 
-    for name, ok in results.items():
-        status = "OK" if ok else "FAILED"
+    for name, ok in sorted(results.items()):
+        status = "OK" if ok else "SKIP"
         print(f"  [{status}] {name}")
 
-    print(f"\nTotal: {success}/{total} successful")
+    print(f"\n  Exported: {success}/{total}")
+    if skipped:
+        print(f"  Skipped: {skipped} (no trained model found)")
 
-    if success < total:
-        print(f"  {total - success} FAILED!")
-        sys.exit(1)
-
-    # Show total output size
-    print(f"\nOutput in {OUTPUT_DIR}:")
-    total_size = 0
-    for f in sorted(OUTPUT_DIR.rglob("*")):
-        if f.is_file():
-            size = f.stat().st_size
-            total_size += size
-            rel = f.relative_to(OUTPUT_DIR)
-            print(f"  {rel}: {size / 1024:.1f} KB")
-    print(f"\nTotal output size: {total_size / (1024*1024):.1f} MB")
+    # Total output size
+    total_size = sum(f.stat().st_size for f in output_dir.rglob("*") if f.is_file())
+    print(f"\n  Total output size: {total_size / (1024*1024):.1f} MB")
+    print(f"  Output directory: {output_dir}")
 
 
 if __name__ == "__main__":

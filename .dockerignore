@@ -32,16 +32,18 @@ doc/
 info/
 *.md
 
-# Training - exclude data, scripts, configs (not needed at runtime)
-# Keep: training/models/onnx/ (ONNX models), training/results/ (thresholds),
-#        training/constants/info_extraction.py (used by workflow at runtime)
+# Training - exclude everything except runtime constants
+# Models download from HuggingFace Hub at startup, not baked into image
 training/data/
+training/models/
+training/results/
 training/utils/
 training/scripts/
 training/inference.py
 training/configs/
 training/*.md
 training/*.txt
+training/requirements*.txt
 
 # SQL scripts
 sql/
@@ -50,12 +52,6 @@ sql/
 rag/
 
 # Misc
-nul
 *.zip
 *.txx
 pyproject.toml
-export_classifier_onnx.py
-check_centroids.py
-check_norms.py
-test_onnx.py
-railway.json

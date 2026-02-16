@@ -137,7 +137,7 @@ async def chat(request_body: ChatRequest, request: Request):
         category = (
             unified_classification.category
             if unified_classification
-            else MessageCategory.EMOTIONAL  # fallback = worthy (emotional has highest weight)
+            else MessageCategory.PERSONAL  # fallback = worthy (personal has highest weight)
         )
         is_worthy = category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
 

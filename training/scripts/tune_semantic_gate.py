@@ -81,21 +81,29 @@ def load_hierarchical_data(data_dir: str) -> Tuple[Dict[str, List[str]], Dict[st
     """
     Load hierarchical data from CSV files, including off-topic messages.
 
-    Expected CSV format: message,category,subcategory
+    Supports two CSV formats:
+    - Hierarchical: message,contexts,entities,sub_entities (pipe-separated)
+      Files: all_contexts.csv, professional.csv, learning.csv, etc.
+    - Flat: message,category_type,subcategory
+      Files: rag_query.csv, chitchat.csv, off_topic.csv
 
     Args:
         data_dir: Directory containing CSV files
 
     Returns:
         Tuple of:
-        - primary_messages: Dict mapping primary category to list of messages
-        - secondary_messages: Dict mapping primary category -> subcategory -> list of messages
+        - primary_messages: Dict mapping routing category to list of messages
+          (professional, learning, social, psychological, personal, rag_query, chitchat)
+        - secondary_messages: Dict mapping context -> entity -> list of messages
         - offtopic_messages: List of off-topic messages
     """
     print(f"Loading hierarchical data from: {data_dir}")
 
-    # Load all CSV files
-    all_dfs = []
+    primary_messages = defaultdict(list)
+    secondary_messages = defaultdict(lambda: defaultdict(list))
+    offtopic_messages = []
+
+    # 1. Load hierarchical context CSVs (message,contexts,entities,sub_entities)
     for filename in os.listdir(data_dir):
         if not filename.endswith('.csv'):
             continue
@@ -103,62 +111,56 @@ def load_hierarchical_data(data_dir: str) -> Tuple[Dict[str, List[str]], Dict[st
         filepath = os.path.join(data_dir, filename)
         try:
             df = pd.read_csv(filepath)
-
-            # Validate columns
-            if 'message' not in df.columns or 'category' not in df.columns:
-                print(f"  Warning: {filename} missing required columns, skipping")
-                continue
-
-            all_dfs.append(df)
-            print(f"  Loaded {len(df)} messages from {filename}")
         except Exception as e:
             print(f"  Error loading {filename}: {e}")
             continue
 
-    if not all_dfs:
-        print(f"ERROR: No valid CSV files found in {data_dir}")
-        return {}, {}, []
+        if 'contexts' in df.columns and 'entities' in df.columns:
+            # Hierarchical CSV: message,contexts,entities,sub_entities
+            for _, row in df.iterrows():
+                msg = str(row['message'])
+                contexts = str(row['contexts']).split('|') if pd.notna(row['contexts']) else []
+                entities = str(row['entities']).split('|') if pd.notna(row['entities']) else []
 
-    # Combine all dataframes
-    full_df = pd.concat(all_dfs, ignore_index=True)
+                primary_ctx = contexts[0] if contexts else None
+                if primary_ctx:
+                    primary_messages[primary_ctx].append(msg)
 
-    print(f"\nTotal messages loaded: {len(full_df)}")
+                    # Map entities to their context for secondary
+                    for entity in entities:
+                        secondary_messages[primary_ctx][entity].append(msg)
 
-    # Extract off-topic messages
-    offtopic_df = full_df[full_df['category'] == 'off_topic']
-    offtopic_messages = offtopic_df['message'].tolist()
-    print(f"  Off-topic messages: {len(offtopic_messages)}")
+            print(f"  Loaded {len(df)} hierarchical messages from {filename}")
 
-    # Filter to domain messages only (exclude off_topic)
-    domain_df = full_df[full_df['category'] != 'off_topic'].reset_index(drop=True)
-    print(f"  Domain messages: {len(domain_df)}")
+        elif 'category_type' in df.columns:
+            # Flat CSV: message,category_type,subcategory
+            cat_type = df['category_type'].iloc[0] if len(df) > 0 else filename.replace('.csv', '')
 
-    # Build primary messages dictionary
-    primary_messages = {}
-    for category in domain_df['category'].unique():
-        category_df = domain_df[domain_df['category'] == category]
-        primary_messages[category] = category_df['message'].tolist()
-        print(f"    {category}: {len(category_df)} messages")
+            if cat_type == 'off_topic':
+                offtopic_messages.extend(df['message'].tolist())
+                print(f"  Loaded {len(df)} off-topic messages from {filename}")
+            else:
+                for _, row in df.iterrows():
+                    primary_messages[cat_type].append(str(row['message']))
+                print(f"  Loaded {len(df)} {cat_type} messages from {filename}")
 
-    # Build secondary messages dictionary (hierarchical)
-    secondary_messages = {}
+        else:
+            print(f"  Warning: {filename} has unknown format (columns: {list(df.columns)}), skipping")
 
-    for category in domain_df['category'].unique():
-        if category in SKIP_SECONDARY_CATEGORIES:
-            continue
+    # Convert defaultdicts to regular dicts
+    primary_messages = dict(primary_messages)
+    secondary_messages = {ctx: dict(ents) for ctx, ents in secondary_messages.items()}
 
-        if 'subcategory' not in domain_df.columns:
-            continue
-
-        category_df = domain_df[domain_df['category'] == category]
-
-        secondary_messages[category] = {}
-        for subcategory in category_df['subcategory'].unique():
-            if pd.isna(subcategory):
-                continue
-            subcat_df = category_df[category_df['subcategory'] == subcategory]
-            secondary_messages[category][subcategory] = subcat_df['message'].tolist()
-            print(f"      {category} -> {subcategory}: {len(subcat_df)} messages")
+    # Summary
+    total_domain = sum(len(msgs) for msgs in primary_messages.values())
+    print(f"\nTotal messages loaded:")
+    print(f"  Off-topic: {len(offtopic_messages)}")
+    print(f"  Domain: {total_domain}")
+    for category, msgs in sorted(primary_messages.items()):
+        print(f"    {category}: {len(msgs)} messages")
+        if category in secondary_messages:
+            for entity, entity_msgs in sorted(secondary_messages[category].items()):
+                print(f"      → {entity}: {len(entity_msgs)} messages")
 
     return primary_messages, secondary_messages, offtopic_messages
 
@@ -346,13 +348,18 @@ def analyze_by_category(domain_messages: Dict[str, List[str]], model: SentenceTr
 
 def load_hierarchical_classifier(model_base_path: str):
     """
-    Load hierarchical classifiers (primary + all secondary).
+    Load hierarchical classifiers (routing + entity classifiers per context).
+
+    New model structure:
+        routing/final/                    - 8-class routing
+        contexts/final/                   - 5-class context (not used here)
+        <context>/entities/final/         - entity classifier per context
 
     Args:
         model_base_path: Base path to hierarchical model directory
 
     Returns:
-        Tuple of (primary_classifier, secondary_classifiers_dict) or None
+        Dict with 'routing' and 'entities' classifiers, or None
     """
     if not TRANSFORMERS_AVAILABLE:
         print("  WARNING: transformers not available, cannot load hierarchical classifier")
@@ -361,66 +368,61 @@ def load_hierarchical_classifier(model_base_path: str):
     print(f"\n  Loading hierarchical classifiers from: {model_base_path}")
 
     try:
-        # Load primary classifier
-        primary_path = os.path.join(model_base_path, "primary", "final")
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        print(f"    Loading primary classifier from {primary_path}...")
-        primary_tokenizer = AutoTokenizer.from_pretrained(primary_path, local_files_only=True)
-        primary_model = AutoModelForSequenceClassification.from_pretrained(primary_path, local_files_only=True)
-        primary_model.to(device)
-        primary_model.eval()
+        # Load routing classifier (routing/final/)
+        routing_path = os.path.join(model_base_path, "routing", "final")
+        print(f"    Loading routing classifier from {routing_path}...")
+        routing_tokenizer = AutoTokenizer.from_pretrained(routing_path, local_files_only=True)
+        routing_model = AutoModelForSequenceClassification.from_pretrained(routing_path, local_files_only=True)
+        routing_model.to(device)
+        routing_model.eval()
 
-        # Load label mappings
-        with open(os.path.join(primary_path, "label_mappings.json"), "r") as f:
-            primary_labels = json.load(f)
+        with open(os.path.join(routing_path, "label_mappings.json"), "r") as f:
+            routing_labels = json.load(f)
 
-        print(f"    ✓ Primary classifier loaded ({len(primary_labels['categories'])} categories)")
+        print(f"    ✓ Routing classifier loaded ({len(routing_labels)} categories)")
 
-        # Load secondary classifiers
-        secondary_classifiers = {}
-        secondary_path = os.path.join(model_base_path, "secondary")
+        # Load entity classifiers per context (<context>/entities/final/)
+        entity_classifiers = {}
+        context_names = ["professional", "learning", "social", "psychological", "personal"]
 
-        if os.path.exists(secondary_path):
-            for category in os.listdir(secondary_path):
-                if category in SKIP_SECONDARY_CATEGORIES:
-                    continue
+        for ctx in context_names:
+            entities_path = os.path.join(model_base_path, ctx, "entities", "final")
+            if not os.path.exists(entities_path):
+                continue
 
-                category_path = os.path.join(secondary_path, category, "final")
-                if not os.path.exists(category_path):
-                    continue
+            try:
+                print(f"    Loading entity classifier for {ctx}...")
+                tokenizer = AutoTokenizer.from_pretrained(entities_path, local_files_only=True)
+                model = AutoModelForSequenceClassification.from_pretrained(entities_path, local_files_only=True)
+                model.to(device)
+                model.eval()
 
-                try:
-                    print(f"    Loading secondary classifier for {category}...")
-                    tokenizer = AutoTokenizer.from_pretrained(category_path, local_files_only=True)
-                    model = AutoModelForSequenceClassification.from_pretrained(category_path, local_files_only=True)
-                    model.to(device)
-                    model.eval()
+                with open(os.path.join(entities_path, "label_mappings.json"), "r") as f:
+                    labels = json.load(f)
 
-                    with open(os.path.join(category_path, "label_mappings.json"), "r") as f:
-                        labels = json.load(f)
+                entity_classifiers[ctx] = {
+                    'model': model,
+                    'tokenizer': tokenizer,
+                    'labels': labels,
+                    'device': device
+                }
+                print(f"      ✓ Loaded ({len(labels)} entities)")
 
-                    secondary_classifiers[category] = {
-                        'model': model,
-                        'tokenizer': tokenizer,
-                        'labels': labels,
-                        'device': device
-                    }
-                    print(f"      ✓ Loaded ({len(labels['categories'])} subcategories)")
+            except Exception as e:
+                print(f"      ✗ Failed to load {ctx} entities classifier: {e}")
 
-                except Exception as e:
-                    print(f"      ✗ Failed to load {category} classifier: {e}")
-
-        print(f"    ✓ Loaded {len(secondary_classifiers)} secondary classifiers")
+        print(f"    ✓ Loaded {len(entity_classifiers)} entity classifiers")
 
         return {
             'primary': {
-                'model': primary_model,
-                'tokenizer': primary_tokenizer,
-                'labels': primary_labels,
+                'model': routing_model,
+                'tokenizer': routing_tokenizer,
+                'labels': routing_labels,
                 'device': device
             },
-            'secondary': secondary_classifiers
+            'secondary': entity_classifiers
         }
 
     except Exception as e:
@@ -951,7 +953,7 @@ def main():
         primary_centroids,
         secondary_centroids,
         offtopic_primary_grouped,
-        args.classifier_model,
+        args.hierarchical_model or "",
         args.model
     )
 
@@ -1065,10 +1067,6 @@ def print_hierarchical_summary(
             print(f"    {status} {category:<20} {separation:>6.4f}")
 
     print("\n" + "=" * 80)
-
-
-if __name__ == "__main__":
-    main()
 
 
 if __name__ == "__main__":

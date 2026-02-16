@@ -1,18 +1,18 @@
 """
-ONNX-based Hierarchical Semantic Gate - Two-Level Filtering (No PyTorch Required)
+ONNX-based Hierarchical Semantic Gate - Filters off-topic messages.
 
-Drop-in replacement for semantic_gate.py that uses ONNX Runtime instead of
-sentence-transformers + PyTorch. Uses ~25-40MB RAM instead of ~1GB+.
+Uses ONNX Runtime for MiniLM embeddings + cosine similarity with tuned centroids.
+No PyTorch or sentence-transformers required. ~25-40MB RAM.
 
-Filters off-topic messages using hierarchical thresholds:
-- Primary level: Category thresholds (rag_query, professional, etc.)
-- Secondary level: Subcategory thresholds (skills, experience, etc.)
+Two-level filtering:
+  - Routing level: Is the message close to any known category centroid?
+  - Entity level: Within the predicted context, is it close to an entity centroid?
 
 Data Sources:
-- ONNX Model: {model_path}/model_quantized.onnx (exported from all-MiniLM-L6-v2)
-- Tokenizer: {model_path}/tokenizer.json etc.
-- Thresholds: training/results/semantic_gate_hierarchical_tuning.json
-- Centroids: {centroids_dir}/primary_centroids.pkl, secondary_centroids.pkl
+  - ONNX Model: {model_path}/model_quantized.onnx (all-MiniLM-L6-v2 sentence embeddings)
+  - Tokenizer: {model_path}/tokenizer.json etc.
+  - Thresholds: semantic_gate_hierarchical_tuning.json
+  - Centroids: {centroids_dir}/primary_centroids.pkl, secondary_centroids.pkl
 """
 
 import json
@@ -30,22 +30,22 @@ class SemanticGateONNX:
     ONNX-based hierarchical semantic gate for filtering off-topic messages.
 
     Uses ONNX Runtime for MiniLM embeddings and numpy for cosine similarity.
-    No PyTorch or sentence-transformers required.
     """
 
+    # Map from classifier output to centroid keys
     CATEGORY_MAPPING = {
         "rag_query": "rag_query",
         "professional": "professional",
         "psychological": "psychological",
         "learning": "learning",
         "social": "social",
-        "emotional": "emotional",
-        "aspirational": "aspirational",
+        "personal": "personal",
         "chitchat": "chitchat",
         "off_topic": "off_topic",
     }
 
-    SKIP_SECONDARY = {"rag_query", "chitchat", "off_topic"}
+    # Categories that skip entity-level checking
+    SKIP_ENTITY_CHECK = {"rag_query", "chitchat", "off_topic"}
 
     def __init__(self, model_path: str = None, tuning_results_path: str = None, centroids_dir: str = None):
         """
@@ -53,6 +53,7 @@ class SemanticGateONNX:
 
         Args:
             model_path: Path to directory with model_quantized.onnx + tokenizer files
+                       (the sentence-transformer ONNX model for embeddings)
             tuning_results_path: Path to semantic_gate_hierarchical_tuning.json
             centroids_dir: Directory containing primary_centroids.pkl and secondary_centroids.pkl
         """
@@ -84,15 +85,16 @@ class SemanticGateONNX:
 
         # Load thresholds
         if self.is_hierarchical:
-            self.primary_thresholds = self.tuning_results.get("primary_thresholds", {})
-            self.secondary_thresholds = self.tuning_results.get("secondary_thresholds", {})
-            print(f"[SEMANTIC GATE ONNX] Loaded hierarchical thresholds: {len(self.primary_thresholds)} primary")
+            self.routing_thresholds = self.tuning_results.get("primary_thresholds", {})
+            self.entity_thresholds = self.tuning_results.get("secondary_thresholds", {})
+            print(f"[SEMANTIC GATE ONNX] Hierarchical thresholds: {len(self.routing_thresholds)} routing, "
+                  f"{sum(len(v) for v in self.entity_thresholds.values())} entity")
         else:
-            self.primary_thresholds = self.tuning_results.get("recommendation", {}).get("thresholds", {})
-            self.secondary_thresholds = {}
-            print("[SEMANTIC GATE ONNX] Loaded non-hierarchical thresholds (legacy)")
+            self.routing_thresholds = self.tuning_results.get("recommendation", {}).get("thresholds", {})
+            self.entity_thresholds = {}
+            print("[SEMANTIC GATE ONNX] Non-hierarchical thresholds (legacy)")
 
-        # Load ONNX model
+        # Load ONNX embedding model
         onnx_file = model_dir / "model_quantized.onnx"
         if not onnx_file.exists():
             onnx_file = model_dir / "model.onnx"
@@ -108,11 +110,14 @@ class SemanticGateONNX:
         self.model_name = "all-MiniLM-L6-v2 (ONNX)"
 
         # Load centroids
+        # primary_centroids.pkl = routing-level (8 categories)
+        # secondary_centroids.pkl = entity-level (per context, N entities each)
         print(f"[SEMANTIC GATE ONNX] Loading centroids from {self.centroids_dir}")
-        self.primary_centroids = self._load_centroids("primary")
-        self.secondary_centroids = self._load_centroids("secondary") if self.is_hierarchical else {}
+        self.routing_centroids = self._load_centroids("primary")
+        self.entity_centroids = self._load_centroids("secondary") if self.is_hierarchical else {}
 
-        print(f"[SEMANTIC GATE ONNX] Ready: {len(self.primary_centroids)} primary centroids")
+        print(f"[SEMANTIC GATE ONNX] Ready: {len(self.routing_centroids)} routing centroids, "
+              f"{sum(len(v) for v in self.entity_centroids.values())} entity centroids")
 
     def _load_tuning_results(self, path: Path) -> dict:
         """Load tuning results from JSON file."""
@@ -155,13 +160,11 @@ class SemanticGateONNX:
         """
         Encode text to embedding using ONNX MiniLM model.
 
-        Applies: tokenize → ONNX inference → mean pooling → L2 normalize.
+        Applies: tokenize -> ONNX inference -> mean pooling -> L2 normalize.
         Returns shape (1, 384) for MiniLM-L6-v2.
         """
-        # Tokenize
         inputs = self.tokenizer(text, return_tensors="np", padding=True, truncation=True, max_length=128)
 
-        # Build feed dict
         feed = {
             "input_ids": inputs["input_ids"],
             "attention_mask": inputs["attention_mask"],
@@ -169,11 +172,10 @@ class SemanticGateONNX:
         if "token_type_ids" in self.input_names:
             feed["token_type_ids"] = inputs.get("token_type_ids", np.zeros_like(inputs["input_ids"]))
 
-        # Run ONNX inference
         outputs = self.session.run(None, feed)
-        last_hidden_state = outputs[0]  # (batch, seq_len, hidden_dim)
+        last_hidden_state = outputs[0]
 
-        # Mean pooling (same as sentence-transformers)
+        # Mean pooling
         attention_mask = inputs["attention_mask"]
         mask_expanded = np.expand_dims(attention_mask, -1).astype(np.float32)
         mask_expanded = np.broadcast_to(mask_expanded, last_hidden_state.shape)
@@ -183,9 +185,7 @@ class SemanticGateONNX:
 
         # L2 normalize
         norms = np.linalg.norm(pooled, axis=1, keepdims=True)
-        normalized = pooled / np.clip(norms, a_min=1e-9, a_max=None)
-
-        return normalized
+        return pooled / np.clip(norms, a_min=1e-9, a_max=None)
 
     @staticmethod
     def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -198,78 +198,86 @@ class SemanticGateONNX:
         return float(dot / (norm_a * norm_b))
 
     def check_message(
-        self, message: str, predicted_category: str, predicted_subcategory: str = None
+        self, message: str, predicted_category: str, predicted_entity: str = None
     ) -> Tuple[bool, float, str, str | None, float | None]:
         """
-        Check if message should pass the hierarchical semantic gate.
+        Check if message should pass the semantic gate.
 
-        Same interface as SemanticGate.check_message().
+        Args:
+            message: User message to check
+            predicted_category: Route from classifier (e.g. "professional", "rag_query")
+            predicted_entity: Entity if applicable (e.g. "professional_aspirations")
 
         Returns:
-            Tuple of (should_pass, primary_similarity, best_primary, best_secondary, secondary_similarity)
+            Tuple of (should_pass, routing_similarity, best_routing, best_entity, entity_similarity)
         """
-        # Compute message embedding once
         message_embedding = self._encode(message)
 
-        # STEP 1: Primary Category Check
-        best_primary = None
-        best_primary_sim = -1.0
+        # =====================================================================
+        # STEP 1: Routing-level check
+        # =====================================================================
+        best_routing = None
+        best_routing_sim = -1.0
 
-        for category, centroid in self.primary_centroids.items():
+        for category, centroid in self.routing_centroids.items():
             similarity = self._cosine_similarity(message_embedding, centroid)
-            if similarity > best_primary_sim:
-                best_primary_sim = similarity
-                best_primary = category
+            if similarity > best_routing_sim:
+                best_routing_sim = similarity
+                best_routing = category
 
-        predicted_category_key = self.CATEGORY_MAPPING.get(predicted_category, predicted_category)
-        primary_threshold = self.primary_thresholds.get(predicted_category_key, 0.4)
+        category_key = self.CATEGORY_MAPPING.get(predicted_category, predicted_category)
+        routing_threshold = self.routing_thresholds.get(category_key, 0.4)
 
-        if best_primary_sim < primary_threshold:
-            return False, float(best_primary_sim), best_primary, None, None
+        if best_routing_sim < routing_threshold:
+            return False, float(best_routing_sim), best_routing, None, None
 
-        # STEP 2: Secondary Category Check
+        # =====================================================================
+        # STEP 2: Entity-level check (if hierarchical and applicable)
+        # =====================================================================
         if not self.is_hierarchical:
-            return True, float(best_primary_sim), best_primary, None, None
+            return True, float(best_routing_sim), best_routing, None, None
 
-        if predicted_category in self.SKIP_SECONDARY:
-            return True, float(best_primary_sim), best_primary, None, None
+        if predicted_category in self.SKIP_ENTITY_CHECK:
+            return True, float(best_routing_sim), best_routing, None, None
 
-        if predicted_category_key not in self.secondary_centroids:
-            return True, float(best_primary_sim), best_primary, None, None
+        if category_key not in self.entity_centroids:
+            return True, float(best_routing_sim), best_routing, None, None
 
-        if predicted_category_key not in self.secondary_thresholds:
-            return True, float(best_primary_sim), best_primary, None, None
+        if category_key not in self.entity_thresholds:
+            return True, float(best_routing_sim), best_routing, None, None
 
-        best_secondary = None
-        best_secondary_sim = -1.0
+        # Find best matching entity
+        best_entity = None
+        best_entity_sim = -1.0
 
-        subcategory_centroids = self.secondary_centroids[predicted_category_key]
-        for subcat, centroid in subcategory_centroids.items():
+        entity_centroids = self.entity_centroids[category_key]
+        for entity, centroid in entity_centroids.items():
             similarity = self._cosine_similarity(message_embedding, centroid)
-            if similarity > best_secondary_sim:
-                best_secondary_sim = similarity
-                best_secondary = subcat
+            if similarity > best_entity_sim:
+                best_entity_sim = similarity
+                best_entity = entity
 
-        if predicted_subcategory and predicted_subcategory in self.secondary_thresholds[predicted_category_key]:
-            secondary_threshold = self.secondary_thresholds[predicted_category_key][predicted_subcategory]
-        elif best_secondary and best_secondary in self.secondary_thresholds[predicted_category_key]:
-            secondary_threshold = self.secondary_thresholds[predicted_category_key][best_secondary]
+        # Get entity threshold
+        if predicted_entity and predicted_entity in self.entity_thresholds[category_key]:
+            entity_threshold = self.entity_thresholds[category_key][predicted_entity]
+        elif best_entity and best_entity in self.entity_thresholds[category_key]:
+            entity_threshold = self.entity_thresholds[category_key][best_entity]
         else:
-            secondary_threshold = primary_threshold
+            entity_threshold = routing_threshold
 
-        should_pass = best_secondary_sim >= secondary_threshold
-        return should_pass, float(best_primary_sim), best_primary, best_secondary, float(best_secondary_sim)
+        should_pass = best_entity_sim >= entity_threshold
+        return should_pass, float(best_routing_sim), best_routing, best_entity, float(best_entity_sim)
 
-    def get_threshold(self, category: str, subcategory: str = None) -> float:
-        """Get threshold for a specific category or subcategory."""
+    def get_threshold(self, category: str, entity: str = None) -> float:
+        """Get threshold for a specific category or entity."""
         category_key = self.CATEGORY_MAPPING.get(category, category)
 
-        if subcategory and self.is_hierarchical:
-            if category_key in self.secondary_thresholds:
-                if subcategory in self.secondary_thresholds[category_key]:
-                    return self.secondary_thresholds[category_key][subcategory]
+        if entity and self.is_hierarchical:
+            if category_key in self.entity_thresholds:
+                if entity in self.entity_thresholds[category_key]:
+                    return self.entity_thresholds[category_key][entity]
 
-        return self.primary_thresholds.get(category_key, 0.4)
+        return self.routing_thresholds.get(category_key, 0.4)
 
     def get_statistics(self) -> dict:
         """Get semantic gate statistics."""
@@ -277,14 +285,14 @@ class SemanticGateONNX:
             "model_name": self.model_name,
             "is_hierarchical": self.is_hierarchical,
             "backend": "onnx",
-            "num_primary_categories": len(self.primary_centroids),
-            "primary_thresholds": self.primary_thresholds,
+            "num_routing_categories": len(self.routing_centroids),
+            "routing_thresholds": self.routing_thresholds,
             "global_metrics": self.tuning_results["global_metrics"],
         }
         if self.is_hierarchical:
-            total_secondary = sum(len(subcats) for subcats in self.secondary_centroids.values())
-            stats["num_secondary_categories"] = total_secondary
-            stats["secondary_thresholds"] = self.secondary_thresholds
+            total_entity = sum(len(v) for v in self.entity_centroids.values())
+            stats["num_entity_categories"] = total_entity
+            stats["entity_thresholds"] = self.entity_thresholds
         return stats
 
 

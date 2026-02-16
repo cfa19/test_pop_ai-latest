@@ -1,78 +1,115 @@
 """
-Generate Training Data using OpenAI
+Generate Hierarchical Multi-Label Training Data using OpenAI
 
-Supports nine category types:
-1. ASPIRATIONAL (6 subcategories):
-   - Dream Roles, Salary Expectations, Life Goals, Values, Impact & Legacy, Skill & Expertise
+New taxonomy (5 contexts + 3 non-context types):
+1. PROFESSIONAL (6 entities, ~20 sub-entities)
+2. LEARNING (11 entities, ~30 sub-entities)
+3. SOCIAL (5 entities, ~25 sub-entities)
+4. PSYCHOLOGICAL (10 entities, ~30 sub-entities)
+5. PERSONAL (12 entities, ~50 sub-entities)
+6. RAG_QUERY (8 subcategories) - flat
+7. CHITCHAT (5 subcategories) - flat
+8. OFF_TOPIC (5 subcategories) - flat
 
-2. PROFESSIONAL (4 subcategories):
-   - Experiences, Skills, Certifications, Current Position
+Generates three types of training data:
+- Single-label: 1 message -> 1 context/entity/sub_entity (70%)
+- Multi-label: 1 message -> multiple sub-entities within same context (20%)
+- Cross-context: 1 message -> multiple contexts (10%)
 
-3. PSYCHOLOGICAL (4 subcategories):
-   - Personality Profile, Values Hierarchy, Core Motivations, Working Styles
-
-4. LEARNING (3 subcategories):
-   - Knowledge, Learning Velocity, Preferred Learning Format
-
-5. SOCIAL (4 subcategories):
-   - Mentors, Journey Peers, People Helped, Testimonials
-
-6. EMOTIONAL (4 subcategories):
-   - Confidence, Energy Patterns, Stress Triggers, Celebration Moments
-
-7. RAG_QUERY (8 subcategories):
-   - Company Overview, Products & Services, Runners System, Programs & Pricing,
-   - Credits System, Philosophy & Ethics, Transformation Index, Canonical Profile & Contexts
-
-8. CHITCHAT (5 subcategories):
-   - Greetings, Thanks & Appreciation, Farewells, Acknowledgments, Small Talk
-
-9. OFF_TOPIC (5 subcategories):
-   - Random Topics, Personal Life (Non-Career), General Knowledge Questions,
-   - Nonsensical Messages, Current Events & News
-
-Generates natural messages directly (no separate patterns/objects).
+Output CSV format:
+  message, contexts, entities, sub_entities
+  (pipe-separated for multi-label: "ctx1|ctx2", "ent1|ent2", "sub1|sub2|sub3")
 """
 
 import argparse
+import csv
 import os
 import sys
 
-# Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from src.config import get_openai
-from training.constants import *
-from training.utils import generate_messages_by_type, print_statistics, save_to_csv
+from training.constants import CONTEXT_REGISTRY, NON_CONTEXT_REGISTRY, ALL_CONTEXTS, ALL_NON_CONTEXTS, ALL_TYPES
+from training.utils.generation import (
+    generate_full_context,
+    generate_non_context_messages,
+    generate_messages_by_type,
+    generate_cross_context_messages,
+)
 
-# ==============================================================================
-# MAIN EXECUTION
-# ==============================================================================
+
+def save_hierarchical_csv(data: list, filepath: str):
+    """Save hierarchical training data to CSV."""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["message", "contexts", "entities", "sub_entities"])
+        for row in data:
+            writer.writerow(row)
+    print(f"\n  Saved {len(data)} rows to {filepath}")
+
+
+def save_flat_csv(data: list, filepath: str):
+    """Save flat (non-context) training data to CSV."""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["message", "category_type", "subcategory"])
+        for row in data:
+            writer.writerow(row)
+    print(f"\n  Saved {len(data)} rows to {filepath}")
+
+
+def show_taxonomy(context: str):
+    """Print the taxonomy for a context."""
+    entities = CONTEXT_REGISTRY[context]["entities"]
+    total_subs = sum(len(e["sub_entities"]) for e in entities.values())
+    print(f"\n  {context.upper()} ({len(entities)} entities, {total_subs} sub-entities):")
+    for ek, ev in entities.items():
+        subs = list(ev["sub_entities"].keys())
+        print(f"    {ek}: {', '.join(subs)}")
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate training data using OpenAI (aspirational, professional, psychological, learning, social, emotional, rag_query, chitchat, and/or off_topic)"
+        description="Generate hierarchical multi-label training data"
     )
     parser.add_argument(
-        "--category-type",
+        "--context",
         type=str,
-        default="rag_query",
-        choices=["aspirational", "professional", "psychological", "learning", "social", "emotional", "rag_query", "chitchat", "off_topic", "all"],
-        help="Type of messages to generate (default: chitchat)"
+        default="all",
+        choices=ALL_TYPES + ["all", "all-contexts", "all-non-contexts"],
+        help="Which context/type to generate (default: all)"
     )
     parser.add_argument(
-        "--output",
+        "--output-dir",
         type=str,
-        default="training/data/generated_messages.csv",
-        help="Output CSV file path"
+        default="training/data/hierarchical",
+        help="Output directory for CSV files (default: training/data/hierarchical)"
     )
     parser.add_argument(
-        "--messages-per-category",
+        "--messages-per-sub-entity",
         type=int,
-        nargs="+",
-        default=[25],
-        metavar="N",
-        help="Number of messages per category. For --category-type all: use 9 values (one per type: aspirational, professional, psychological, learning, social, emotional, rag_query, chitchat, off_topic) or 1 value for all. For a single type: 1 value (default: 25)."
+        default=25,
+        help="Single-label messages per sub-entity (default: 25)"
+    )
+    parser.add_argument(
+        "--multilabel-messages",
+        type=int,
+        default=50,
+        help="Multi-label messages per context (default: 50)"
+    )
+    parser.add_argument(
+        "--cross-context-messages",
+        type=int,
+        default=25,
+        help="Cross-context messages per context pair (default: 25)"
+    )
+    parser.add_argument(
+        "--non-context-messages",
+        type=int,
+        default=25,
+        help="Messages per subcategory for non-context types (default: 25)"
     )
     parser.add_argument(
         "--temperature",
@@ -87,126 +124,139 @@ def main():
         help="Batch size for API calls (default: 25)"
     )
     parser.add_argument(
-        "--categories",
-        nargs="+",
-        help="Specific subcategories to generate (default: all for selected type)"
+        "--model",
+        type=str,
+        default="gpt-4o-mini",
+        help="OpenAI model to use (default: gpt-4o-mini)"
+    )
+    parser.add_argument(
+        "--show-taxonomy",
+        action="store_true",
+        help="Show the full taxonomy and exit"
     )
 
     args = parser.parse_args()
 
-    # Validate --messages-per-category length
-    n = len(args.messages_per_category)
-    if args.category_type == "all":
-        if n != 1 and n != 9:
-            parser.error(
-                "--messages-per-category: for --category-type all use 1 value (same for all types) or 9 values "
-                "(one per type: aspirational, professional, psychological, learning, social, emotional, rag_query, chitchat, off_topic). "
-                f"Got {n} value(s)."
-            )
-    else:
-        if n == 0:
-            parser.error("--messages-per-category: at least one value required.")
-        if n > 1:
-            # Use first value for single type (ignore rest)
-            args.messages_per_category = [args.messages_per_category[0]]
-
-    # Determine which category types to generate
-    types_to_generate = []
-    if args.category_type == "all":
-        types_to_generate = ["aspirational", "professional", "psychological", "learning", "social", "emotional", "rag_query", "chitchat", "off_topic"]
-    else:
-        types_to_generate = [args.category_type]
-
-    print("=" * 80)
-    print("TRAINING DATA GENERATION")
-    print("=" * 80)
-
-    # Show categories for selected types
-    print("\nCategories to generate:")
-    for cat_type in types_to_generate:
-        if cat_type == "aspirational":
-            print("\n  ASPIRATIONAL (6 subcategories):")
-            for key, info in ASPIRATION_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "professional":
-            print("\n  PROFESSIONAL (4 subcategories):")
-            for key, info in PROFESSIONAL_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "psychological":
-            print("\n  PSYCHOLOGICAL (4 subcategories):")
-            for key, info in PSYCHOLOGICAL_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "learning":
-            print("\n  LEARNING (3 subcategories):")
-            for key, info in LEARNING_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "social":
-            print("\n  SOCIAL (4 subcategories):")
-            for key, info in SOCIAL_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "emotional":
-            print("\n  EMOTIONAL (4 subcategories):")
-            for key, info in EMOTIONAL_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "rag_query":
-            print("\n  RAG_QUERY (8 subcategories):")
-            for key, info in RAG_QUERY_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "chitchat":
-            print("\n  CHITCHAT (5 subcategories):")
-            for key, info in CHITCHAT_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-        elif cat_type == "off_topic":
-            print("\n  OFF_TOPIC (5 subcategories):")
-            for key, info in OFF_TOPIC_CATEGORIES.items():
-                print(f"    - {key}: {info['name']}")
-
-    print("\nConfiguration:")
-    print(f"  Category type: {args.category_type}")
-    print(f"  Output: {args.output}")
-    if args.category_type == "all" and len(args.messages_per_category) == 9:
-        print(f"  Messages per category (by type): {dict(zip(types_to_generate, args.messages_per_category))}")
-    else:
-        print(f"  Messages per category: {args.messages_per_category}")
-    print(f"  Temperature: {args.temperature}")
-    print(f"  Specific subcategories: {args.categories or 'All'}")
-
-    # Initialize OpenAI client
-    client = get_openai()
-
-    # Generate messages for each type (use per-type count when list has 9 elements)
-    all_messages = []
-    for i, cat_type in enumerate(types_to_generate):
-        count = args.messages_per_category[i] if len(args.messages_per_category) > 1 else args.messages_per_category[0]
-        messages = generate_messages_by_type(
-            client,
-            category_type=cat_type,
-            messages_per_category=count,
-            temperature=args.temperature,
-            categories=args.categories,
-            batch_size=args.batch_size
-        )
-        all_messages.extend(messages)
-
-    messages = all_messages
-
-    if not messages:
-        print("✗ No messages generated. Exiting.")
+    # Show taxonomy and exit
+    if args.show_taxonomy:
+        print("=" * 80)
+        print("HIERARCHICAL CLASSIFICATION TAXONOMY")
+        print("=" * 80)
+        for ctx in ALL_CONTEXTS:
+            show_taxonomy(ctx)
+        print(f"\n  Non-context types: {', '.join(ALL_NON_CONTEXTS)}")
+        for nct in ALL_NON_CONTEXTS:
+            cats = NON_CONTEXT_REGISTRY[nct]["categories"]
+            print(f"    {nct}: {', '.join(cats.keys())}")
         return
 
-    # Print statistics
-    print_statistics(messages)
+    # Determine what to generate
+    contexts_to_generate = []
+    non_contexts_to_generate = []
 
-    # Save to CSV
-    save_to_csv(messages, os.path.join(args.output, f"{args.category_type}.csv"))
+    if args.context == "all":
+        contexts_to_generate = ALL_CONTEXTS
+        non_contexts_to_generate = ALL_NON_CONTEXTS
+    elif args.context == "all-contexts":
+        contexts_to_generate = ALL_CONTEXTS
+    elif args.context == "all-non-contexts":
+        non_contexts_to_generate = ALL_NON_CONTEXTS
+    elif args.context in ALL_CONTEXTS:
+        contexts_to_generate = [args.context]
+    elif args.context in ALL_NON_CONTEXTS:
+        non_contexts_to_generate = [args.context]
 
+    print("=" * 80)
+    print("HIERARCHICAL MULTI-LABEL TRAINING DATA GENERATION")
+    print("=" * 80)
+
+    # Show what will be generated
+    if contexts_to_generate:
+        print("\nContexts to generate:")
+        for ctx in contexts_to_generate:
+            show_taxonomy(ctx)
+
+    if non_contexts_to_generate:
+        print("\nNon-context types to generate:")
+        for nct in non_contexts_to_generate:
+            cats = NON_CONTEXT_REGISTRY[nct]["categories"]
+            print(f"  {nct}: {', '.join(cats.keys())}")
+
+    # Estimate total messages
+    total_estimate = 0
+    for ctx in contexts_to_generate:
+        entities = CONTEXT_REGISTRY[ctx]["entities"]
+        n_subs = sum(len(e["sub_entities"]) for e in entities.values())
+        ctx_total = (n_subs * args.messages_per_sub_entity) + args.multilabel_messages + args.cross_context_messages
+        total_estimate += ctx_total
+    for nct in non_contexts_to_generate:
+        cats = NON_CONTEXT_REGISTRY[nct]["categories"]
+        total_estimate += len(cats) * args.non_context_messages
+
+    print(f"\nConfiguration:")
+    print(f"  Messages per sub-entity: {args.messages_per_sub_entity}")
+    print(f"  Multi-label per context: {args.multilabel_messages}")
+    print(f"  Cross-context per context: {args.cross_context_messages}")
+    print(f"  Non-context per subcategory: {args.non_context_messages}")
+    print(f"  Temperature: {args.temperature}")
+    print(f"  Model: {args.model}")
+    print(f"  Estimated total: ~{total_estimate:,} messages")
+    print(f"  Output: {args.output_dir}")
+
+    # Initialize OpenAI
+    client = get_openai()
+
+    # Generate context data (hierarchical)
+    all_hierarchical = []
+    for ctx in contexts_to_generate:
+        results = generate_full_context(
+            client,
+            context=ctx,
+            messages_per_sub_entity=args.messages_per_sub_entity,
+            multilabel_messages=args.multilabel_messages,
+            cross_context_messages=args.cross_context_messages,
+            temperature=args.temperature,
+            batch_size=args.batch_size,
+            model=args.model,
+        )
+
+        # Collect all results
+        context_data = []
+        for msg, ctx_label, entity, sub_ents in results["single_label"]:
+            context_data.append((msg, ctx_label, entity, sub_ents))
+        for msg, ctx_label, entities_str, sub_ents_str in results["multi_label"]:
+            context_data.append((msg, ctx_label, entities_str, sub_ents_str))
+        for msg, ctxs_str, entities_str, sub_ents_str in results["cross_context"]:
+            context_data.append((msg, ctxs_str, entities_str, sub_ents_str))
+
+        # Save per-context CSV
+        save_hierarchical_csv(context_data, os.path.join(args.output_dir, f"{ctx}.csv"))
+        all_hierarchical.extend(context_data)
+
+    # Save combined hierarchical CSV
+    if all_hierarchical:
+        save_hierarchical_csv(all_hierarchical, os.path.join(args.output_dir, "all_contexts.csv"))
+
+    # Generate non-context data (flat)
+    for nct in non_contexts_to_generate:
+        messages = generate_messages_by_type(
+            client,
+            category_type=nct,
+            messages_per_category=args.non_context_messages,
+            temperature=args.temperature,
+            batch_size=args.batch_size,
+        )
+        save_flat_csv(messages, os.path.join(args.output_dir, f"{nct}.csv"))
+
+    # Print summary
     print("\n" + "=" * 80)
     print("GENERATION COMPLETE")
     print("=" * 80)
+    print(f"\n  Hierarchical messages: {len(all_hierarchical):,}")
+    print(f"  Output directory: {args.output_dir}")
     print("\nNext steps:")
-    print("  1. Review the generated data")
-    print("  2. Combine with other category data")
-    print("  3. Train the intent classifier model")
+    print("  1. Review the generated data in the CSV files")
+    print("  2. Train on vast.ai: python training/scripts/train_multilabel.py")
 
 
 if __name__ == "__main__":

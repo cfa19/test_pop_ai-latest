@@ -63,16 +63,17 @@ class DistilBertIntentClassifier:
         self._model = None
         self._tokenizer = None
 
-        # Category mapping: model outputs "chitchat" which isn't in workflow
-        # We'll map it to EMOTIONAL (highest weight context)
+        # Category mapping: map model outputs to workflow categories
+        # Old models may still output "emotional"/"aspirational" → map to PERSONAL
         self.category_mapping = {
             "rag_query": MessageCategory.RAG_QUERY,
             "professional": MessageCategory.PROFESSIONAL,
             "psychological": MessageCategory.PSYCHOLOGICAL,
             "learning": MessageCategory.LEARNING,
             "social": MessageCategory.SOCIAL,
-            "emotional": MessageCategory.EMOTIONAL,
-            "aspirational": MessageCategory.ASPIRATIONAL,
+            "personal": MessageCategory.PERSONAL,
+            "emotional": MessageCategory.PERSONAL,  # legacy → personal
+            "aspirational": MessageCategory.PERSONAL,  # legacy → personal
             "chitchat": MessageCategory.CHITCHAT,
             "off_topic": MessageCategory.OFF_TOPIC,
         }
@@ -130,8 +131,8 @@ class DistilBertIntentClassifier:
         model_category = self._model.config.id2label[pred_class_id]
         confidence = probs[pred_class_id].item()
 
-        # Map to workflow category (handles chitchat -> EMOTIONAL)
-        category = self.category_mapping.get(model_category, MessageCategory.EMOTIONAL)
+        # Map to workflow category
+        category = self.category_mapping.get(model_category, MessageCategory.PERSONAL)
 
         # Get all probabilities for secondary categories
         all_probs = {self._model.config.id2label[i]: float(probs[i].item()) for i in range(len(probs))}
@@ -154,8 +155,8 @@ class DistilBertIntentClassifier:
 
         # Build reasoning
         reasoning = f"Intent classifier classified as {category.value} with {confidence:.2%} confidence"
-        if model_category == "chitchat" and category == MessageCategory.EMOTIONAL:
-            reasoning += " (chitchat mapped to emotional)"
+        if model_category in ("emotional", "aspirational") and category == MessageCategory.PERSONAL:
+            reasoning += f" ({model_category} mapped to personal)"
 
         return IntentClassification(
             category=category, confidence=float(confidence), reasoning=reasoning, key_entities=key_entities, secondary_categories=secondary_categories
@@ -179,7 +180,7 @@ class DistilBertIntentClassifier:
         message_lower = message.lower()
 
         # Simple keyword-based entity extraction
-        if category in [MessageCategory.PROFESSIONAL, MessageCategory.ASPIRATIONAL]:
+        if category in [MessageCategory.PROFESSIONAL, MessageCategory.PERSONAL]:
             skills = []
             common_skills = [
                 "python",
@@ -205,7 +206,7 @@ class DistilBertIntentClassifier:
             if skills:
                 entities["skills"] = skills
 
-        if category == MessageCategory.ASPIRATIONAL:
+        if category == MessageCategory.PERSONAL:
             goals = []
             goal_keywords = ["want to", "goal", "dream", "aspire", "become", "achieve", "hope to", "plan to"]
             for keyword in goal_keywords:
@@ -215,7 +216,7 @@ class DistilBertIntentClassifier:
             if goals:
                 entities["goals"] = goals
 
-        if category == MessageCategory.EMOTIONAL:
+        if category == MessageCategory.PERSONAL:
             emotions = []
             emotion_keywords = [
                 "stressed",

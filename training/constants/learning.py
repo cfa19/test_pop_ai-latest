@@ -1,302 +1,397 @@
 """
-Learning Category Constants and Prompt Templates
+Learning Context Constants for Hierarchical Multi-Label Classification
 
-Contains category definitions and prompt templates for generating
-learning context training data.
+Taxonomy: learning > entity > sub_entity
+11 entities: current_skills, languages, education_history, learning_gaps, learning_aspirations,
+             certifications, knowledge_areas, learning_preferences, learning_history, publications, academic_awards
 """
 
-from typing import Dict, List
+CONTEXT_NAME = "learning"
 
-
-# ==============================================================================
-# LEARNING CATEGORIES
-# ==============================================================================
-
-LEARNING_CATEGORIES = {
-    "knowledge": {
-        "name": "Knowledge",
-        "description": "WHAT YOU KNOW—current knowledge areas, expertise domains, educational background, subjects mastered, what you've learned. Focus on accumulated knowledge and expertise, not learning speed.",
+ENTITIES = {
+    "current_skills": {
+        "name": "Current Skills",
+        "description": "Skills they currently have, proficiency level, years of experience, verification.",
+        "sub_entities": {
+            "skills": "Skills they currently have",
+            "proficiency": "How proficient they are (beginner, intermediate, expert)",
+            "experience": "Years of experience with the skill",
+            "verification": "How the skill is verified (certs, portfolio, peer review)"
+        },
         "examples": [
-            "I have a strong background in computer science fundamentals",
-            "I'm well-versed in cloud architecture and distributed systems",
-            "My knowledge of machine learning is mostly self-taught",
-            "I studied economics in college but pivoted to tech",
-            "As a nurse, I've been learning new medical procedures like wound care and IV insertion",
-            "I know Python, SQL, and have basic knowledge of JavaScript"
+            "I'm an expert in product strategy with 8 years experience",
+            "I know Python at an intermediate level",
+            "I have 8 years of data analysis experience",
+            "I'm proficient in SQL and Tableau for data visualization",
+            "I'm a skilled welder certified in TIG and MIG welding",
+            "I speak fluent JavaScript and TypeScript been coding for 6 years",
+            "I'm decent at public speaking maybe a 6 out of 10",
+            "I'm a beginner at machine learning just started learning",
+            "I'm very strong in financial modeling and Excel",
+            "I have advanced skills in Adobe Creative Suite been using it for 12 years"
         ]
     },
-    "learning_velocity": {
-        "name": "Learning Velocity",
-        "description": "HOW FAST YOU LEARN—learning speed, capacity to pick up new skills quickly, how long it takes you. Focus on SPEED and PACE of learning, not what you're learning or how you prefer to learn.",
+    "languages": {
+        "name": "Languages",
+        "description": "Languages spoken, proficiency level, language certifications and test scores.",
+        "sub_entities": {
+            "language": "Languages spoken",
+            "proficiency": "Proficiency level (native, fluent, B1, B2, etc.)",
+            "certifications": "Language test scores and certifications (TOEFL, IELTS, DELE)"
+        },
         "examples": [
-            "I'm a fast learner and can pick up new technologies quickly",
-            "I need time to deeply understand concepts before moving forward—I'm a deliberate learner",
-            "I can become productive with a new framework in about 2 weeks",
-            "I pick things up pretty quickly once I get hands-on experience",
-            "It usually takes me a few months to really master something new",
-            "I'm a quick study—I absorbed the new software system in just a few days"
+            "I speak Spanish at B1 level",
+            "I'm fluent in Mandarin Chinese its my native language",
+            "I got a 110 on the TOEFL",
+            "English is my second language I'm fluent but not native",
+            "I speak French and Italian at a conversational level",
+            "I passed the JLPT N2 for Japanese",
+            "I'm bilingual English and Portuguese",
+            "I'm learning German currently at A2 level",
+            "My IELTS score is 8.0 overall",
+            "I speak 4 languages English Spanish French and a bit of Arabic"
         ]
     },
-    "preferred_format": {
-        "name": "Preferred Learning Format",
-        "description": "HOW YOU LEARN BEST—preferred learning methods, formats, resources (videos, books, courses, mentorship, hands-on practice). Focus on learning METHODS and FORMATS, not speed or knowledge content.",
+    "education_history": {
+        "name": "Education History",
+        "description": "Degrees earned, schools attended, field of study, GPA, graduation dates.",
+        "sub_entities": {
+            "degrees": "Degrees earned (BS, MS, MBA, PhD, etc.)",
+            "institutions": "Schools and universities attended",
+            "field_of_study": "Major, minor, or specialization",
+            "gpa": "Academic performance",
+            "graduation_date": "When they graduated"
+        },
         "examples": [
-            "I learn best through video tutorials and online courses",
-            "I prefer reading technical documentation and books",
-            "Hands-on projects are the most effective way for me to learn",
-            "I need a mentor or coach to guide my learning journey",
-            "I learn best by doing—trial and error works for me",
-            "I prefer structured courses over self-directed learning"
+            "I have a BS in Computer Science from UC Berkeley",
+            "I graduated with a 3.7 GPA from Stanford",
+            "I studied Software Engineering for my masters at MIT",
+            "I have an MBA from Wharton graduated in 2020",
+            "I went to community college then transferred to state university",
+            "I dropped out of college to start my business",
+            "I have a nursing degree from Johns Hopkins",
+            "I studied electrical engineering at Georgia Tech",
+            "I have a PhD in biochemistry from Columbia",
+            "I got my associates degree in culinary arts"
+        ]
+    },
+    "learning_gaps": {
+        "name": "Learning Gaps",
+        "description": "Missing skills and knowledge that block career goals. Includes both skill gaps and knowledge gaps.",
+        "sub_entities": {
+            "skill_gaps": "Missing skills blocking career goals, impact, what aspiration it blocks",
+            "knowledge_gaps": "Missing knowledge blocking career goals, what aspiration it blocks"
+        },
+        "examples": [
+            "I need to improve my executive presence to become a VP",
+            "I lack experience managing people for the Director role",
+            "I don't have enough technical skills for that Senior Engineer position",
+            "I need better public speaking skills to get promoted",
+            "I'm missing Python experience to transition into data science",
+            "I don't understand blockchain well enough to work at Coinbase",
+            "I need to learn more about AI/ML to transition into machine learning",
+            "I lack fintech knowledge for the payments role I want",
+            "I need deeper understanding of cloud architecture to become a Solutions Architect",
+            "I need better executive presence and deeper fintech knowledge to become a VP at a payments company"
+        ]
+    },
+    "learning_aspirations": {
+        "name": "Learning Aspirations",
+        "description": "Future learning goals: skills they want to learn, degrees they want to pursue, certifications they want to earn.",
+        "sub_entities": {
+            "skill_aspirations": "Skills they want to learn, learning plan, timeline, progress",
+            "education_aspirations": "Degrees they want to pursue, target schools, timeline, funding",
+            "certification_aspirations": "Certifications they want to earn, study plan, exam date"
+        },
+        "examples": [
+            "I want to learn machine learning this year",
+            "I'm learning public speaking through Toastmasters",
+            "I'm 25 percent done with my AI course on Coursera",
+            "I want to get an MBA from Stanford in 2 years",
+            "I'm planning to pursue a masters in AI next fall",
+            "I'll apply to business school in 2027",
+            "I'm studying for the Google Cloud certification",
+            "I want to get my PMP next year",
+            "I'm taking a prep course for the AWS Solutions Architect exam",
+            "I want to learn Python and get AWS certified while pursuing an MBA"
+        ]
+    },
+    "certifications": {
+        "name": "Certifications",
+        "description": "Certifications already earned, issue date, expiry date, active status.",
+        "sub_entities": {
+            "earned_certs": "Certifications they already have",
+            "issue_date": "When they got the certification",
+            "expiry_date": "When it expires",
+            "status": "Active, expired, or pending renewal"
+        },
+        "examples": [
+            "I'm AWS Solutions Architect certified got it last year",
+            "I have my CSPO certification its still active",
+            "My PMP expires next year need to renew",
+            "I'm a certified Scrum Master since 2021",
+            "I have my Google Analytics certification",
+            "I got the Salesforce Admin cert in January",
+            "I'm a certified nursing assistant CNA",
+            "I have 3 active Azure certifications"
+        ]
+    },
+    "knowledge_areas": {
+        "name": "Knowledge Areas",
+        "description": "Broader domains of expertise and knowledge.",
+        "sub_entities": {
+            "expertise_domains": "Broader knowledge areas and domains of expertise"
+        },
+        "examples": [
+            "I'm knowledgeable about fintech and payments",
+            "I have deep expertise in platform architecture",
+            "My knowledge base is mostly in healthcare IT systems",
+            "I know a lot about supply chain management and logistics",
+            "I have broad knowledge of the SaaS industry",
+            "I'm an expert in regulatory compliance for financial services",
+            "I have deep domain knowledge in renewable energy",
+            "I know the edtech space really well inside and out"
+        ]
+    },
+    "learning_preferences": {
+        "name": "Learning Preferences",
+        "description": "How they prefer to learn: formats, pace, budget, time available.",
+        "sub_entities": {
+            "preferred_formats": "How they like to learn (books, videos, hands-on, courses)",
+            "pace": "Fast or slow learner, learning speed",
+            "budget": "Learning budget available",
+            "time_available": "Hours per week available for learning"
+        },
+        "examples": [
+            "I learn best through hands-on projects",
+            "I prefer books over video courses",
+            "I can dedicate 10 hours per week to learning",
+            "I have about 2000 dollars per year for courses and training",
+            "I'm a fast learner I pick things up quickly",
+            "I like structured online courses with deadlines",
+            "I learn best by doing not by watching lectures",
+            "I only have about 5 hours a week for studying so I need efficient resources"
+        ]
+    },
+    "learning_history": {
+        "name": "Learning History",
+        "description": "Past courses taken, books read, bootcamps completed, learning outcomes.",
+        "sub_entities": {
+            "past_courses": "Courses and bootcamps completed",
+            "books": "Books they've read for professional development",
+            "outcomes": "What they learned and how it helped"
+        },
+        "examples": [
+            "I took Andrew Ng's ML course on Coursera it was excellent",
+            "I read High Output Management it changed how I think about leadership",
+            "I completed a 12-week data science bootcamp at General Assembly",
+            "I finished the Google UX Design certificate on Coursera",
+            "I read about 20 product management books last year",
+            "I took a leadership development program at my company",
+            "I completed a coding bootcamp and it helped me transition to tech",
+            "I just finished reading Cracking the PM Interview super helpful"
+        ]
+    },
+    "publications": {
+        "name": "Publications",
+        "description": "Articles, papers, blog posts, talks they've written or given.",
+        "sub_entities": {
+            "publications": "Articles, papers, blog posts, conference talks authored"
+        },
+        "examples": [
+            "I wrote an article about platform products on Medium",
+            "I published a paper on machine learning in a peer-reviewed journal",
+            "I maintain a technical blog about AI and it gets 5k monthly readers",
+            "I gave a talk at PyCon about testing best practices",
+            "I write a weekly newsletter about product management",
+            "I co-authored a paper on distributed systems",
+            "I published a book chapter on healthcare informatics",
+            "I have 3 patents in computer vision technology"
+        ]
+    },
+    "academic_awards": {
+        "name": "Academic Awards",
+        "description": "Academic honors and recognitions from educational institutions.",
+        "sub_entities": {
+            "academic_awards": "Academic honors, dean's list, scholarships, honors societies"
+        },
+        "examples": [
+            "I made the Dean's List every semester in college",
+            "I graduated Summa Cum Laude from my university",
+            "I received the Outstanding Student Award in engineering",
+            "I was inducted into Phi Beta Kappa",
+            "I got a full scholarship to my MBA program",
+            "I won the best thesis award in my department",
+            "I was valedictorian of my high school class",
+            "I received the National Merit Scholarship"
         ]
     }
 }
 
+ENTITY_GUIDANCE = {
+    "current_skills": """
+CRITICAL: Skills they HAVE right now, not skills they want to learn.
+✓ CORRECT: "I know Python", "I'm proficient in SQL", "I have 8 years of data analysis"
+✗ WRONG: "I want to learn Python" (that's learning_aspirations!)
+✗ WRONG: "I need to improve my public speaking" (that's learning_gaps!)""",
 
-# ==============================================================================
-# PROMPT TEMPLATES
-# ==============================================================================
+    "learning_gaps": """
+CRITICAL: Skills/knowledge they're MISSING that BLOCK career goals.
+✓ CORRECT: "I need executive presence for the VP role", "I lack Python for data science"
+✗ WRONG: "I want to learn Python" (that's learning_aspirations—a goal, not a gap!)
+✗ WRONG: "I know Python at intermediate level" (that's current_skills!)""",
 
-PATTERN_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse message patterns for describing {category_name_lower}.
+    "learning_aspirations": """
+CRITICAL: MULTI-LABEL entity. Skills, degrees, certs they want to PURSUE.
+- skill_aspirations: "I want to learn ML", "I'm taking a Python course"
+- education_aspirations: "I want an MBA from Stanford"
+- certification_aspirations: "Studying for AWS cert"
+A message like "I want to learn Python and get AWS certified while doing an MBA" touches all three.""",
 
-Category: {category_name}
-Description: {category_description}
+    "certifications": """
+CRITICAL: Certs they ALREADY HAVE.
+✓ CORRECT: "I'm AWS certified", "My PMP expires next year"
+✗ WRONG: "I want to get PMP certified" (that's learning_aspirations > certification_aspirations!)""",
 
-Each pattern should:
-1. Include the placeholder [OBJ] where the learning detail goes
-2. Be natural and conversational (first-person statements)
-3. Be specifically relevant to {category_name_lower}
-4. Vary in formality and detail level
-5. Use appropriate tense (present for current state, past for history)
-
-Context examples for this category:
-{category_examples}
-
-Examples of good patterns for learning statements:
-- "I have [OBJ]"
-- "My knowledge of [OBJ] is strong"
-- "I learn [OBJ]"
-- "I'm [OBJ]"
-- "I prefer [OBJ]"
-- "My background includes [OBJ]"
-
-Return ONLY the patterns, one per line, no numbering or bullets.
-Each pattern MUST contain exactly one [OBJ] placeholder."""
-
-
-OBJECT_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse {category_name_lower} statements that someone might share with a career coach.
-
-Category: {category_name}
-Description: {category_description}
-
-Examples of what to generate:
-{category_examples}
-
-Requirements:
-1. Generate realistic, specific learning-related statements
-2. Cover diverse learning styles and preferences
-3. Be authentic and relatable
-4. Be concrete and specific (not generic)
-5. One statement per line
-
-Return ONLY the statements, no numbering or bullets."""
-
-
-PATTERN_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural, conversational patterns for learning self-descriptions.
-
-Your patterns should:
-- Feel authentic and natural
-- Use first-person voice ("I", "My", etc.)
-- Include the [OBJ] placeholder exactly once
-- Vary in structure and formality
-- Be appropriate for career coaching context"""
-
-
-OBJECT_GENERATION_SYSTEM_PROMPT = """You are a career coaching expert generating realistic learning profiles.
-
-Your statements should:
-- Be specific and concrete
-- Cover diverse learning styles and backgrounds
-- Sound authentic and relatable
-- Avoid overly academic or formal language
-- Be suitable for career coaching context"""
-
-
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural learning context messages. Always respond with valid JSON."""
-
-# Category-specific guidance to prevent confusion
-CATEGORY_GUIDANCE = {
-    "knowledge": """
-CRITICAL: KNOWLEDGE is WHAT YOU KNOW—accumulated knowledge, expertise, subjects learned.
-Focus: Content of your knowledge (what subjects/skills you've mastered)
-
-✓ CORRECT: What you know/have learned (content)
-  - "I have a strong background in computer science fundamentals"
-  - "I'm well-versed in cloud architecture and distributed systems"
-  - "As a nurse, I've been learning new medical procedures like wound care"
-  - "I know Python, SQL, and have basic JavaScript knowledge"
-  - "My knowledge of electrical codes is comprehensive from years of experience"
-
-✗ WRONG: Learning speed (that's learning_velocity!)
-  - "I'm a fast learner" ← NO! That's how fast you learn (learning_velocity)
-  - "I pick things up quickly" ← NO! That's learning speed (learning_velocity)
-  - "I can master new software in 2 weeks" ← NO! That's pace (learning_velocity)
-
-✗ WRONG: Learning methods (that's preferred_format!)
-  - "I learn best through hands-on practice" ← NO! That's how you learn (preferred_format)
-  - "I prefer video tutorials" ← NO! That's learning method (preferred_format)
-
-Rule: Knowledge = WHAT YOU KNOW. Velocity = HOW FAST. Format = HOW YOU LEARN BEST.""",
-
-    "learning_velocity": """
-CRITICAL: LEARNING VELOCITY is HOW FAST YOU LEARN—speed, pace, how quickly you pick things up.
-Focus: SPEED and PACE of learning (not what you're learning or how)
-
-✓ CORRECT: Learning speed/pace
-  - "I'm a fast learner and can pick up new technologies quickly"
-  - "I need time to deeply understand—I'm a deliberate learner"
-  - "I can become productive with a new framework in about 2 weeks"
-  - "I pick things up pretty quickly once I get hands-on"
-  - "It takes me a few months to really master something new"
-  - "I'm a quick study—absorbed the new system in just days"
-
-✗ WRONG: What you've learned (that's knowledge!)
-  - "I've been learning new medical procedures" ← NO! That's what you know (knowledge)
-  - "I know Python and SQL" ← NO! That's your knowledge (knowledge)
-  - "I have a background in nursing" ← NO! That's accumulated knowledge (knowledge)
-
-✗ WRONG: How you prefer to learn (that's preferred_format!)
-  - "I learn best through hands-on practice" ← NO! That's learning method (preferred_format)
-  - "I prefer video tutorials" ← NO! That's format preference (preferred_format)
-
-Rule: Velocity = HOW FAST. Knowledge = WHAT. Format = HOW (method).""",
-
-    "preferred_format": """
-CRITICAL: PREFERRED FORMAT is HOW YOU LEARN BEST—methods, formats, resources you prefer.
-Focus: Learning METHODS and FORMATS (not speed or content)
-
-✓ CORRECT: Learning methods/formats
-  - "I learn best through video tutorials and online courses"
-  - "I prefer reading technical documentation and books"
-  - "Hands-on projects are the most effective way for me to learn"
-  - "I need a mentor or coach to guide my learning"
-  - "I learn best by doing—trial and error works for me"
-  - "I prefer structured courses over self-directed learning"
-
-✗ WRONG: Learning speed (that's learning_velocity!)
-  - "I'm a fast learner" ← NO! That's speed (learning_velocity)
-  - "I pick things up quickly" ← NO! That's pace (learning_velocity)
-
-✗ WRONG: What you know (that's knowledge!)
-  - "I know Python and SQL" ← NO! That's accumulated knowledge (knowledge)
-  - "I've learned medical procedures" ← NO! That's what you know (knowledge)
-
-Rule: Format = HOW YOU LEARN (method). Velocity = HOW FAST. Knowledge = WHAT.""",
+    "academic_awards": """
+CRITICAL: Awards from EDUCATIONAL institutions.
+✓ CORRECT: "Dean's List", "Summa Cum Laude", "Best Thesis Award"
+✗ WRONG: "Employee of the Month" (that's professional > awards!)""",
 }
 
+MULTI_LABEL_EXAMPLES = [
+    {
+        "message": "I know Python at an intermediate level and I have 5 years of data analysis experience, but I need to learn machine learning to transition into a data science role, I'm taking Andrew Ng's course on Coursera and I'm about 40 percent done",
+        "entities": ["current_skills", "learning_gaps", "learning_aspirations", "learning_history"],
+        "sub_entities": ["skills", "proficiency", "experience", "skill_gaps", "skill_aspirations", "past_courses"]
+    },
+    {
+        "message": "I have a BS in Computer Science from Berkeley with a 3.8 GPA, I graduated Summa Cum Laude and made the Dean's List, now I want to get an MBA from Wharton to transition into product management",
+        "entities": ["education_history", "academic_awards", "learning_aspirations"],
+        "sub_entities": ["degrees", "institutions", "gpa", "academic_awards", "education_aspirations"]
+    },
+    {
+        "message": "I'm AWS Solutions Architect certified and studying for the Google Cloud cert, I have deep expertise in cloud architecture and distributed systems, I learn best through hands-on labs and I dedicate about 10 hours per week to studying",
+        "entities": ["certifications", "learning_aspirations", "knowledge_areas", "learning_preferences"],
+        "sub_entities": ["earned_certs", "certification_aspirations", "expertise_domains", "preferred_formats", "time_available"]
+    },
+    {
+        "message": "I speak Spanish at B1 level and I'm fluent in English, I scored 110 on the TOEFL, I need better language skills for the international PM role I want so I'm taking an intensive Spanish course 3 evenings a week",
+        "entities": ["languages", "learning_gaps", "learning_aspirations"],
+        "sub_entities": ["language", "proficiency", "certifications", "skill_gaps", "skill_aspirations"]
+    },
+    {
+        "message": "I published 3 papers on machine learning and I maintain a technical blog with 10k monthly readers, I also have deep expertise in NLP and computer vision, I read about 30 technical books a year to stay current",
+        "entities": ["publications", "knowledge_areas", "learning_history"],
+        "sub_entities": ["publications", "expertise_domains", "books"]
+    },
+    {
+        "message": "I completed a 12-week bootcamp at General Assembly and got the Google UX Design certificate, now I'm studying for the CSPO certification and want to learn Figma at an advanced level, I have about 2000 a year for training",
+        "entities": ["learning_history", "certifications", "learning_aspirations", "learning_preferences"],
+        "sub_entities": ["past_courses", "outcomes", "earned_certs", "certification_aspirations", "skill_aspirations", "budget"]
+    },
+    {
+        "message": "I'm a fast learner who picks things up in about half the time of my peers, I prefer hands-on projects over lectures, my biggest knowledge gap right now is cloud architecture which I need for the Solutions Architect role",
+        "entities": ["learning_preferences", "learning_gaps"],
+        "sub_entities": ["pace", "preferred_formats", "knowledge_gaps", "skill_gaps"]
+    },
+    {
+        "message": "I have expert-level Python and SQL skills verified by my 10 years of experience, I'm knowledgeable about fintech and payments, but I lack experience with blockchain technology which is blocking me from a role at Coinbase",
+        "entities": ["current_skills", "knowledge_areas", "learning_gaps"],
+        "sub_entities": ["skills", "proficiency", "experience", "expertise_domains", "knowledge_gaps"]
+    }
+]
 
-MESSAGE_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural learning messages for career coaching specifically about {category_name}.
+MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural learning context messages for career coaching. Generate messages that sound like real people talking about their skills, education, learning, and knowledge. Cover DIVERSE fields and learning styles. Always respond with valid JSON."""
 
-Category: {category_name}
-Description: {category_description}
-{category_guidance}
+SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural learning messages for career coaching specifically about {entity_name} > {sub_entity_name}.
 
-Each message should:
-1. Be a complete, natural sentence expressing learning context
-2. Be specifically relevant to {category_name_lower}
-3. Vary in formality and detail level
-4. Be conversational as if spoken by a real person to a career coach
-5. Use appropriate tense (present for current state, past for background)
-6. Be practical and career-focused
-7. Vary WIDELY in length: mix very short (5-10 words), short (11-15 words), medium (16-25 words), and long (26-40 words) messages - CREATE SUBSTANTIAL variety
-8. Reflect perspectives from DIVERSE professions: nurses learning new medical procedures, teachers mastering new curriculum, electricians learning new codes, chefs expanding their skills, social workers taking certifications, mechanics learning new vehicle systems, etc. - NOT just tech/software learning
-9. Include REALISTIC TYPOS in some messages: "i learn", "prefere", "complted", "certfication", "knowlege", "thru"
+Context: Learning
+Entity: {entity_name}
+Sub-entity: {sub_entity_name} - {sub_entity_description}
+{entity_guidance}
 
-Context examples for this category:
-{category_examples}
+Requirements:
+1. Each message MUST be specifically about {sub_entity_name}
+2. Vary WIDELY in length:
+   - 20% very short (5-12 words): "I know Python well"
+   - 30% short-medium (13-25 words)
+   - 30% medium-long (26-50 words)
+   - 20% long paragraphs (51-70 words)
+3. Cover DIVERSE fields: tech, healthcare, trades, business, creative, science
+4. Include REALISTIC TYPOS in ~15%: "im", "becuase", "knowlege", "certifcation"
+5. Vary formulation: "I...", "My...", "I've...", fragments
+6. Be authentic—real learning talk
 
-Example messages showing WIDE variety in length and fields:
-- Very short (6 words): "I learn best through hands-on practice"
-- Short (12 words): "I have my nursing degree and recently completed ICU specialty training"
-- Medium (24 words): "I completed my teaching degree ten years ago and have taken several workshops on classroom management, but I still struggle with differentiated instruction"
-- Long (37 words): "I'm a fast learner when it comes to hands-on technical work like the kind I do as an electrician, and I can usually pick up new codes and techniques pretty quickly by watching someone do it once or twice"
-- With typos: "i learn best thru hands on practice", "I complted my certfication last year", "i prefere reading manuals"
-- "My background is in culinary arts"
+Example messages for {entity_name}:
+{entity_examples}
 
-Generate {batch_size} unique, complete messages as a JSON array. Return ONLY valid JSON with no additional text:
+Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
+MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple learning topics in a single message.
 
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
+Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 
-def get_category_name(category_key: str) -> str:
-    """Get display name for category."""
-    return LEARNING_CATEGORIES[category_key]["name"]
+Requirements:
+1. Each message MUST mention at least {num_labels} different sub-entities
+2. Length: 30-70 words (paragraphs)
+3. Natural and conversational
+4. Cover DIVERSE fields and learning journeys
+5. Include REALISTIC TYPOS in ~15%
+
+Example compound messages:
+{multi_label_examples}
+
+Return valid JSON:
+{{"messages": [
+  {{"text": "the message", "sub_entities": ["sub1", "sub2", "sub3"]}},
+  ...
+]}}"""
 
 
-def get_category_description(category_key: str) -> str:
-    """Get description for category."""
-    return LEARNING_CATEGORIES[category_key]["description"]
+def build_message_generation_prompt(entity_key: str, batch_size: int, sub_entity_key: str = None) -> str:
+    if entity_key not in ENTITIES:
+        raise ValueError(f"Unknown entity: {entity_key}")
 
+    entity = ENTITIES[entity_key]
+    examples_str = "\n".join(f"- {ex}" for ex in entity["examples"])
+    guidance = ENTITY_GUIDANCE.get(entity_key, "")
+    entity_guidance = f"\nImportant:\n{guidance}" if guidance else ""
 
-def get_category_examples(category_key: str) -> List[str]:
-    """Get examples for category."""
-    return LEARNING_CATEGORIES[category_key]["examples"]
+    if sub_entity_key and sub_entity_key in entity["sub_entities"]:
+        sub_entity_desc = entity["sub_entities"][sub_entity_key]
+        sub_entity_name = sub_entity_key.replace("_", " ").title()
+    else:
+        sub_entity_desc = entity["description"]
+        sub_entity_key = entity_key
+        sub_entity_name = entity["name"]
 
-
-def build_pattern_generation_prompt(category_key: str, batch_size: int) -> str:
-    """Build prompt for generating patterns."""
-    category = LEARNING_CATEGORIES[category_key]
-    examples_text = "\n".join(f"  - {ex}" for ex in category["examples"])
-
-    return PATTERN_GENERATION_PROMPT_TEMPLATE.format(
+    return SINGLE_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_name_lower=category["name"].lower(),
-        category_description=category["description"],
-        category_examples=examples_text
+        entity_name=entity["name"],
+        sub_entity_name=sub_entity_name,
+        sub_entity_description=sub_entity_desc,
+        entity_guidance=entity_guidance,
+        entity_examples=examples_str
     )
 
 
-def build_object_generation_prompt(category_key: str, batch_size: int) -> str:
-    """Build prompt for generating objects."""
-    category = LEARNING_CATEGORIES[category_key]
-    examples_text = "\n".join(f"  - {ex}" for ex in category["examples"])
+def build_multilabel_generation_prompt(entity_keys: list, batch_size: int, num_labels: int = 3) -> str:
+    all_sub_entities = []
+    for ek in entity_keys:
+        if ek in ENTITIES:
+            for sk, desc in ENTITIES[ek]["sub_entities"].items():
+                all_sub_entities.append(f"{sk} ({desc})")
 
-    return OBJECT_GENERATION_PROMPT_TEMPLATE.format(
-        batch_size=batch_size,
-        category_name=category["name"],
-        category_name_lower=category["name"].lower(),
-        category_description=category["description"],
-        category_examples=examples_text
+    examples_str = "\n".join(
+        f"- \"{ex['message'][:100]}...\" -> {ex['sub_entities']}"
+        for ex in MULTI_LABEL_EXAMPLES[:5]
     )
 
-
-def build_message_generation_prompt(category_key: str, batch_size: int) -> str:
-    """
-    Build a prompt for generating complete learning messages (no patterns/objects).
-
-    Args:
-        category_key: Key from LEARNING_CATEGORIES
-        batch_size: Number of messages to generate in this batch
-
-    Returns:
-        Formatted prompt string
-    """
-    if category_key not in LEARNING_CATEGORIES:
-        raise ValueError(f"Unknown category: {category_key}")
-
-    category = LEARNING_CATEGORIES[category_key]
-    examples_str = "\n".join(f"- {ex}" for ex in category["examples"])
-    guidance = CATEGORY_GUIDANCE.get(category_key, "")
-    category_guidance = f"Important: {guidance}" if guidance else ""
-
-    return MESSAGE_GENERATION_PROMPT_TEMPLATE.format(
+    return MULTI_LABEL_PROMPT_TEMPLATE.format(
         batch_size=batch_size,
-        category_name=category["name"],
-        category_description=category["description"],
-        category_name_lower=category["name"].lower(),
-        category_examples=examples_str,
-        category_guidance=category_guidance
+        num_labels=num_labels,
+        sub_entity_list=", ".join(all_sub_entities),
+        multi_label_examples=examples_str
     )

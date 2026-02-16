@@ -10,41 +10,34 @@ for extracting structured information from user messages.
 # =============================================================================
 
 EXTRACTION_SCHEMAS = {
-    # Aspirational extractions
+    # =========================================================================
+    # Professional context
+    # =========================================================================
     "dream_roles": {
-        "task": "Extract all desired jobs or roles mentioned in the message.",
-        "fields": ["title", "company", "appeal"],
+        "task": "Extract all desired jobs or roles mentioned in the message, including target companies and industries.",
+        "fields": ["title", "company", "industry", "timeframe", "appeal"],
         "type": "fact",
     },
-    "salary_expectations": {
+    "compensation_expectations": {
         "task": "Extract salary range expectation. If the user doesn't mention a currency, assume it's EUR.",
         "fields": ["minimum", "target", "maximum", "currency", "timeframe"],
         "type": "fact",
     },
-    "values": {
-        "task": """Infer which of the following values are mentioned in the message and assign a value between 0 and 100 to each
-        depending on the strength of the importance given by the user to it: 
-        work-life balance, social impact, financial security, personal growth, creativity, autonomy.""",
-        "fields": ["workLifeBalance", "socialImpact", "financialSecurity", "personalGrowth", "creativity", "autonomy"],
+    "desired_work_environment": {
+        "task": "Extract preferences about work environment: remote/hybrid/in-office, company size, company stage, culture priorities, deal-breakers.",
+        "fields": ["workMode", "companySize", "companyStage", "culturePriorities", "dealBreakers"],
         "type": "fact",
     },
-    "life_goals": {
-        "task": "Extract personal life goals, lifestyle aspirations, and non-career ambitions mentioned.",
-        "fields": ["title", "description", "targetDate", "progress"],
+    "career_change_considerations": {
+        "task": "Extract career change intentions: type of change (role/industry/both), risk tolerance, willingness to accept pay cut, obstacles, support needed.",
+        "fields": ["changeType", "riskTolerance", "payCutWillingness", "obstacles", "supportNeeded"],
         "type": "fact",
     },
-    "impact_legacy": {
-        "task": "Extract statements about desired impact, legacy, helping others, or making a difference.",
-        "fields": ["impact", "legacy", "whoToHelp"],
+    "job_search_status": {
+        "task": "Extract job search status: actively looking or not, urgency, number of applications, interviews in progress, offers received.",
+        "fields": ["currentlySearching", "urgency", "applications", "interviews", "offers", "desiredStartDate"],
         "type": "fact",
     },
-    "skill_expertise": {
-        "task": "Extract statements about desired skill expertise, mastery, or development.",
-        "fields": ["skill", "expertise", "development"],
-        "type": "fact",
-    },
-
-    # Professional extractions
     "skills": {
         "task": "Extract all skills, competencies, and abilities mentioned.",
         "fields": ["name", "level", "validationDate", "validationSource"],
@@ -66,28 +59,9 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
 
-    # Psychological extractions
-    "personality_profile": {
-        "task": "Extract the Myers–Briggs Type Indicator (MBTI) or BigFive personality traits, behavioral tendencies, and temperament descriptors.",
-        "fields": ["type: 'MBTI' | 'BigFive'", "results", "assessmentDate"],
-        "type": "fact",
-    },
-    "strengths": {
-        "task": "Extract mentioned strengths and positive attributes.",
-        "fields": ["name", "description"],
-        "type": "fact",
-    },
-    "weaknesses": {
-        "task": "Extract mentioned weaknesses, challenges, or areas for improvement.",
-    },
-    "motivations": {
-        "task": "Extract what motivates or drives the person.",
-    },
-    "work_style": {
-        "task": "Extract work style preferences and approaches to work.",
-    },
-
-    # Learning extractions
+    # =========================================================================
+    # Learning context
+    # =========================================================================
     "knowledge": {
         "task": "Extract knowledge areas, domains of expertise, and educational background.",
         "fields": ["name", "level", "lastPracticed"],
@@ -103,8 +77,35 @@ EXTRACTION_SCHEMAS = {
         "fields": ["format"],
         "type": "fact",
     },
+    "skill_aspirations": {
+        "task": "Extract skills the person wants to learn or develop, including their learning plan, timeline, and current progress.",
+        "fields": ["targetSkill", "learningPlan", "timeline", "progress"],
+        "type": "fact",
+    },
+    "education_aspirations": {
+        "task": "Extract educational goals: desired degrees, target institutions, timeline, and funding plans.",
+        "fields": ["desiredDegree", "institution", "timeline", "funding"],
+        "type": "fact",
+    },
+    "certification_aspirations": {
+        "task": "Extract certification goals: target certifications, study plan, and planned exam date.",
+        "fields": ["targetCert", "studyPlan", "examDate"],
+        "type": "fact",
+    },
+    "skill_gaps": {
+        "task": "Extract missing skills that are blocking career goals, including what aspiration they block.",
+        "fields": ["missingSkill", "impact", "blockingAspiration", "aspirationType"],
+        "type": "fact",
+    },
+    "knowledge_gaps": {
+        "task": "Extract missing knowledge areas that are blocking career goals, including what aspiration they block.",
+        "fields": ["missingKnowledge", "blockingAspiration", "aspirationType"],
+        "type": "fact",
+    },
 
-    # Social extractions
+    # =========================================================================
+    # Social context
+    # =========================================================================
     "mentors": {
         "task": "Extract information about mentors, coaches, advisors, and guidance relationships.",
         "fields": ["name", "expertise", "lastInteraction"],
@@ -125,16 +126,85 @@ EXTRACTION_SCHEMAS = {
         "fields": ["from", "text", "date"],
         "type": "fact",
     },
+    "networking_activities": {
+        "task": "Extract networking activities: conferences attended, coffee chats, events, people met, and follow-up actions.",
+        "fields": ["activityType", "date", "peopleMet", "followUp"],
+        "type": "fact",
+    },
+    "networking_goals": {
+        "task": "Extract networking goals: people they want to meet, events they want to attend, networking strategy.",
+        "fields": ["targetConnections", "targetEvents", "strategy"],
+        "type": "fact",
+    },
+    "networking_preferences": {
+        "task": "Extract networking preferences: preferred formats (1-on-1, groups, conferences), energy impact, networking style.",
+        "fields": ["preferredFormats", "energyImpact", "style"],
+        "type": "fact",
+    },
 
-    # Emotional extractions
-    "confidence": {
-        "task": "Extract indicators of confidence level, self-doubt, or imposter syndrome.",
-        "fields": ["value", "context"],
+    # =========================================================================
+    # Psychological context
+    # =========================================================================
+    "personality_profile": {
+        "task": "Extract the Myers-Briggs Type Indicator (MBTI) or BigFive personality traits, behavioral tendencies, and temperament descriptors.",
+        "fields": ["type", "results", "assessmentDate"],
+        "type": "fact",
+    },
+    "strengths": {
+        "task": "Extract mentioned strengths and positive attributes.",
+        "fields": ["name", "description"],
+        "type": "fact",
+    },
+    "weaknesses": {
+        "task": "Extract mentioned weaknesses, challenges, or areas for improvement.",
+        "fields": ["name", "description"],
+        "type": "fact",
+    },
+    "motivations": {
+        "task": "Extract what motivates or drives the person, including intrinsic and extrinsic motivators and demotivators.",
+        "fields": ["intrinsic", "extrinsic", "demotivators"],
+        "type": "fact",
+    },
+    "work_style": {
+        "task": "Extract work style preferences: how they work, collaborate, make decisions, and communicate.",
+        "fields": ["workStyle", "collaborationStyle", "decisionMaking", "communicationStyle"],
+        "type": "fact",
+    },
+    "values": {
+        "task": """Infer which of the following values are mentioned in the message and assign a value between 0 and 100 to each
+        depending on the strength of the importance given by the user to it:
+        work-life balance, social impact, financial security, personal growth, creativity, autonomy.""",
+        "fields": ["workLifeBalance", "socialImpact", "financialSecurity", "personalGrowth", "creativity", "autonomy"],
+        "type": "fact",
+    },
+    "confidence_levels": {
+        "task": "Extract confidence level indicators: overall confidence, domain-specific confidence (technical, social, leadership), and what affects confidence.",
+        "fields": ["overallConfidence", "domainConfidence", "confidenceFactors", "recentChanges"],
+        "type": "fact",
+    },
+    "imposter_syndrome_and_doubt": {
+        "task": "Extract indicators of imposter syndrome, self-doubt, comparison patterns, self-efficacy, and resilience.",
+        "fields": ["imposterLevel", "triggers", "frequency", "comparisonPatterns", "selfEfficacy"],
+        "type": "fact",
+    },
+    "self_talk_and_validation": {
+        "task": "Extract inner critic patterns, self-compassion level, need for external validation, and reaction to criticism/praise.",
+        "fields": ["innerCriticStrength", "selfCompassion", "externalValidationNeed", "reactionToCriticism"],
+        "type": "fact",
+    },
+    "confidence_building_strategies": {
+        "task": "Extract strategies for building confidence: what helps, what hurts, current efforts, and goals.",
+        "fields": ["strategiesThatHelp", "strategiesThatHurt", "currentEfforts", "confidenceGoals"],
         "type": "fact",
     },
     "stress": {
         "task": "Extract stress factors, sources of pressure, or burnout indicators.",
         "fields": ["name", "intensity", "frequency", "copingStrategy"],
+        "type": "fact",
+    },
+    "confidence": {
+        "task": "Extract indicators of confidence level, self-doubt, or imposter syndrome.",
+        "fields": ["value", "context"],
         "type": "fact",
     },
     "energy_patterns": {
@@ -147,7 +217,54 @@ EXTRACTION_SCHEMAS = {
         "fields": ["date", "description", "impact", "relatedContext"],
         "type": "fact",
     },
+
+    # =========================================================================
+    # Personal context
+    # =========================================================================
+    "physical_health": {
+        "task": "Extract physical health information: overall health, chronic conditions, energy levels, and physical limitations.",
+        "fields": ["overallHealth", "chronicConditions", "energyLevels", "limitations"],
+        "type": "fact",
+    },
+    "mental_health": {
+        "task": "Extract mental health information: conditions, severity, treatment status, and impact on work.",
+        "fields": ["conditions", "severity", "treatment", "impactOnWork"],
+        "type": "fact",
+    },
+    "addictions_or_recovery": {
+        "task": "Extract addiction/recovery information: type, status (active/recovery), clean time, recovery program, triggers, and career impact.",
+        "fields": ["addictionType", "status", "cleanSince", "recoveryProgram", "triggers", "careerImpact"],
+        "type": "fact",
+    },
+    "overall_wellbeing": {
+        "task": "Extract overall wellbeing indicators: stress level, wellbeing score, general state.",
+        "fields": ["stressLevel", "wellbeingScore", "generalState"],
+        "type": "fact",
+    },
+    "life_goals": {
+        "task": "Extract personal life goals, lifestyle aspirations, and non-career ambitions mentioned.",
+        "fields": ["title", "description", "targetDate", "progress"],
+        "type": "fact",
+    },
+    "impact_legacy": {
+        "task": "Extract statements about desired impact, legacy, helping others, or making a difference.",
+        "fields": ["impact", "legacy", "whoToHelp"],
+        "type": "fact",
+    },
+    "skill_expertise": {
+        "task": "Extract statements about desired skill expertise, mastery, or development.",
+        "fields": ["skill", "expertise", "development"],
+        "type": "fact",
+    },
 }
+
+# Aliases: model outputs these names but the schema lives under a different key
+_SCHEMA_ALIASES = {
+    "salary_expectations": "compensation_expectations",
+}
+for _alias, _target in _SCHEMA_ALIASES.items():
+    if _target in EXTRACTION_SCHEMAS and _alias not in EXTRACTION_SCHEMAS:
+        EXTRACTION_SCHEMAS[_alias] = EXTRACTION_SCHEMAS[_target]
 
 # =============================================================================
 # Prompt Templates

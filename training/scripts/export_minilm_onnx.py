@@ -59,11 +59,12 @@ def export_minilm_onnx(
 
     test_inputs = tokenizer("Hello world", return_tensors="np", padding=True, truncation=True, max_length=128)
     feed = {
-        "input_ids": test_inputs["input_ids"],
-        "attention_mask": test_inputs["attention_mask"],
+        "input_ids": test_inputs["input_ids"].astype(np.int64),
+        "attention_mask": test_inputs["attention_mask"].astype(np.int64),
     }
     if "token_type_ids" in input_names:
-        feed["token_type_ids"] = test_inputs.get("token_type_ids", np.zeros_like(test_inputs["input_ids"]))
+        tid = test_inputs.get("token_type_ids", np.zeros_like(test_inputs["input_ids"]))
+        feed["token_type_ids"] = tid.astype(np.int64)
 
     outputs = session.run(None, feed)
     last_hidden_state = outputs[0]

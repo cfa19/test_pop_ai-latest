@@ -29,14 +29,13 @@ def download_models():
     """Download ONNX models from HuggingFace Hub if not available locally."""
     from pathlib import Path
 
-    from src.config import HF_REPO_ID, INTENT_CLASSIFIER_MODEL_PATH, ONNX_HIERARCHY_PATH
+    from src.config import HF_REPO_ID, HIERARCHICAL_MODEL_PATH
 
-    # Check if models already exist locally (e.g., dev environment)
-    primary_exists = Path(INTENT_CLASSIFIER_MODEL_PATH).exists()
-    hierarchy_exists = (Path(ONNX_HIERARCHY_PATH) / "secondary").exists()
+    # Check if hierarchical models already exist locally (e.g., dev environment)
+    hierarchical_exists = (Path(HIERARCHICAL_MODEL_PATH) / "routing").exists()
 
-    if primary_exists and hierarchy_exists:
-        logger.info("ONNX models found locally, skipping HF Hub download")
+    if hierarchical_exists:
+        logger.info("Hierarchical ONNX models found locally, skipping HF Hub download")
         return
 
     logger.info(f"Downloading ONNX models from HuggingFace Hub: {HF_REPO_ID}")
@@ -45,22 +44,20 @@ def download_models():
     local_path = snapshot_download(repo_id=HF_REPO_ID)
 
     # Update config paths to point to downloaded models
-    config.INTENT_CLASSIFIER_MODEL_PATH = str(Path(local_path) / "classifier")
-    config.ONNX_HIERARCHY_PATH = local_path
+    config.HIERARCHICAL_MODEL_PATH = str(Path(local_path) / "hierarchical")
     config.SEMANTIC_GATE_ONNX_MODEL_PATH = str(Path(local_path) / "semantic_gate")
     config.SEMANTIC_GATE_CENTROIDS_DIR = str(Path(local_path) / "semantic_gate")
     config.SEMANTIC_GATE_TUNING_PATH = str(Path(local_path) / "semantic_gate" / "semantic_gate_hierarchical_tuning.json")
 
     logger.info(f"Models downloaded to {local_path}")
-    logger.info(f"  Primary classifier: {config.INTENT_CLASSIFIER_MODEL_PATH}")
-    logger.info(f"  ONNX hierarchy: {config.ONNX_HIERARCHY_PATH}")
+    logger.info(f"  Hierarchical models: {config.HIERARCHICAL_MODEL_PATH}")
     logger.info(f"  Semantic gate ONNX: {config.SEMANTIC_GATE_ONNX_MODEL_PATH}")
 
 
 async def preload_models():
     """Preload ML models on startup."""
     from src.config import (
-        INTENT_CLASSIFIER_MODEL_PATH,
+        HIERARCHICAL_MODEL_PATH,
         PRIMARY_INTENT_CLASSIFIER_TYPE,
         SEMANTIC_GATE_ENABLED,
         SEMANTIC_GATE_MODEL,
@@ -71,15 +68,15 @@ async def preload_models():
     # Preload intent classifier
     if PRIMARY_INTENT_CLASSIFIER_TYPE == "onnx":
         try:
-            logger.info("Preloading ONNX intent classifier...")
-            from src.agents.onnx_classifier import get_onnx_classifier
+            logger.info("Preloading hierarchical ONNX classifier...")
+            from src.agents.onnx_classifier import get_hierarchical_classifier
 
-            classifier = get_onnx_classifier(INTENT_CLASSIFIER_MODEL_PATH)
+            classifier = get_hierarchical_classifier(HIERARCHICAL_MODEL_PATH)
             set_intent_classifier(classifier)
 
-            logger.info("ONNX intent classifier loaded successfully")
+            logger.info("Hierarchical ONNX classifier loaded successfully")
         except Exception as e:
-            logger.warning(f"Failed to preload ONNX classifier: {e}")
+            logger.warning(f"Failed to preload hierarchical ONNX classifier: {e}")
             logger.warning("Will fall back to lazy loading on first request")
     else:
         logger.info(f"Intent classifier type: {PRIMARY_INTENT_CLASSIFIER_TYPE} (no preloading needed)")
