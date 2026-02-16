@@ -1078,13 +1078,6 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
             extracted["content"] = response.choices[0].message.content
             extracted["type"] = schema.get("type", "fact")
 
-            all_extractions.append({
-                "context": context,
-                "entity": entity,
-                "sub_entity": sub_entity,
-                "data": extracted,
-            })
-
             # Log
             filled = {k: v for k, v in extracted.items() if v and k not in ("content", "type")}
             parts = []
@@ -1096,6 +1089,18 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
                     parts.append(f"{k}={s[:60] + '…' if len(s) > 60 else s}")
             summary = ", ".join(parts) if parts else "empty"
             print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_entity} → {summary}")
+
+            # Skip empty extractions (LLM returned no useful data)
+            if not filled:
+                state["workflow_process"].append(f"  ⏭️ {context}/{entity}/{sub_entity} → empty, skipped")
+                continue
+
+            all_extractions.append({
+                "context": context,
+                "entity": entity,
+                "sub_entity": sub_entity,
+                "data": extracted,
+            })
             state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_entity} → {summary}")
 
         except Exception as e:
@@ -1176,6 +1181,12 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
             s = str(v)
             preview_parts.append(f"{k}={s[:40] + '…' if len(s) > 40 else s}")
         preview = ", ".join(preview_parts) if preview_parts else "empty"
+
+        # Skip empty extractions (no useful data to store)
+        if preview == "empty":
+            print(f"[WORKFLOW] Store Information: Card {i}/{len(extraction_results)} → empty, skipped")
+            state["workflow_process"].append(f"  ⏭️ Card {i}: {context}/{entity}/{sub_entity} → empty, skipped")
+            continue
 
         print(f"[WORKFLOW] Store Information: Card {i}/{len(extraction_results)}")
         print(f"  linkedContexts: [\"{context}\", \"{sub_entity}\"]")

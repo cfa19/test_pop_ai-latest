@@ -34,7 +34,6 @@ import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 
-
 # =============================================================================
 # Data types
 # =============================================================================
@@ -111,7 +110,8 @@ class ONNXModel:
 
         # label_mappings.json always takes priority when it exists
         label_mappings_file = model_dir / "label_mappings.json"
-        self.threshold = 0.5
+        # Default threshold slightly above 0.5 so sigmoid "no signal" (~0.50) is rejected
+        self.threshold = 0.55
         if label_mappings_file.exists():
             with open(label_mappings_file) as f:
                 label_config = json.load(f)
