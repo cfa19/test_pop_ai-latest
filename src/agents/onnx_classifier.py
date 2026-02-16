@@ -99,15 +99,17 @@ class ONNXModel:
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
 
-        # Load label mappings from config.json
+        # Load label mappings: prefer label_mappings.json (explicit export) over config.json
+        # config.json often has default LABEL_0/LABEL_1 from HuggingFace
         config_file = model_dir / "config.json"
         with open(config_file) as f:
             config = json.load(f)
-        self.id2label = config.get("id2label", {})
-        self.num_labels = len(self.id2label)
         self.problem_type = config.get("problem_type", "single_label_classification")
 
-        # Check for multi-label config in label_mappings.json
+        # Start with config.json id2label as fallback
+        self.id2label = config.get("id2label", {})
+
+        # label_mappings.json always takes priority when it exists
         label_mappings_file = model_dir / "label_mappings.json"
         self.threshold = 0.5
         if label_mappings_file.exists():
@@ -116,10 +118,15 @@ class ONNXModel:
             if label_config.get("problem_type") == "multi_label_classification":
                 self.problem_type = "multi_label_classification"
             self.threshold = label_config.get("threshold", 0.5)
-            # Use label_mappings from the file if id2label is missing
-            if not self.id2label and "label_mappings" in label_config:
+            # Check for nested "label_mappings" key or flat {0: "name"} format
+            if "label_mappings" in label_config:
                 self.id2label = label_config["label_mappings"]
-                self.num_labels = len(self.id2label)
+            elif all(k.isdigit() for k in label_config if k not in ("problem_type", "threshold")):
+                # Flat format: {"0": "professional", "1": "learning", ...}
+                self.id2label = {k: v for k, v in label_config.items()
+                                 if k not in ("problem_type", "threshold")}
+
+        self.num_labels = len(self.id2label)
 
         self.is_multilabel = self.problem_type == "multi_label_classification"
 
