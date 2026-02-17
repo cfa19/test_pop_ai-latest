@@ -994,7 +994,7 @@ def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, st
          ("professional", "professional_experience", {...}),
          ...]
     """
-    MAX_ENTITIES_PER_CONTEXT = 3
+    MAX_ENTITIES_PER_CONTEXT = 4
 
     hier = state.get("hierarchical_classification")
     if not hier or not hier.contexts:
