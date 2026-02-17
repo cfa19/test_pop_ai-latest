@@ -1217,6 +1217,21 @@ async def _extract_by_entity(
         print(f"[WORKFLOW] Information Extraction: Error - {e}")
         state["workflow_process"].append(f"  ⚠️ Error: {str(e)}")
 
+    # Deduplicate: if two cards have identical data values, keep only the first
+    seen_values = set()
+    deduped = []
+    for ext in all_extractions:
+        # Build a fingerprint from the non-meta data fields
+        data_fields = {k: v for k, v in ext["data"].items() if k not in ("content", "type")}
+        fingerprint = json.dumps(data_fields, sort_keys=True, default=str)
+        if fingerprint in seen_values:
+            print(f"[WORKFLOW] Information Extraction: DEDUP {ext['context']}/{ext['sub_entity']} (same data as earlier card)")
+            state["workflow_process"].append(f"  🔄 DEDUP: {ext['context']}/{ext['sub_entity']} skipped (duplicate data)")
+            continue
+        seen_values.add(fingerprint)
+        deduped.append(ext)
+    all_extractions = deduped
+
     # Store results
     state["extraction_results"] = all_extractions
     if all_extractions:

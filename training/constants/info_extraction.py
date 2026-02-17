@@ -405,6 +405,7 @@ Entities to check:
 STRICT RULES:
 - Extract ONLY information that is EXPLICITLY written in the message.
 - DO NOT infer, assume, or deduce anything beyond what is directly stated.
+- NO DUPLICATION: Each piece of information must appear in exactly ONE entity — the MOST SPECIFIC one. For example, "I value autonomy" goes ONLY in values, NOT also in motivations or lifestyle_preferences.
 - For each entity, only include sub-entities that have EXPLICIT information.
 - For each sub-entity, return an OBJECT with the expected fields listed above.
 - Set fields to null if the message does not provide info for that specific field.
