@@ -645,67 +645,99 @@ def _resolve_card_type(entity: Optional[str], sub_entity: str) -> str:
 
 
 # =============================================================================
-# Card type → canonical profile context (POP-507 v2)
+# Sub-entity → primary rawData field name (from taxonomy)
 # =============================================================================
-# Maps card types to their canonical profile context names.
-# These align with the 6 canonical profile contexts used by runners.
-# None = keep the original classifier category (professional, learning, etc.)
+# When the LLM returns a simple value (not a dict), we wrap it with
+# the correct field name from the taxonomy instead of a generic "value".
 
-_CARD_TYPE_TO_CANONICAL_CONTEXT: Dict[str, Optional[str]] = {
-    "competence": None,       # keep original (professional or learning)
-    "experience": "professional",
-    "preference": None,       # keep original (psychological, learning, etc.)
-    "aspiration": "aspirational",
-    "trait": "psychological",
-    "emotion": "emotional",
-    "connection": "social",
+_SUB_ENTITY_PRIMARY_FIELD: Dict[str, str] = {
+    # professional
+    "role": "role", "company": "company", "compensation": "compensation",
+    "dream_roles": "desired_roles", "compensation_expectations": "target_salary",
+    "desired_work_environment": "work_mode", "career_change_considerations": "considering_change",
+    "job_search_status": "currently_searching", "awards": "awards",
+    "volunteer_experience": "volunteer_roles", "past_roles": "past_roles",
+    # learning
+    "skills": "skill_name", "languages": "language", "degrees": "degrees",
+    "education_history": "degrees", "skill_gaps": "missing_skills",
+    "knowledge_gaps": "missing_knowledge", "skill_aspirations": "target_skills",
+    "education_aspirations": "desired_degrees", "certification_aspirations": "target_certs",
+    "certifications": "earned_certs", "knowledge_areas": "expertise_domains",
+    "learning_preferences": "preferred_formats", "learning_history": "past_courses",
+    "publications": "publications", "academic_awards": "academic_awards",
+    "experience": "years_experience", "proficiency": "proficiency",
+    # social
+    "mentors": "mentor_name", "mentees": "mentee_name",
+    "professional_network": "connections", "recommendations": "testimonial_from",
+    "networking_activities": "activity_type", "networking_goals": "target_connections",
+    "networking_preferences": "preferred_formats",
+    # psychological
+    "personality_profile": "personality_type", "values": "professional_values",
+    "motivations": "intrinsic_motivations", "working_style_preferences": "work_style",
+    "confidence_levels": "overall_confidence", "confidence_and_self_perception": "overall_confidence",
+    "imposter_syndrome_and_doubt": "imposter_level",
+    "self_talk_and_validation": "inner_critic_strength",
+    "confidence_building_strategies": "strategies_that_help",
+    "career_decision_making_style": "decision_style",
+    "work_environment_preferences": "ideal_environment",
+    "stress_and_coping": "stress_level", "emotional_intelligence": "self_awareness",
+    "growth_mindset": "mindset_level",
+    # personal
+    "personal_life": "life_stage", "physical_health": "overall_health",
+    "mental_health": "conditions", "addictions_or_recovery": "addiction_type",
+    "overall_wellbeing": "wellbeing_score", "living_situation": "location",
+    "financial_situation": "stability", "personal_goals": "non_career_goals",
+    "personal_projects": "project_name", "lifestyle_preferences": "work_life_balance",
+    "life_constraints": "constraint_type", "life_enablers": "enabler_type",
+    "major_life_events": "event_type", "personal_values": "life_values",
+    "life_satisfaction": "overall_satisfaction",
+    # common fallbacks
+    "stress": "stress_level", "confidence": "confidence_level",
+    "strengths": "strengths", "weaknesses": "areas_for_growth",
+    "life_goals": "non_career_goals", "impact_legacy": "life_goals",
 }
 
 
-def _resolve_linked_contexts(card_type: str, category: str) -> list[str]:
-    """Resolve linked_contexts aligned with canonical profile contexts (POP-507 v2)."""
-    canonical = _CARD_TYPE_TO_CANONICAL_CONTEXT.get(card_type)
-    if canonical is not None:
-        return [canonical]
-    return [category]
-
-
-def _build_readable_content(sub_entity: str, extracted_data: Dict[str, Any]) -> str:
-    """Build human-readable content for the memory card (what the user sees in frontend)."""
-    # Get actual extracted fields (exclude our internal keys)
+def _build_content(sub_entity: str, extracted_data: Dict[str, Any]) -> str:
+    """Build clean content string (no label prefix, no JSON quotes)."""
     data = {k: v for k, v in extracted_data.items()
             if k not in ("content", "type") and v is not None and v != "" and v != []}
 
-    # Format sub_entity as label: "dream_roles" → "Dream roles"
-    label = sub_entity.replace("_", " ").capitalize()
-
     if not data:
-        return label
+        return sub_entity.replace("_", " ")
 
-    # Single value → "Dream roles: CEO"
     if len(data) == 1:
         value = list(data.values())[0]
         if isinstance(value, list):
-            return f"{label}: {', '.join(str(v) for v in value)}"
-        return f"{label}: {value}"
+            return ", ".join(str(v) for v in value)
+        return str(value)
 
-    # Multiple fields → "Dream roles: role=CEO, company=Google"
+    # Multiple fields → "CEO, fintech, 2 years"
     parts = []
-    for k, v in data.items():
+    for v in data.values():
         if isinstance(v, list):
-            parts.append(f"{', '.join(str(x) for x in v)}")
+            parts.append(", ".join(str(x) for x in v))
         else:
             parts.append(str(v))
-    return f"{label}: {', '.join(parts)}"
+    return ", ".join(parts)
 
 
-def _build_raw_data(sub_entity: str, entity: Optional[str], extracted_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Build raw_data JSONB with structured extraction data (POP-507 v2)."""
+def _build_raw_data(sub_entity: str, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build rawData JSONB using taxonomy field names.
+
+    When the LLM returns a dict, use those fields directly.
+    When it returns a simple value, wrap it with the taxonomy field name.
+    """
     data = {k: v for k, v in extracted_data.items()
-            if k not in ("content", "type") and v is not None and v != "" and v != []}
-    data["sub_entity"] = sub_entity
-    if entity:
-        data["entity"] = entity
+            if k not in ("content", "type")}
+
+    # If only "value" key exists, rename it to the taxonomy field name
+    if list(data.keys()) == ["value"]:
+        field_name = _SUB_ENTITY_PRIMARY_FIELD.get(sub_entity, sub_entity)
+        return {field_name: data["value"]}
+
+    # Dict with proper field names from LLM — use as-is
     return data
 
 
@@ -749,20 +781,16 @@ def store_extracted_information(
     # Resolve card type from entity/sub_entity (must match DB CHECK constraint)
     card_type = _resolve_card_type(entity, subcategory)
 
-    # Human-readable content (what the user sees in frontend)
-    content = _build_readable_content(subcategory, extracted_data)
+    # Human-readable content — clean string, no label prefix (v2 guide)
+    content = _build_content(subcategory, extracted_data)
 
-    # Structured extraction data (POP-507 v2 raw_data column)
-    raw_data = _build_raw_data(subcategory, entity, extracted_data)
+    # Structured extraction data — taxonomy field names (v2 guide)
+    raw_data = _build_raw_data(subcategory, extracted_data)
 
-    # Linked contexts aligned with canonical profile (POP-507 v2)
-    linked_contexts = _resolve_linked_contexts(card_type, category)
-
-    # Source provenance (JSONB column)
+    # Source provenance (JSONB) — no sessionId per v2 guide
     source = {
         "type": "coach",
         "sourceId": conversation_id or "unknown",
-        "sessionId": conversation_id or "unknown",
         "extractedAt": now,
     }
 
@@ -778,13 +806,12 @@ def store_extracted_information(
                 "source": source,
                 "status": "proposed",
                 "tags": [category, entity or subcategory, subcategory],
-                "linked_contexts": linked_contexts,
                 "raw_data": raw_data,
             })
             .execute()
         )
 
-        logger.info(f"Created memory card {card_id}: type={card_type} content='{content[:60]}' linked={linked_contexts}")
+        logger.info(f"Created memory card {card_id}: type={card_type} content='{content[:60]}'")
         return {
             "success": True,
             "context": category,
