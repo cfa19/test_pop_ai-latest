@@ -35,7 +35,7 @@ from src.utils.conversation_memory import format_conversation_context, search_co
 from src.utils.rag import hybrid_search
 
 # from src.utils.harmonia_api import store_extracted_information  # imported inside store_information_node when STORE_DRY_RUN=False
-from training.constants.info_extraction import EXTRACTION_SCHEMAS, EXTRACTION_SYSTEM_MESSAGE, build_extraction_prompt
+from training.constants.info_extraction import EXTRACTION_SCHEMAS, EXTRACTION_SYSTEM_MESSAGE, build_extraction_prompt, build_entity_extraction_prompt
 
 # =============================================================================
 # Intent Classification Models
@@ -979,24 +979,22 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
     return state
 
 
-def _collect_sub_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, str, str]]:
+def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, str, dict]]:
     """
-    Collect all (context, entity, sub_entity) paths from the hierarchical classification.
+    Collect all (context, entity, entity_info) from the hierarchical classification.
 
     The ONNX classifier provides context + entity (2 levels).
-    Sub-entities are looked up from CONTEXT_REGISTRY (the taxonomy) and the
-    LLM extraction node decides which ones are actually present in the message.
+    Returns entity-level paths with their taxonomy info so the extraction node
+    can make 1 LLM call per entity instead of N calls per sub-entity.
 
     Returns list of tuples like:
-        [("professional", "professional_aspirations", "dream_roles"),
-         ("professional", "professional_aspirations", "compensation_expectations"),
+        [("professional", "professional_aspirations", {description, sub_entities, ...}),
          ...]
     """
     hier = state.get("hierarchical_classification")
     if not hier or not hier.contexts:
         return []
 
-    # Load taxonomy for sub-entity lookups
     try:
         from training.constants import CONTEXT_REGISTRY
     except ImportError:
@@ -1005,23 +1003,10 @@ def _collect_sub_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str
     paths = []
     for ctx in hier.contexts:
         for ent in ctx.entities:
-            # Look up ALL sub-entities from taxonomy for this entity
-            taxonomy_subs = {}
+            entity_info = {}
             if ctx.context in CONTEXT_REGISTRY:
                 entity_info = CONTEXT_REGISTRY[ctx.context]["entities"].get(ent.entity, {})
-                taxonomy_subs = entity_info.get("sub_entities", {})
-
-            if taxonomy_subs:
-                for sub_key in taxonomy_subs:
-                    # Only add if there's an extraction schema for this sub-entity
-                    if EXTRACTION_SCHEMAS.get(sub_key):
-                        paths.append((ctx.context, ent.entity, sub_key))
-                # If no sub-entity had a schema, fall back to entity name
-                if not any(EXTRACTION_SCHEMAS.get(s) for s in taxonomy_subs):
-                    paths.append((ctx.context, ent.entity, ent.entity))
-            else:
-                # No taxonomy info — try entity name as schema key
-                paths.append((ctx.context, ent.entity, ent.entity))
+            paths.append((ctx.context, ent.entity, entity_info))
     return paths
 
 
@@ -1040,39 +1025,152 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
     Node 2.5: Information Extraction
 
     Extracts structured information from the message based on classification.
-    Uses hierarchical classification sub-entities when available (ONNX),
-    falls back to unified_classification subcategory (OpenAI/BERT).
+    Makes 1 LLM call per entity (not per sub-entity) using the full taxonomy.
+    The LLM decides which sub-entities have explicit data and returns only those.
 
-    For each detected sub-entity with a matching EXTRACTION_SCHEMA,
-    calls the LLM to extract structured data.
+    Falls back to legacy per-sub-entity extraction for non-ONNX classifiers.
     """
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])
     message = state["message"]
 
-    # Collect all sub-entity paths to extract
-    paths = _collect_sub_entities_from_hierarchy(state) or _collect_sub_entities_fallback(state)
+    # Try entity-level extraction (ONNX classifier path)
+    entity_paths = _collect_entities_from_hierarchy(state)
 
-    if not paths:
+    if entity_paths:
+        return await _extract_by_entity(state, chat_client, entity_paths, message, t0, step_start_index)
+
+    # Fallback: legacy per-sub-entity extraction (non-ONNX classifiers)
+    fallback_paths = _collect_sub_entities_fallback(state)
+    if fallback_paths:
+        return await _extract_by_sub_entity(state, chat_client, fallback_paths, message, t0, step_start_index)
+
+    state["extracted_information"] = {}
+    state["extraction_results"] = []
+    return state
+
+
+async def _extract_by_entity(
+    state: WorkflowState, chat_client: OpenAI,
+    entity_paths: list[tuple[str, str, dict]], message: str,
+    t0: float, step_start_index: int,
+) -> WorkflowState:
+    """
+    Entity-level extraction: 1 LLM call per entity.
+    The LLM receives the full taxonomy and returns only sub-entities with explicit data.
+    """
+    print(f"[WORKFLOW] Information Extraction: {len(entity_paths)} entity(s) to extract")
+    state["workflow_process"].append(f"📋 Information Extraction: {len(entity_paths)} entity(s)")
+
+    all_extractions = []
+
+    for context, entity, entity_info in entity_paths:
+        sub_entities = entity_info.get("sub_entities", {})
+
+        if not sub_entities:
+            print(f"[WORKFLOW] Information Extraction: {context}/{entity} → no taxonomy, skipping")
+            state["workflow_process"].append(f"  ⏭️ {context}/{entity} → no taxonomy")
+            continue
+
+        try:
+            prompt = build_entity_extraction_prompt(entity, entity_info, message)
+
+            response = chat_client.chat.completions.create(
+                model=state["chat_model"],
+                messages=[
+                    {"role": "system", "content": EXTRACTION_SYSTEM_MESSAGE},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content)
+
+            # Each key in result is a sub-entity with extracted data
+            found_any = False
+            for sub_key, sub_data in result.items():
+                if sub_key not in sub_entities:
+                    continue  # LLM returned unknown key, skip
+
+                # Check if sub_data has any non-null values
+                if isinstance(sub_data, dict):
+                    filled = {k: v for k, v in sub_data.items() if v is not None and v != "" and v != []}
+                elif sub_data is not None and sub_data != "" and sub_data != []:
+                    filled = {"value": sub_data}
+                else:
+                    filled = {}
+
+                if not filled:
+                    continue
+
+                # Log
+                parts = []
+                for k, v in filled.items():
+                    if isinstance(v, list):
+                        parts.append(f"{k}=[{', '.join(str(x) for x in v[:3])}]")
+                    else:
+                        s = str(v)
+                        parts.append(f"{k}={s[:60] + '…' if len(s) > 60 else s}")
+                summary = ", ".join(parts)
+                print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → {summary}")
+                state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → {summary}")
+
+                extraction_data = sub_data if isinstance(sub_data, dict) else {"value": sub_data}
+                extraction_data["content"] = json.dumps(sub_data)
+                extraction_data["type"] = "fact"
+
+                all_extractions.append({
+                    "context": context,
+                    "entity": entity,
+                    "sub_entity": sub_key,
+                    "data": extraction_data,
+                })
+                found_any = True
+
+            if not found_any:
+                print(f"[WORKFLOW] Information Extraction: {context}/{entity} → empty")
+                state["workflow_process"].append(f"  ⏭️ {context}/{entity} → empty")
+
+        except Exception as e:
+            print(f"[WORKFLOW] Information Extraction: Error extracting {entity} - {e}")
+            state["workflow_process"].append(f"  ⚠️ Error extracting {entity}: {str(e)}")
+
+    # Store results
+    state["extraction_results"] = all_extractions
+    if all_extractions:
+        state["extracted_information"] = all_extractions[0]["data"]
+        state["metadata"]["extracted_information"] = [e["data"] for e in all_extractions]
+        state["metadata"]["extraction_paths"] = [
+            f"{e['context']}/{e['entity']}/{e['sub_entity']}" for e in all_extractions
+        ]
+    else:
         state["extracted_information"] = {}
-        state["extraction_results"] = []
-        return state
 
-    print(f"[WORKFLOW] Information Extraction: {len(paths)} path(s) to extract")
+    elapsed = time.perf_counter() - t0
+    if len(state["workflow_process"]) > step_start_index:
+        state["workflow_process"][step_start_index] += f" ({elapsed:.3f}s)"
+    return state
+
+
+async def _extract_by_sub_entity(
+    state: WorkflowState, chat_client: OpenAI,
+    paths: list[tuple[str, str, str]], message: str,
+    t0: float, step_start_index: int,
+) -> WorkflowState:
+    """Legacy per-sub-entity extraction for non-ONNX classifiers."""
+    print(f"[WORKFLOW] Information Extraction: {len(paths)} path(s) to extract (legacy)")
     state["workflow_process"].append(f"📋 Information Extraction: {len(paths)} path(s) detected")
 
-    all_extractions = []  # list of {context, entity, sub_entity, data}
+    all_extractions = []
 
     for context, entity, sub_entity in paths:
         schema = EXTRACTION_SCHEMAS.get(sub_entity)
         if not schema:
-            print(f"[WORKFLOW] Information Extraction: No schema for {sub_entity}, skipping")
-            state["workflow_process"].append(f"  ⏭️ No schema for {context}/{entity}/{sub_entity}")
             continue
 
         try:
             extraction_prompt = build_extraction_prompt(schema, message)
-
             response = chat_client.chat.completions.create(
                 model=state["chat_model"],
                 messages=[
@@ -1087,21 +1185,8 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
             extracted["content"] = response.choices[0].message.content
             extracted["type"] = schema.get("type", "fact")
 
-            # Log
             filled = {k: v for k, v in extracted.items() if v and k not in ("content", "type")}
-            parts = []
-            for k, v in filled.items():
-                if isinstance(v, list):
-                    parts.append(f"{k}=[{', '.join(str(x) for x in v[:3])}]")
-                else:
-                    s = str(v)
-                    parts.append(f"{k}={s[:60] + '…' if len(s) > 60 else s}")
-            summary = ", ".join(parts) if parts else "empty"
-            print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_entity} → {summary}")
-
-            # Skip empty extractions (LLM returned no useful data)
             if not filled:
-                state["workflow_process"].append(f"  ⏭️ {context}/{entity}/{sub_entity} → empty, skipped")
                 continue
 
             all_extractions.append({
@@ -1110,16 +1195,12 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
                 "sub_entity": sub_entity,
                 "data": extracted,
             })
-            state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_entity} → {summary}")
-
         except Exception as e:
             print(f"[WORKFLOW] Information Extraction: Error extracting {sub_entity} - {e}")
-            state["workflow_process"].append(f"  ⚠️ Error extracting {sub_entity}: {str(e)}")
 
-    # Store results — keep backwards compatibility with single extraction + add new list
     state["extraction_results"] = all_extractions
     if all_extractions:
-        state["extracted_information"] = all_extractions[0]["data"]  # backwards compat
+        state["extracted_information"] = all_extractions[0]["data"]
         state["metadata"]["extracted_information"] = [e["data"] for e in all_extractions]
         state["metadata"]["extraction_paths"] = [
             f"{e['context']}/{e['entity']}/{e['sub_entity']}" for e in all_extractions

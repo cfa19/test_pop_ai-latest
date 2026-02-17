@@ -308,6 +308,48 @@ STRICT RULES:
 Return ONLY the JSON array, no additional text."""
 
 
+def build_entity_extraction_prompt(entity_name: str, entity_info: dict, message: str) -> str:
+    """
+    Build a single extraction prompt for an entire entity using its taxonomy.
+
+    Instead of one LLM call per sub-entity, this sends the full entity taxonomy
+    in one call and lets the LLM decide which sub-entities have explicit data.
+
+    Args:
+        entity_name: Entity key (e.g. "professional_aspirations")
+        entity_info: Dict from CONTEXT_REGISTRY with 'description' and 'sub_entities'
+        message: User message to extract from
+
+    Returns:
+        Formatted extraction prompt
+    """
+    description = entity_info.get("description", entity_name)
+    sub_entities = entity_info.get("sub_entities", {})
+
+    # Build sub-entity list with descriptions
+    sub_entity_lines = []
+    for sub_key, sub_desc in sub_entities.items():
+        sub_entity_lines.append(f'  - "{sub_key}": {sub_desc}')
+    sub_entity_block = "\n".join(sub_entity_lines)
+
+    return f"""Extract information about "{entity_name}" from this message.
+Description: {description}
+
+Message: "{message}"
+
+Sub-entities to check (only include those with EXPLICIT information from the message):
+{sub_entity_block}
+
+STRICT RULES:
+- Extract ONLY information that is EXPLICITLY written in the message.
+- DO NOT infer, assume, or deduce anything beyond what is directly stated.
+- If the message does not mention anything about a sub-entity, OMIT it entirely.
+- Return a JSON object where each key is a sub-entity name and its value is the extracted data.
+- If no relevant information exists at all, return an empty object: {{}}
+
+Return ONLY the JSON object, no additional text."""
+
+
 def format_extracted_data(subcategory: str, items: list[dict]) -> str:
     """
     Format an array of extracted objects into a formatted string using the schema's format template.
