@@ -217,15 +217,11 @@ class HierarchicalONNXClassifier:
           → for each entity: sub-entities (sigmoid multi-label)
     """
 
-    # Thresholds for secondary detections (primary = argmax, always included)
-    # Low thresholds are intentional: false positives are cheap (extraction LLM
-    # returns empty → no card), but false negatives lose user information entirely.
-    CONTEXT_THRESHOLD = 0.05     # include context if routing prob > 5%
-    ENTITY_THRESHOLD = 0.15      # include entity if softmax prob > 15%
-    # When the primary route is non-context (rag_query, chitchat, off_topic),
-    # require a much higher bar to explore secondary contexts.
-    # This prevents spurious memory cards for "what is PopSkills?" etc.
-    NON_CONTEXT_SECONDARY_THRESHOLD = 0.20
+    # Entity model threshold: each context has ~6 entities (softmax).
+    # Random uniform = ~17%. A real signal gives the top entity >50%.
+    # 40% filters out noise while keeping legitimate detections.
+    # This is the ONLY filter — routing doesn't limit which contexts to explore.
+    ENTITY_THRESHOLD = 0.40
 
     def __init__(self, model_path: str):
         model_dir = Path(model_path)
@@ -275,20 +271,6 @@ class HierarchicalONNXClassifier:
             print(f"  [{name}] not found, skipping")
             return None
 
-    def _get_contexts_above_threshold(self, route_probs: dict[str, float]) -> list[tuple[str, float]]:
-        """
-        Get all contexts with probability above threshold from routing output.
-
-        Returns list of (context, probability) sorted by probability descending.
-        The primary (argmax) is always included regardless of threshold.
-        """
-        contexts = []
-        for label, prob in route_probs.items():
-            if label in CONTEXT_TYPES and prob >= self.CONTEXT_THRESHOLD:
-                contexts.append((label, prob))
-        contexts.sort(key=lambda x: x[1], reverse=True)
-        return contexts
-
     def _get_entities_above_threshold(self, entity_probs: dict[str, float]) -> list[tuple[str, float]]:
         """
         Get all entities with probability above threshold.
@@ -332,60 +314,26 @@ class HierarchicalONNXClassifier:
         is_context = route in CONTEXT_TYPES
 
         if not is_context:
-            # Non-context type (rag_query, chitchat, off_topic)
-            # Use higher threshold — only explore contexts when the user clearly
-            # mentioned context-relevant info alongside their question.
-            secondary_contexts = [
-                (c, p) for c, p in self._get_contexts_above_threshold(route_probs)
-                if p >= self.NON_CONTEXT_SECONDARY_THRESHOLD
-            ]
-            if not secondary_contexts:
-                return HierarchicalClassification(
-                    route=route,
-                    route_confidence=route_conf,
-                    is_context=False,
-                    route_probabilities=route_probs,
-                    reasoning=f"Routing: {route} ({route_conf:.1%})",
-                )
-            # Has secondary contexts worth exploring (e.g., rag_query 0.4 + professional 0.3)
-            # Still mark as non-context primary, but explore context paths
-            print(f"[HIERARCHICAL ONNX] Non-context route '{route}' has secondary contexts: "
-                  f"{', '.join(f'{c}={p:.1%}' for c, p in secondary_contexts)}")
-            is_context = True
+            # Non-context route (rag_query, chitchat, off_topic) → no extraction
+            return HierarchicalClassification(
+                route=route,
+                route_confidence=route_conf,
+                is_context=False,
+                route_probabilities=route_probs,
+                reasoning=f"Routing: {route} ({route_conf:.1%})",
+            )
 
-        # When the route IS a context, explore ALL 5 contexts that have entity
-        # models. The model concentrates probability on one context (~97%),
-        # leaving <5% for everything else — thresholds can't fix this.
-        # Instead, explore all and let the entity model + LLM extraction
-        # filter false positives (empty extraction → no card created).
-        all_context_probs = {
-            label: prob for label, prob in route_probs.items()
-            if label in CONTEXT_TYPES
-        }
-
-        # Also get contexts model probabilities for logging
-        if self.contexts_model:
-            if self.contexts_model.is_multilabel:
-                _, ctx_probs = self.contexts_model.predict_multi_label(message)
-            else:
-                _, _, ctx_probs = self.contexts_model.predict_single_label(message)
-            ctx_debug = ", ".join(f"{c}={p:.1%}" for c, p in sorted(ctx_probs.items(), key=lambda x: x[1], reverse=True) if c in CONTEXT_TYPES)
-            print(f"[HIERARCHICAL ONNX] Contexts model probs: {ctx_debug}")
-
-            # Merge: use max probability from either model
-            for ctx, prob in ctx_probs.items():
-                if ctx in CONTEXT_TYPES:
-                    all_context_probs[ctx] = max(all_context_probs.get(ctx, 0), prob)
-
-        # All contexts with entity models, sorted by probability
-        sorted_contexts = sorted(all_context_probs.items(), key=lambda x: x[1], reverse=True)
+        # =================================================================
+        # Route IS a context → run ALL 5 entity models (ONNX, free).
+        # The routing model is softmax and concentrates ~97% on one context,
+        # so we DON'T use routing probabilities to filter contexts.
+        # Instead, each entity model decides if its context is relevant
+        # based on ENTITY_THRESHOLD (40%). Only those trigger LLM calls.
+        # =================================================================
         detected_contexts = [
-            (ctx, prob) for ctx, prob in sorted_contexts
-            if ctx in self.entity_models
+            (ctx, 1.0) for ctx in self.entity_models
         ]
-
-        ctx_list = ", ".join(f"{c}={p:.1%}" for c, p in detected_contexts)
-        print(f"[HIERARCHICAL ONNX] Exploring {len(detected_contexts)} contexts: {ctx_list}")
+        print(f"[HIERARCHICAL ONNX] Running all {len(detected_contexts)} entity models")
 
         # =====================================================================
         # STEP 2 & 3: For each context → entities → sub-entities
@@ -399,6 +347,8 @@ class HierarchicalONNXClassifier:
 
             if ctx in self.entity_models:
                 _, _, entity_probs = self.entity_models[ctx].predict_single_label(message)
+                top_entity = max(entity_probs.items(), key=lambda x: x[1])
+                print(f"[HIERARCHICAL ONNX]   {ctx}: top={top_entity[0]} ({top_entity[1]:.1%})")
                 detected_entities = self._get_entities_above_threshold(entity_probs)
 
                 for entity, entity_conf in detected_entities:
