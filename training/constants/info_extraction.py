@@ -29,12 +29,12 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "career_change_considerations": {
-        "task": "Extract career change intentions: type of change (role/industry/both), risk tolerance, willingness to accept pay cut, obstacles, support needed.",
+        "task": "Extract EXPLICIT career change intentions ONLY if the user directly says they want to change careers, industries, or roles. Wanting a specific role (e.g. 'I want to be a CEO') is a dream role, NOT a career change. Only extract if the user explicitly mentions changing, switching, transitioning, or leaving their current career.",
         "fields": ["changeType", "riskTolerance", "payCutWillingness", "obstacles", "supportNeeded"],
         "type": "fact",
     },
     "job_search_status": {
-        "task": "Extract job search status: actively looking or not, urgency, number of applications, interviews in progress, offers received.",
+        "task": "Extract job search status ONLY if the user explicitly says they are searching, applying, interviewing, or have received offers. Expressing a career aspiration (e.g. 'I want to be a CEO') does NOT mean they are actively searching. Only extract if the user directly mentions job searching activities.",
         "fields": ["currentlySearching", "urgency", "applications", "interviews", "offers", "desiredStartDate"],
         "type": "fact",
     },
@@ -270,7 +270,14 @@ for _alias, _target in _SCHEMA_ALIASES.items():
 # Prompt Templates
 # =============================================================================
 
-EXTRACTION_SYSTEM_MESSAGE = "You are a precise information extraction assistant. Extract only the information explicitly mentioned in the message. Return valid JSON only."
+EXTRACTION_SYSTEM_MESSAGE = (
+    "You are a strict information extraction assistant. "
+    "Extract ONLY facts that are EXPLICITLY and DIRECTLY stated in the user's message. "
+    "DO NOT infer, assume, or deduce information that is not clearly written. "
+    "If the user says 'I want to be a CEO', that is a dream role — it does NOT mean they are "
+    "actively searching for jobs, considering a career change, or have any job search status. "
+    "When in doubt, return null. Return valid JSON only."
+)
 
 
 def build_extraction_prompt(schema: dict, message: str) -> str:
@@ -286,13 +293,17 @@ def build_extraction_prompt(schema: dict, message: str) -> str:
     """
     import json
 
-    return f"""
-Task: {schema['task']}
+    return f"""Task: {schema['task']}
 Message: "{message}"
-Return a JSON array of objects with the following fields:
+
+Return a JSON array of objects with these fields:
 {json.dumps(schema['fields'], indent=2)}
 
-For each field, extract relevant information from the message. If a field has no relevant information, set it to null or an empty array.
+STRICT RULES:
+- Extract ONLY information that is EXPLICITLY written in the message.
+- DO NOT infer, assume, or deduce anything beyond what is directly stated.
+- If the message does not contain clear information for a field, set it to null.
+- If no relevant information exists for this task at all, return an empty array: []
 
 Return ONLY the JSON array, no additional text."""
 
