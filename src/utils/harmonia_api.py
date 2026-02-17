@@ -698,28 +698,11 @@ _SUB_ENTITY_PRIMARY_FIELD: Dict[str, str] = {
 }
 
 
-def _build_content(sub_entity: str, extracted_data: Dict[str, Any]) -> str:
-    """Build clean content string (no label prefix, no JSON quotes)."""
-    data = {k: v for k, v in extracted_data.items()
-            if k not in ("content", "type") and v is not None and v != "" and v != []}
-
-    if not data:
-        return sub_entity.replace("_", " ")
-
-    if len(data) == 1:
-        value = list(data.values())[0]
-        if isinstance(value, list):
-            return ", ".join(str(v) for v in value)
-        return str(value)
-
-    # Multiple fields → "CEO, fintech, 2 years"
-    parts = []
-    for v in data.values():
-        if isinstance(v, list):
-            parts.append(", ".join(str(x) for x in v))
-        else:
-            parts.append(str(v))
-    return ", ".join(parts)
+def _build_content(sub_entity: str, raw_data: Dict[str, Any]) -> str:
+    """Build content as JSON string so the frontend renders it as a collapsible tree."""
+    if not raw_data:
+        return json.dumps({sub_entity.replace("_", " "): None})
+    return json.dumps(raw_data, ensure_ascii=False)
 
 
 def _build_raw_data(sub_entity: str, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -781,11 +764,11 @@ def store_extracted_information(
     # Resolve card type from entity/sub_entity (must match DB CHECK constraint)
     card_type = _resolve_card_type(entity, subcategory)
 
-    # Human-readable content — clean string, no label prefix (v2 guide)
-    content = _build_content(subcategory, extracted_data)
-
     # Structured extraction data — taxonomy field names (v2 guide)
     raw_data = _build_raw_data(subcategory, extracted_data)
+
+    # Content as JSON string — frontend renders as collapsible tree
+    content = _build_content(subcategory, raw_data)
 
     # Source provenance (JSONB) — no sessionId per v2 guide
     source = {
