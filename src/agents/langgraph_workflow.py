@@ -1086,11 +1086,13 @@ async def _extract_by_entity(
             )
 
             result = json.loads(response.choices[0].message.content)
+            print(f"[WORKFLOW] Information Extraction: {context}/{entity} raw LLM → {json.dumps(result, default=str)[:500]}")
 
             # Each key in result is a sub-entity with extracted data
             found_any = False
             for sub_key, sub_data in result.items():
                 if sub_key not in sub_entities:
+                    print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → SKIPPED (not in taxonomy: {list(sub_entities.keys())})")
                     continue  # LLM returned unknown key, skip
 
                 # Check if sub_data has any non-null values
