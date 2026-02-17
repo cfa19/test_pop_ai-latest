@@ -981,19 +981,21 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
 
 def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, str, dict]]:
     """
-    Collect ALL entities for each detected context.
+    Collect top entities per detected context using entity model probabilities.
 
-    The entity model serves as a CONTEXT filter (top entity >40% = relevant context).
-    But it often picks the wrong entity within a context (e.g., current_position
-    instead of professional_aspirations). So we send ALL entities per context
-    to the LLM and let it decide which ones have data.
+    The entity model (ONNX, free) ranks all entities within a context by probability.
+    We send the top MAX_ENTITIES_PER_CONTEXT to the LLM for extraction.
+    This balances coverage (entity model sometimes picks the wrong #1) with
+    efficiency (not sending all 44 entities across 5 contexts).
 
     Returns list of tuples like:
-        [("professional", "current_position", {...}),
-         ("professional", "professional_aspirations", {...}),
-         ("professional", "awards", {...}),
+        [("professional", "professional_aspirations", {...}),
+         ("professional", "current_position", {...}),
+         ("professional", "professional_experience", {...}),
          ...]
     """
+    MAX_ENTITIES_PER_CONTEXT = 3
+
     hier = state.get("hierarchical_classification")
     if not hier or not hier.contexts:
         return []
@@ -1010,10 +1012,27 @@ def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, st
             continue
         seen_contexts.add(ctx.context)
 
-        # Include ALL entities for this context, not just the detected one
-        if ctx.context in CONTEXT_REGISTRY:
-            for entity_key, entity_info in CONTEXT_REGISTRY[ctx.context]["entities"].items():
-                paths.append((ctx.context, entity_key, entity_info))
+        if ctx.context not in CONTEXT_REGISTRY:
+            continue
+
+        registry_entities = CONTEXT_REGISTRY[ctx.context]["entities"]
+
+        # Use entity model probabilities to pick top N entities
+        if ctx.entity_probabilities:
+            top_entities = sorted(
+                ctx.entity_probabilities.items(),
+                key=lambda x: x[1], reverse=True,
+            )[:MAX_ENTITIES_PER_CONTEXT]
+            entity_keys = [e[0] for e in top_entities]
+            probs_str = ", ".join(f"{k}={v:.0%}" for k, v in top_entities)
+            print(f"[WORKFLOW] Entity selection: {ctx.context} top {MAX_ENTITIES_PER_CONTEXT}: {probs_str}")
+        else:
+            # Fallback: use all (shouldn't happen with ONNX classifier)
+            entity_keys = list(registry_entities.keys())
+
+        for entity_key in entity_keys:
+            if entity_key in registry_entities:
+                paths.append((ctx.context, entity_key, registry_entities[entity_key]))
     return paths
 
 
@@ -1146,7 +1165,10 @@ async def _extract_by_entity(
                     continue
 
                 if isinstance(sub_data, list):
-                    merged_simple_values[sub_key] = sub_data
+                    # Flatten simple lists to comma-separated string
+                    flat = ", ".join(str(item) for item in sub_data if item)
+                    if flat:
+                        merged_simple_values[sub_key] = flat
                     continue
 
                 if isinstance(sub_data, dict):

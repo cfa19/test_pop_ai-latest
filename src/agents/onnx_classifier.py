@@ -52,6 +52,7 @@ class ContextResult:
     context: str                         # e.g. "professional"
     context_confidence: float
     entities: list[SubEntityResult] = field(default_factory=list)  # detected entities + their sub-entities
+    entity_probabilities: dict[str, float] = field(default_factory=dict)  # all entity probs from model
 
 
 @dataclass
@@ -366,6 +367,7 @@ class HierarchicalONNXClassifier:
                     context=ctx,
                     context_confidence=ctx_conf,
                     entities=entity_results,
+                    entity_probabilities=entity_probs if ctx in self.entity_models else {},
                 ))
 
         return HierarchicalClassification(
