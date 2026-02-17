@@ -1088,6 +1088,12 @@ async def _extract_by_entity(
             result = json.loads(response.choices[0].message.content)
             print(f"[WORKFLOW] Information Extraction: {context}/{entity} raw LLM → {json.dumps(result, default=str)[:500]}")
 
+            # Unwrap if LLM wrapped everything under the entity name
+            # e.g. {"current_skills": {"skills": ..., "proficiency": ...}} → {"skills": ..., "proficiency": ...}
+            if len(result) == 1 and entity in result and isinstance(result[entity], dict):
+                result = result[entity]
+                print(f"[WORKFLOW] Information Extraction: unwrapped entity key '{entity}'")
+
             # Each key in result is a sub-entity with extracted data
             found_any = False
             for sub_key, sub_data in result.items():
