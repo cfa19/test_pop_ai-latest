@@ -1232,6 +1232,10 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
     user_id = state.get("user_id")
     user_token = state.get("auth_header")
 
+    # Get classifier confidence for memory card storage
+    unified = state.get("unified_classification")
+    classifier_confidence = unified.confidence if unified else 0.85
+
     # Use new multi-extraction results if available, else fall back to single
     extraction_results = state.get("extraction_results", [])
 
@@ -1297,6 +1301,7 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
                     user_id=user_id,
                     entity=entity,
                     conversation_id=state.get("conversation_id"),
+                    confidence=classifier_confidence,
                 )
 
                 if result.get("success"):

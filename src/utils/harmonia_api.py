@@ -645,6 +645,71 @@ def _resolve_card_type(entity: Optional[str], sub_entity: str) -> str:
 
 
 # =============================================================================
+# Card type → canonical profile context (POP-507 v2)
+# =============================================================================
+# Maps card types to their canonical profile context names.
+# These align with the 6 canonical profile contexts used by runners.
+# None = keep the original classifier category (professional, learning, etc.)
+
+_CARD_TYPE_TO_CANONICAL_CONTEXT: Dict[str, Optional[str]] = {
+    "competence": None,       # keep original (professional or learning)
+    "experience": "professional",
+    "preference": None,       # keep original (psychological, learning, etc.)
+    "aspiration": "aspirational",
+    "trait": "psychological",
+    "emotion": "emotional",
+    "connection": "social",
+}
+
+
+def _resolve_linked_contexts(card_type: str, category: str) -> list[str]:
+    """Resolve linked_contexts aligned with canonical profile contexts (POP-507 v2)."""
+    canonical = _CARD_TYPE_TO_CANONICAL_CONTEXT.get(card_type)
+    if canonical is not None:
+        return [canonical]
+    return [category]
+
+
+def _build_readable_content(sub_entity: str, extracted_data: Dict[str, Any]) -> str:
+    """Build human-readable content for the memory card (what the user sees in frontend)."""
+    # Get actual extracted fields (exclude our internal keys)
+    data = {k: v for k, v in extracted_data.items()
+            if k not in ("content", "type") and v is not None and v != "" and v != []}
+
+    # Format sub_entity as label: "dream_roles" → "Dream roles"
+    label = sub_entity.replace("_", " ").capitalize()
+
+    if not data:
+        return label
+
+    # Single value → "Dream roles: CEO"
+    if len(data) == 1:
+        value = list(data.values())[0]
+        if isinstance(value, list):
+            return f"{label}: {', '.join(str(v) for v in value)}"
+        return f"{label}: {value}"
+
+    # Multiple fields → "Dream roles: role=CEO, company=Google"
+    parts = []
+    for k, v in data.items():
+        if isinstance(v, list):
+            parts.append(f"{', '.join(str(x) for x in v)}")
+        else:
+            parts.append(str(v))
+    return f"{label}: {', '.join(parts)}"
+
+
+def _build_raw_data(sub_entity: str, entity: Optional[str], extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Build raw_data JSONB with structured extraction data (POP-507 v2)."""
+    data = {k: v for k, v in extracted_data.items()
+            if k not in ("content", "type") and v is not None and v != "" and v != []}
+    data["sub_entity"] = sub_entity
+    if entity:
+        data["entity"] = entity
+    return data
+
+
+# =============================================================================
 # Main Storage Function
 # =============================================================================
 
@@ -656,38 +721,48 @@ def store_extracted_information(
     user_id: str,
     entity: Optional[str] = None,
     conversation_id: Optional[str] = None,
+    confidence: float = 0.85,
 ) -> Dict[str, Any]:
     """
     Store extracted information as a memory card directly in Supabase (Store B).
 
-    Inserts into the `memory_cards` table — same pattern as conversation_memory.py
-    does for `conversation_history`. No NextJS middleman.
+    Inserts into the `memory_cards` table following POP-507 v2 schema.
 
     Args:
         supabase: Supabase client (service role)
         category: Context name (e.g., "professional", "learning")
         subcategory: Sub-entity name (e.g., "dream_roles", "skills")
-        extracted_data: Dict with "content" (JSON string) and other fields
+        extracted_data: Dict with extracted fields from LLM
         user_id: User UUID
         entity: Entity name (e.g., "professional_aspirations")
         conversation_id: Conversation UUID for source tracing
+        confidence: Classifier confidence score (0-1)
 
     Returns:
         Dict with "success", "context", "resource", and "created_ids"
     """
     logger.info(f"Storing memory card: {category}/{entity}/{subcategory}")
 
-    content_str = extracted_data.get("content", "{}")
     now = datetime.now(timezone.utc).isoformat()
     card_id = str(uuid.uuid4())
 
-    # Resolve card type from entity/sub_entity (must match DB values)
+    # Resolve card type from entity/sub_entity (must match DB CHECK constraint)
     card_type = _resolve_card_type(entity, subcategory)
 
-    # Source provenance (JSONB column in DB)
+    # Human-readable content (what the user sees in frontend)
+    content = _build_readable_content(subcategory, extracted_data)
+
+    # Structured extraction data (POP-507 v2 raw_data column)
+    raw_data = _build_raw_data(subcategory, entity, extracted_data)
+
+    # Linked contexts aligned with canonical profile (POP-507 v2)
+    linked_contexts = _resolve_linked_contexts(card_type, category)
+
+    # Source provenance (JSONB column)
     source = {
         "type": "coach",
         "sourceId": conversation_id or "unknown",
+        "sessionId": conversation_id or "unknown",
         "extractedAt": now,
     }
 
@@ -697,18 +772,19 @@ def store_extracted_information(
             .insert({
                 "id": card_id,
                 "user_id": user_id,
-                "content": content_str,
-                "type": card_type,                        # e.g. "competence", "aspiration", "emotion"
-                "confidence": 0.9,
+                "content": content,
+                "type": card_type,
+                "confidence": round(min(confidence, 1.0), 2),
                 "source": source,
                 "status": "proposed",
                 "tags": [category, entity or subcategory, subcategory],
-                "linked_contexts": [category],            # e.g. ["professional"] or ["learning"]
+                "linked_contexts": linked_contexts,
+                "raw_data": raw_data,
             })
             .execute()
         )
 
-        logger.info(f"Created memory card {card_id}: type={card_type} {category}/{entity}/{subcategory}")
+        logger.info(f"Created memory card {card_id}: type={card_type} content='{content[:60]}' linked={linked_contexts}")
         return {
             "success": True,
             "context": category,
