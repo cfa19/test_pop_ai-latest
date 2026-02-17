@@ -353,12 +353,11 @@ class HierarchicalONNXClassifier:
                   f"{', '.join(f'{c}={p:.1%}' for c, p in secondary_contexts)}")
             is_context = True
 
-        # When the route IS a context, always explore ALL contexts that have
-        # entity models (max TOP_N_CONTEXTS). The model concentrates probability
-        # on one context (~97%), leaving <5% for secondary contexts — too low for
-        # any threshold. Instead, explore broadly and let the entity model + LLM
-        # extraction filter false positives (empty extraction → no card created).
-        TOP_N_CONTEXTS = 3
+        # When the route IS a context, explore ALL 5 contexts that have entity
+        # models. The model concentrates probability on one context (~97%),
+        # leaving <5% for everything else — thresholds can't fix this.
+        # Instead, explore all and let the entity model + LLM extraction
+        # filter false positives (empty extraction → no card created).
         all_context_probs = {
             label: prob for label, prob in route_probs.items()
             if label in CONTEXT_TYPES
@@ -378,15 +377,15 @@ class HierarchicalONNXClassifier:
                 if ctx in CONTEXT_TYPES:
                     all_context_probs[ctx] = max(all_context_probs.get(ctx, 0), prob)
 
-        # Take top N contexts (sorted by probability) that have entity models
+        # All contexts with entity models, sorted by probability
         sorted_contexts = sorted(all_context_probs.items(), key=lambda x: x[1], reverse=True)
         detected_contexts = [
             (ctx, prob) for ctx, prob in sorted_contexts
             if ctx in self.entity_models
-        ][:TOP_N_CONTEXTS]
+        ]
 
         ctx_list = ", ".join(f"{c}={p:.1%}" for c, p in detected_contexts)
-        print(f"[HIERARCHICAL ONNX] Exploring top {len(detected_contexts)} contexts: {ctx_list}")
+        print(f"[HIERARCHICAL ONNX] Exploring {len(detected_contexts)} contexts: {ctx_list}")
 
         # =====================================================================
         # STEP 2 & 3: For each context → entities → sub-entities
