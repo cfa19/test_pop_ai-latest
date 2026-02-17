@@ -357,10 +357,11 @@ class HierarchicalONNXClassifier:
         detected_contexts = self._get_contexts_above_threshold(route_probs)
 
         # Also use contexts model to refine (if available)
-        # The contexts model is multi-label (sigmoid) so it can independently detect
-        # multiple contexts even when routing is dominated by one context.
+        # Use sigmoid (multi-label) only if the model was actually trained that way.
+        # A softmax model fed through sigmoid gives extreme probs (98% vs 2%)
+        # which kills secondary context detection.
         if self.contexts_model and detected_contexts:
-            if self.contexts_model.threshold and hasattr(self.contexts_model, 'predict_multi_label'):
+            if self.contexts_model.is_multilabel:
                 active_labels, ctx_probs = self.contexts_model.predict_multi_label(message)
             else:
                 _, _, ctx_probs = self.contexts_model.predict_single_label(message)

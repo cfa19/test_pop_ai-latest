@@ -1109,28 +1109,32 @@ async def _extract_by_entity(
                 if sub_data is None or sub_data == "" or sub_data == []:
                     continue
 
-                # Lists of dicts → one card per item (e.g. skills: [{name: "python"}, {name: "js"}])
+                # Lists of dicts → ONE card with all items (e.g. skills: [{name: "python"}, {name: "js"}])
                 if isinstance(sub_data, list) and sub_data and isinstance(sub_data[0], dict):
+                    cleaned_items = []
                     for item in sub_data:
                         filled = {k: v for k, v in item.items() if v is not None and v != "" and v != []}
-                        if not filled:
-                            continue
-                        parts = [f"{k}={str(v)[:60]}" for k, v in filled.items()]
-                        summary = ", ".join(parts)
-                        print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → {summary}")
-                        state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → {summary}")
+                        if filled:
+                            cleaned_items.append(filled)
+                    if not cleaned_items:
+                        continue
 
-                        extraction_data = dict(item)
-                        extraction_data["content"] = json.dumps(item, default=str)
-                        extraction_data["type"] = "fact"
+                    names = [it.get("name", str(it)) for it in cleaned_items]
+                    summary = ", ".join(str(n) for n in names)
+                    print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → [{summary}]")
+                    state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → [{summary}]")
 
-                        all_extractions.append({
-                            "context": context,
-                            "entity": entity,
-                            "sub_entity": sub_key,
-                            "data": extraction_data,
-                        })
-                        found_any = True
+                    extraction_data = {sub_key: cleaned_items}
+                    extraction_data["content"] = json.dumps(cleaned_items, default=str)
+                    extraction_data["type"] = "fact"
+
+                    all_extractions.append({
+                        "context": context,
+                        "entity": entity,
+                        "sub_entity": sub_key,
+                        "data": extraction_data,
+                    })
+                    found_any = True
                     continue
 
                 # Single list value (non-dict) → treat as simple value
