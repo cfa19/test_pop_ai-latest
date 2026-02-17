@@ -362,6 +362,69 @@ Example format for a sub-entity with fields {{"title", "company", "industry"}}:
 Return ONLY the JSON object, no additional text."""
 
 
+def build_combined_extraction_prompt(
+    entity_paths: list[tuple[str, str, dict]], message: str
+) -> str:
+    """
+    Build a SINGLE extraction prompt for ALL entities at once.
+
+    Instead of 1 LLM call per entity, this sends all entities in one call.
+    The LLM returns a nested JSON: {"context/entity": {sub_entity: data, ...}, ...}
+    """
+    sections = []
+    for context, entity, entity_info in entity_paths:
+        description = entity_info.get("description", entity)
+        sub_entities = entity_info.get("sub_entities", {})
+        if not sub_entities:
+            continue
+
+        sub_lines = []
+        for sub_key, sub_desc in sub_entities.items():
+            schema = EXTRACTION_SCHEMAS.get(sub_key)
+            if schema and schema.get("fields"):
+                fields_str = ", ".join(f'"{f}"' for f in schema["fields"])
+                sub_lines.append(f'    - "{sub_key}": {sub_desc}')
+                sub_lines.append(f'      Expected fields: {{{fields_str}}}')
+            else:
+                sub_lines.append(f'    - "{sub_key}": {sub_desc}')
+        sub_block = "\n".join(sub_lines)
+
+        sections.append(f"""  "{context}/{entity}": {description}
+{sub_block}""")
+
+    all_sections = "\n\n".join(sections)
+
+    return f"""Extract information from this message for MULTIPLE entities at once.
+
+Message: "{message}"
+
+Entities to check:
+
+{all_sections}
+
+STRICT RULES:
+- Extract ONLY information that is EXPLICITLY written in the message.
+- DO NOT infer, assume, or deduce anything beyond what is directly stated.
+- For each entity, only include sub-entities that have EXPLICIT information.
+- For each sub-entity, return an OBJECT with the expected fields listed above.
+- Set fields to null if the message does not provide info for that specific field.
+- If an entity has NO relevant information at all, set it to an empty object: {{}}
+
+Return a JSON object keyed by "context/entity":
+{{
+  "professional/professional_aspirations": {{
+    "dream_roles": {{"title": "CEO", "company": null}},
+    "compensation_expectations": {{"target": 200000, "currency": "USD"}}
+  }},
+  "learning/current_skills": {{
+    "skills": [{{"name": "Python"}}]
+  }},
+  "social/networking": {{}}
+}}
+
+Return ONLY the JSON object, no additional text."""
+
+
 def format_extracted_data(subcategory: str, items: list[dict]) -> str:
     """
     Format an array of extracted objects into a formatted string using the schema's format template.
