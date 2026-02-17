@@ -430,6 +430,18 @@ def load_hierarchical_classifier(model_base_path: str):
         return None
 
 
+def _resolve_label(labels: dict, pred_id: int) -> str:
+    """Resolve a predicted ID to a label name, handling multiple label_mappings formats."""
+    # Format 1: {"id2label": {"0": "professional", ...}}
+    if "id2label" in labels:
+        return labels["id2label"][str(pred_id)]
+    # Format 2: {"label_mappings": {"0": "professional", ...}, "threshold": ...}
+    if "label_mappings" in labels:
+        return labels["label_mappings"][str(pred_id)]
+    # Format 3: {"0": "professional", ...} (direct mapping)
+    return labels[str(pred_id)]
+
+
 def classify_with_hierarchical(message: str, classifiers: Dict) -> Tuple[str, str | None]:
     """
     Classify message using hierarchical classifier.
@@ -453,7 +465,7 @@ def classify_with_hierarchical(message: str, classifiers: Dict) -> Tuple[str, st
         logits = outputs.logits
         probs = torch.softmax(logits, dim=-1)[0]
         pred_id = torch.argmax(probs).item()
-        primary_category = primary['labels']['id2label'][str(pred_id)]
+        primary_category = _resolve_label(primary['labels'], pred_id)
 
     # Secondary classification (if available)
     subcategory = None
@@ -466,7 +478,7 @@ def classify_with_hierarchical(message: str, classifiers: Dict) -> Tuple[str, st
             logits = outputs.logits
             probs = torch.softmax(logits, dim=-1)[0]
             pred_id = torch.argmax(probs).item()
-            subcategory = secondary['labels']['id2label'][str(pred_id)]
+            subcategory = _resolve_label(secondary['labels'], pred_id)
 
     return primary_category, subcategory
 
