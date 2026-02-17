@@ -15,12 +15,13 @@ Supports 6 context types:
 
 import json
 import logging
+import uuid
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 
-from src.config import NEXT_PUBLIC_BASE_URL
+from src.config import NEXT_PUBLIC_BASE_URL, Tables
 
 logger = logging.getLogger(__name__)
 
@@ -565,67 +566,156 @@ def ensure_profile_exists(user_token: str) -> bool:
 
 
 # =============================================================================
+# Entity → Card Type mapping
+# =============================================================================
+# Maps entity/sub_entity names to memory card types used in the DB.
+# Valid types (from real data): competence, experience, preference, aspiration,
+#                               trait, emotion, connection
+
+_ENTITY_TO_CARD_TYPE: Dict[str, str] = {
+    # professional entities
+    "current_position": "competence",
+    "professional_experience": "competence",
+    "awards": "competence",
+    "licenses_and_permits": "competence",
+    "professional_aspirations": "aspiration",
+    "volunteer_experience": "competence",
+    # learning entities
+    "current_skills": "competence",
+    "languages": "competence",
+    "education_history": "competence",
+    "learning_gaps": "aspiration",
+    "learning_aspirations": "aspiration",
+    "certifications": "competence",
+    "knowledge_areas": "competence",
+    "learning_preferences": "preference",
+    "learning_history": "competence",
+    "publications": "competence",
+    "academic_awards": "competence",
+    # social entities
+    "mentors": "connection",
+    "mentees": "connection",
+    "professional_network": "connection",
+    "recommendations": "connection",
+    "networking": "connection",
+    # psychological entities
+    "personality_profile": "trait",
+    "values": "preference",
+    "motivations": "preference",
+    "working_style_preferences": "preference",
+    "confidence_and_self_perception": "emotion",
+    "career_decision_making_style": "trait",
+    "work_environment_preferences": "preference",
+    "stress_and_coping": "emotion",
+    "emotional_intelligence": "emotion",
+    "growth_mindset": "trait",
+    # personal entities
+    "personal_life": "trait",
+    "health_and_wellbeing": "emotion",
+    "living_situation": "trait",
+    "financial_situation": "trait",
+    "personal_goals": "aspiration",
+    "personal_projects": "competence",
+    "lifestyle_preferences": "preference",
+    "life_constraints": "trait",
+    "life_enablers": "trait",
+    "major_life_events": "emotion",
+    "personal_values": "preference",
+    "life_satisfaction": "emotion",
+    # sub-entity level (fallback)
+    "dream_roles": "aspiration",
+    "compensation_expectations": "aspiration",
+    "skills": "competence",
+    "stress": "emotion",
+    "confidence": "emotion",
+    "strengths": "trait",
+    "weaknesses": "trait",
+    "life_goals": "aspiration",
+    "impact_legacy": "aspiration",
+}
+
+
+def _resolve_card_type(entity: Optional[str], sub_entity: str) -> str:
+    """Resolve the memory card type from entity or sub_entity name."""
+    if entity and entity in _ENTITY_TO_CARD_TYPE:
+        return _ENTITY_TO_CARD_TYPE[entity]
+    if sub_entity in _ENTITY_TO_CARD_TYPE:
+        return _ENTITY_TO_CARD_TYPE[sub_entity]
+    return "competence"  # safe default (most common in real data)
+
+
+# =============================================================================
 # Main Storage Function
 # =============================================================================
 
 def store_extracted_information(
+    supabase,
     category: str,
     subcategory: str,
     extracted_data: Dict[str, Any],
     user_id: str,
-    user_token: Optional[str] = None
+    entity: Optional[str] = None,
+    conversation_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Store extracted information in Canonical Profile (Store A).
+    Store extracted information as a memory card directly in Supabase (Store B).
+
+    Inserts into the `memory_cards` table — same pattern as conversation_memory.py
+    does for `conversation_history`. No NextJS middleman.
 
     Args:
+        supabase: Supabase client (service role)
+        category: Context name (e.g., "professional", "learning")
+        subcategory: Sub-entity name (e.g., "dream_roles", "skills")
+        extracted_data: Dict with "content" (JSON string) and other fields
         user_id: User UUID
-        subcategory: Subcategory name (e.g., "skills", "dream_roles")
-        extracted_data: Extracted information dictionary
-        user_token: User JWT token (optional)
+        entity: Entity name (e.g., "professional_aspirations")
+        conversation_id: Conversation UUID for source tracing
 
     Returns:
         Dict with "success", "context", "resource", and "created_ids"
     """
-    logger.info(f"Storing extracted information: subcategory={subcategory}")
+    logger.info(f"Storing memory card: {category}/{entity}/{subcategory}")
 
-    # Ensure user profile exists before storing data
-    if user_token:
-        if not ensure_profile_exists(user_token):
-            logger.error("Failed to ensure profile exists, cannot store information")
-            return {"success": False, "error": "Profile creation failed"}
-    else:
-        logger.warning("No user token provided, skipping profile check")
+    content_str = extracted_data.get("content", "{}")
+    now = datetime.now(timezone.utc).isoformat()
+    card_id = str(uuid.uuid4())
 
-    # Create memory card
-    memory_card = _make_request(
-        "POST", "/api/harmonia/journal/memory-cards", 
-        data={
-            "userId": user_id,
-            "content": extracted_data.get("content"),
-            "type": extracted_data.get("type"),
-            "confidence": 0.9,
-            "source": {
-                "type": "chat",
-                "sourceId": "test",
-                "extractedAt": "2026-01-21T00:00:00Z"
-            },
-            "status": "proposed",
-            # "tags": extracted_data.get("tags", []),
-            "linkedContexts": [category, subcategory],
-            "createdAt": datetime.now().isoformat(),
-            "validatedAt": None,
-        }, 
-        user_token=user_token
-    )
-    if memory_card is not None:
-        logger.info(f"✓ Created memory card: {memory_card}")
+    # Resolve card type from entity/sub_entity (must match DB values)
+    card_type = _resolve_card_type(entity, subcategory)
+
+    # Source provenance (JSONB column in DB)
+    source = {
+        "type": "coach",
+        "sourceId": conversation_id or "unknown",
+        "extractedAt": now,
+    }
+
+    try:
+        result = (
+            supabase.table(Tables.MEMORY_CARDS)
+            .insert({
+                "id": card_id,
+                "user_id": user_id,
+                "content": content_str,
+                "type": card_type,                        # e.g. "competence", "aspiration", "emotion"
+                "confidence": 0.9,
+                "source": source,
+                "status": "proposed",
+                "tags": [category, entity or subcategory, subcategory],
+                "linked_contexts": [category],            # e.g. ["professional"] or ["learning"]
+            })
+            .execute()
+        )
+
+        logger.info(f"Created memory card {card_id}: type={card_type} {category}/{entity}/{subcategory}")
         return {
-                "success": True,
-                "context": category,
-                "resource": "",
-                "created_ids": [memory_card.get("id")]
-            }
-    else:
-        logger.error("✗ Failed to create memory card")
-        return {"success": False, "error": "Failed to create memory card"}
+            "success": True,
+            "context": category,
+            "resource": subcategory,
+            "created_ids": [card_id],
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to insert memory card: {e}")
+        return {"success": False, "error": str(e)}

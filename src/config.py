@@ -124,6 +124,7 @@ class Tables:
     RETRIEVAL_CHUNKS = "retrieval_chunks"
     GENERAL_EMBEDDINGS_1024 = "general_embeddings_1024"
     USER_EMBEDDINGS_1024 = "user_embeddings_1024"
+    MEMORY_CARDS = "memory_cards"
 
 
 class RPCFunctions:

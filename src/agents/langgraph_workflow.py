@@ -1224,7 +1224,7 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
     Currently in DRY-RUN mode: logs what WOULD be stored without calling NextJS API.
     Set STORE_DRY_RUN = False when ready to enable actual memory card creation.
     """
-    STORE_DRY_RUN = True  # TODO: set to False when NextJS endpoints are ready
+    STORE_DRY_RUN = False
 
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])
@@ -1287,19 +1287,16 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
             state["workflow_process"].append(f"    linkedContexts: [\"{context}\", \"{sub_entity}\"]")
             state["workflow_process"].append(f"    data: {preview}")
         else:
-            if not user_token:
-                print("[WORKFLOW] Store Information: No user token, skipping API call")
-                state["workflow_process"].append(f"  ⚠️ No user token, skipping {sub_entity}")
-                continue
-
             try:
                 from src.utils.harmonia_api import store_extracted_information
                 result = store_extracted_information(
+                    supabase=state["supabase"],
                     category=context,
                     subcategory=sub_entity,
                     extracted_data=extracted_data,
                     user_id=user_id,
-                    user_token=user_token
+                    entity=entity,
+                    conversation_id=state.get("conversation_id"),
                 )
 
                 if result.get("success"):
