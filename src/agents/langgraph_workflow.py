@@ -1105,12 +1105,37 @@ async def _extract_by_entity(
                     print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → SKIPPED (not in taxonomy: {list(sub_entities.keys())})")
                     continue
 
-                # Normalize lists → use first dict item
-                if isinstance(sub_data, list):
-                    sub_data = sub_data[0] if sub_data and isinstance(sub_data[0], dict) else sub_data
-
                 # Skip empty/null values
                 if sub_data is None or sub_data == "" or sub_data == []:
+                    continue
+
+                # Lists of dicts → one card per item (e.g. skills: [{name: "python"}, {name: "js"}])
+                if isinstance(sub_data, list) and sub_data and isinstance(sub_data[0], dict):
+                    for item in sub_data:
+                        filled = {k: v for k, v in item.items() if v is not None and v != "" and v != []}
+                        if not filled:
+                            continue
+                        parts = [f"{k}={str(v)[:60]}" for k, v in filled.items()]
+                        summary = ", ".join(parts)
+                        print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → {summary}")
+                        state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → {summary}")
+
+                        extraction_data = dict(item)
+                        extraction_data["content"] = json.dumps(item, default=str)
+                        extraction_data["type"] = "fact"
+
+                        all_extractions.append({
+                            "context": context,
+                            "entity": entity,
+                            "sub_entity": sub_key,
+                            "data": extraction_data,
+                        })
+                        found_any = True
+                    continue
+
+                # Single list value (non-dict) → treat as simple value
+                if isinstance(sub_data, list):
+                    merged_simple_values[sub_key] = sub_data
                     continue
 
                 if isinstance(sub_data, dict):
