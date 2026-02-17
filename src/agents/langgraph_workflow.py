@@ -981,14 +981,17 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
 
 def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, str, dict]]:
     """
-    Collect all (context, entity, entity_info) from the hierarchical classification.
+    Collect ALL entities for each detected context.
 
-    The ONNX classifier provides context + entity (2 levels).
-    Returns entity-level paths with their taxonomy info so the extraction node
-    can make 1 LLM call per entity instead of N calls per sub-entity.
+    The entity model serves as a CONTEXT filter (top entity >40% = relevant context).
+    But it often picks the wrong entity within a context (e.g., current_position
+    instead of professional_aspirations). So we send ALL entities per context
+    to the LLM and let it decide which ones have data.
 
     Returns list of tuples like:
-        [("professional", "professional_aspirations", {description, sub_entities, ...}),
+        [("professional", "current_position", {...}),
+         ("professional", "professional_aspirations", {...}),
+         ("professional", "awards", {...}),
          ...]
     """
     hier = state.get("hierarchical_classification")
@@ -1001,12 +1004,16 @@ def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, st
         CONTEXT_REGISTRY = {}
 
     paths = []
+    seen_contexts = set()
     for ctx in hier.contexts:
-        for ent in ctx.entities:
-            entity_info = {}
-            if ctx.context in CONTEXT_REGISTRY:
-                entity_info = CONTEXT_REGISTRY[ctx.context]["entities"].get(ent.entity, {})
-            paths.append((ctx.context, ent.entity, entity_info))
+        if ctx.context in seen_contexts:
+            continue
+        seen_contexts.add(ctx.context)
+
+        # Include ALL entities for this context, not just the detected one
+        if ctx.context in CONTEXT_REGISTRY:
+            for entity_key, entity_info in CONTEXT_REGISTRY[ctx.context]["entities"].items():
+                paths.append((ctx.context, entity_key, entity_info))
     return paths
 
 

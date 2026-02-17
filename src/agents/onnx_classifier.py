@@ -217,11 +217,11 @@ class HierarchicalONNXClassifier:
           → for each entity: sub-entities (sigmoid multi-label)
     """
 
-    # Entity model threshold: each context has ~6 entities (softmax).
-    # Random uniform = ~17%. A real signal gives the top entity >50%.
-    # 40% filters out noise while keeping legitimate detections.
+    # Entity model threshold: each context has ~6-17 entities (softmax).
+    # Random uniform = ~10-17%. A real signal gives the top entity >50%.
+    # 30% filters noise while keeping legitimate detections like social (34%).
     # This is the ONLY filter — routing doesn't limit which contexts to explore.
-    ENTITY_THRESHOLD = 0.40
+    ENTITY_THRESHOLD = 0.30
 
     def __init__(self, model_path: str):
         model_dir = Path(model_path)
