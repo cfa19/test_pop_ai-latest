@@ -1109,23 +1109,24 @@ async def _extract_by_entity(
                 if sub_data is None or sub_data == "" or sub_data == []:
                     continue
 
-                # Lists of dicts → ONE card with all items (e.g. skills: [{name: "python"}, {name: "js"}])
+                # Lists of dicts → flatten names into ONE card
+                # e.g. skills: [{name: "python"}, {name: "javascript"}] → {name: "python, javascript"}
                 if isinstance(sub_data, list) and sub_data and isinstance(sub_data[0], dict):
-                    cleaned_items = []
-                    for item in sub_data:
-                        filled = {k: v for k, v in item.items() if v is not None and v != "" and v != []}
-                        if filled:
-                            cleaned_items.append(filled)
-                    if not cleaned_items:
+                    names = [
+                        it.get("name") or str(it)
+                        for it in sub_data
+                        if any(v for v in it.values() if v is not None and v != "")
+                    ]
+                    if not names:
                         continue
 
-                    names = [it.get("name", str(it)) for it in cleaned_items]
                     summary = ", ".join(str(n) for n in names)
-                    print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → [{summary}]")
-                    state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → [{summary}]")
+                    print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → {summary}")
+                    state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → {summary}")
 
-                    extraction_data = {sub_key: cleaned_items}
-                    extraction_data["content"] = json.dumps(cleaned_items, default=str)
+                    flat_data = {"name": summary}
+                    extraction_data = dict(flat_data)
+                    extraction_data["content"] = json.dumps(flat_data, default=str)
                     extraction_data["type"] = "fact"
 
                     all_extractions.append({

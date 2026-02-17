@@ -353,32 +353,40 @@ class HierarchicalONNXClassifier:
                   f"{', '.join(f'{c}={p:.1%}' for c, p in secondary_contexts)}")
             is_context = True
 
-        # Get all contexts above threshold from routing
-        detected_contexts = self._get_contexts_above_threshold(route_probs)
+        # When the route IS a context, always explore ALL contexts that have
+        # entity models (max TOP_N_CONTEXTS). The model concentrates probability
+        # on one context (~97%), leaving <5% for secondary contexts — too low for
+        # any threshold. Instead, explore broadly and let the entity model + LLM
+        # extraction filter false positives (empty extraction → no card created).
+        TOP_N_CONTEXTS = 3
+        all_context_probs = {
+            label: prob for label, prob in route_probs.items()
+            if label in CONTEXT_TYPES
+        }
 
-        # Also use contexts model to refine (if available)
-        # Use sigmoid (multi-label) only if the model was actually trained that way.
-        # A softmax model fed through sigmoid gives extreme probs (98% vs 2%)
-        # which kills secondary context detection.
-        if self.contexts_model and detected_contexts:
+        # Also get contexts model probabilities for logging
+        if self.contexts_model:
             if self.contexts_model.is_multilabel:
-                active_labels, ctx_probs = self.contexts_model.predict_multi_label(message)
+                _, ctx_probs = self.contexts_model.predict_multi_label(message)
             else:
                 _, _, ctx_probs = self.contexts_model.predict_single_label(message)
-
-            # Log all context probabilities for debugging
             ctx_debug = ", ".join(f"{c}={p:.1%}" for c, p in sorted(ctx_probs.items(), key=lambda x: x[1], reverse=True) if c in CONTEXT_TYPES)
             print(f"[HIERARCHICAL ONNX] Contexts model probs: {ctx_debug}")
 
-            # Merge: use max probability from either routing or contexts model
-            # Same low threshold as CONTEXT_THRESHOLD — recall over precision
-            ctx_set = {}
-            for ctx, prob in detected_contexts:
-                ctx_set[ctx] = prob
+            # Merge: use max probability from either model
             for ctx, prob in ctx_probs.items():
-                if ctx in CONTEXT_TYPES and prob >= self.CONTEXT_THRESHOLD:
-                    ctx_set[ctx] = max(ctx_set.get(ctx, 0), prob)
-            detected_contexts = sorted(ctx_set.items(), key=lambda x: x[1], reverse=True)
+                if ctx in CONTEXT_TYPES:
+                    all_context_probs[ctx] = max(all_context_probs.get(ctx, 0), prob)
+
+        # Take top N contexts (sorted by probability) that have entity models
+        sorted_contexts = sorted(all_context_probs.items(), key=lambda x: x[1], reverse=True)
+        detected_contexts = [
+            (ctx, prob) for ctx, prob in sorted_contexts
+            if ctx in self.entity_models
+        ][:TOP_N_CONTEXTS]
+
+        ctx_list = ", ".join(f"{c}={p:.1%}" for c, p in detected_contexts)
+        print(f"[HIERARCHICAL ONNX] Exploring top {len(detected_contexts)} contexts: {ctx_list}")
 
         # =====================================================================
         # STEP 2 & 3: For each context → entities → sub-entities
