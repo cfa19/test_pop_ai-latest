@@ -699,10 +699,21 @@ _SUB_ENTITY_PRIMARY_FIELD: Dict[str, str] = {
 
 
 def _build_content(sub_entity: str, raw_data: Dict[str, Any]) -> str:
-    """Build content as JSON string so the frontend renders it as a collapsible tree."""
+    """Build content as nested JSON so the frontend renders a collapsible tree branch.
+
+    Wraps data under the sub-entity key → JsonTreeView shows a collapsible node.
+    Strips null/empty values so only meaningful data is displayed.
+    """
     if not raw_data:
-        return json.dumps({sub_entity.replace("_", " "): None})
-    return json.dumps(raw_data, ensure_ascii=False)
+        return json.dumps({sub_entity: None}, ensure_ascii=False)
+
+    # Strip nulls/empty for cleaner display
+    clean = {k: v for k, v in raw_data.items() if v is not None and v != "" and v != []}
+    if not clean:
+        return json.dumps({sub_entity: None}, ensure_ascii=False)
+
+    # Wrap under sub-entity key → creates a collapsible branch in JsonTreeView
+    return json.dumps({sub_entity: clean}, ensure_ascii=False)
 
 
 def _build_raw_data(sub_entity: str, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
