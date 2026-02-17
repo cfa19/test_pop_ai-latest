@@ -345,20 +345,27 @@ class HierarchicalONNXClassifier:
         detected_contexts = self._get_contexts_above_threshold(route_probs)
 
         # Also use contexts model to refine (if available)
+        # The contexts model is multi-label (sigmoid) so it can independently detect
+        # multiple contexts even when routing is dominated by one context.
         if self.contexts_model and detected_contexts:
-            # Use multi-label or single-label depending on model type
             if self.contexts_model.threshold and hasattr(self.contexts_model, 'predict_multi_label'):
-                # Multi-label contexts model (sigmoid) — detects multiple contexts
                 active_labels, ctx_probs = self.contexts_model.predict_multi_label(message)
             else:
-                # Single-label contexts model (softmax) — fallback
                 _, _, ctx_probs = self.contexts_model.predict_single_label(message)
+
+            # Log all context probabilities for debugging
+            ctx_debug = ", ".join(f"{c}={p:.1%}" for c, p in sorted(ctx_probs.items(), key=lambda x: x[1], reverse=True) if c in CONTEXT_TYPES)
+            print(f"[HIERARCHICAL ONNX] Contexts model probs: {ctx_debug}")
+
             # Merge: use max probability from either routing or contexts model
+            # Use a lower threshold for the contexts model since it's multi-label (sigmoid)
+            # and can independently detect secondary contexts
+            CONTEXTS_MODEL_THRESHOLD = 0.10
             ctx_set = {}
             for ctx, prob in detected_contexts:
                 ctx_set[ctx] = prob
             for ctx, prob in ctx_probs.items():
-                if ctx in CONTEXT_TYPES and prob >= self.CONTEXT_THRESHOLD:
+                if ctx in CONTEXT_TYPES and prob >= CONTEXTS_MODEL_THRESHOLD:
                     ctx_set[ctx] = max(ctx_set.get(ctx, 0), prob)
             detected_contexts = sorted(ctx_set.items(), key=lambda x: x[1], reverse=True)
 
