@@ -1094,44 +1094,66 @@ async def _extract_by_entity(
                 result = result[entity]
                 print(f"[WORKFLOW] Information Extraction: unwrapped entity key '{entity}'")
 
-            # Each key in result is a sub-entity with extracted data
+            # Separate structured sub-entities (dicts) from simple values (strings/numbers).
+            # Structured → one card per sub-entity (e.g. dream_roles, compensation_expectations)
+            # Simple → merge into one card for the entity (e.g. mentor_name + mentor_role + frequency)
             found_any = False
+            merged_simple_values = {}
+
             for sub_key, sub_data in result.items():
                 if sub_key not in sub_entities:
                     print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → SKIPPED (not in taxonomy: {list(sub_entities.keys())})")
-                    continue  # LLM returned unknown key, skip
-
-                # Check if sub_data has any non-null values
-                if isinstance(sub_data, dict):
-                    filled = {k: v for k, v in sub_data.items() if v is not None and v != "" and v != []}
-                elif sub_data is not None and sub_data != "" and sub_data != []:
-                    filled = {"value": sub_data}
-                else:
-                    filled = {}
-
-                if not filled:
                     continue
 
-                # Log
-                parts = []
-                for k, v in filled.items():
-                    if isinstance(v, list):
-                        parts.append(f"{k}=[{', '.join(str(x) for x in v[:3])}]")
-                    else:
-                        s = str(v)
-                        parts.append(f"{k}={s[:60] + '…' if len(s) > 60 else s}")
-                summary = ", ".join(parts)
-                print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → {summary}")
-                state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → {summary}")
+                # Normalize lists → use first dict item
+                if isinstance(sub_data, list):
+                    sub_data = sub_data[0] if sub_data and isinstance(sub_data[0], dict) else sub_data
 
-                extraction_data = sub_data if isinstance(sub_data, dict) else {"value": sub_data}
-                extraction_data["content"] = json.dumps(sub_data)
+                # Skip empty/null values
+                if sub_data is None or sub_data == "" or sub_data == []:
+                    continue
+
+                if isinstance(sub_data, dict):
+                    # Structured data (has EXTRACTION_SCHEMAS fields) → separate card
+                    filled = {k: v for k, v in sub_data.items() if v is not None and v != "" and v != []}
+                    if not filled:
+                        continue
+
+                    parts = [f"{k}={str(v)[:60]}" for k, v in filled.items()]
+                    summary = ", ".join(parts)
+                    print(f"[WORKFLOW] Information Extraction: {context}/{entity}/{sub_key} → {summary}")
+                    state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_key} → {summary}")
+
+                    extraction_data = dict(sub_data)
+                    extraction_data["content"] = json.dumps(sub_data, default=str)
+                    extraction_data["type"] = "fact"
+
+                    all_extractions.append({
+                        "context": context,
+                        "entity": entity,
+                        "sub_entity": sub_key,
+                        "data": extraction_data,
+                    })
+                    found_any = True
+                else:
+                    # Simple value (string/number) → collect for merging into one card
+                    merged_simple_values[sub_key] = sub_data
+
+            # Merge simple values into one card per entity
+            if merged_simple_values:
+                parts = [f"{k}={str(v)[:60]}" for k, v in merged_simple_values.items()]
+                summary = ", ".join(parts)
+                print(f"[WORKFLOW] Information Extraction: {context}/{entity} (merged) → {summary}")
+                state["workflow_process"].append(f"  ✅ {context}/{entity} (merged) → {summary}")
+
+                extraction_data = dict(merged_simple_values)
+                extraction_data["content"] = json.dumps(merged_simple_values, default=str)
                 extraction_data["type"] = "fact"
 
                 all_extractions.append({
                     "context": context,
                     "entity": entity,
-                    "sub_entity": sub_key,
+                    "sub_entity": entity,  # use entity name when merged
                     "data": extraction_data,
                 })
                 found_any = True
