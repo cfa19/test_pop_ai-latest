@@ -222,6 +222,10 @@ class HierarchicalONNXClassifier:
     # returns empty → no card), but false negatives lose user information entirely.
     CONTEXT_THRESHOLD = 0.05     # include context if routing prob > 5%
     ENTITY_THRESHOLD = 0.15      # include entity if softmax prob > 15%
+    # When the primary route is non-context (rag_query, chitchat, off_topic),
+    # require a much higher bar to explore secondary contexts.
+    # This prevents spurious memory cards for "what is PopSkills?" etc.
+    NON_CONTEXT_SECONDARY_THRESHOLD = 0.20
 
     def __init__(self, model_path: str):
         model_dir = Path(model_path)
@@ -329,8 +333,12 @@ class HierarchicalONNXClassifier:
 
         if not is_context:
             # Non-context type (rag_query, chitchat, off_topic)
-            # But still check if any context has high enough probability
-            secondary_contexts = self._get_contexts_above_threshold(route_probs)
+            # Use higher threshold — only explore contexts when the user clearly
+            # mentioned context-relevant info alongside their question.
+            secondary_contexts = [
+                (c, p) for c, p in self._get_contexts_above_threshold(route_probs)
+                if p >= self.NON_CONTEXT_SECONDARY_THRESHOLD
+            ]
             if not secondary_contexts:
                 return HierarchicalClassification(
                     route=route,
@@ -341,6 +349,8 @@ class HierarchicalONNXClassifier:
                 )
             # Has secondary contexts worth exploring (e.g., rag_query 0.4 + professional 0.3)
             # Still mark as non-context primary, but explore context paths
+            print(f"[HIERARCHICAL ONNX] Non-context route '{route}' has secondary contexts: "
+                  f"{', '.join(f'{c}={p:.1%}' for c, p in secondary_contexts)}")
             is_context = True
 
         # Get all contexts above threshold from routing
