@@ -346,7 +346,13 @@ class HierarchicalONNXClassifier:
 
         # Also use contexts model to refine (if available)
         if self.contexts_model and detected_contexts:
-            _, _, ctx_probs = self.contexts_model.predict_single_label(message)
+            # Use multi-label or single-label depending on model type
+            if self.contexts_model.threshold and hasattr(self.contexts_model, 'predict_multi_label'):
+                # Multi-label contexts model (sigmoid) — detects multiple contexts
+                active_labels, ctx_probs = self.contexts_model.predict_multi_label(message)
+            else:
+                # Single-label contexts model (softmax) — fallback
+                _, _, ctx_probs = self.contexts_model.predict_single_label(message)
             # Merge: use max probability from either routing or contexts model
             ctx_set = {}
             for ctx, prob in detected_contexts:

@@ -164,24 +164,31 @@ def prepare_level0_data(data_dir):
 
 def prepare_level1_data(data_dir):
     """
-    Level 1: Context classifier (5 classes, softmax).
-    Only uses hierarchical context data.
+    Level 1: Context classifier (5 classes, sigmoid multi-label).
+    Uses ALL contexts from each message, not just the first.
+    This allows detecting multiple contexts (e.g., professional + learning).
+    Returns binary label vectors for multi-label training.
     """
+    # First pass: collect all context names
+    all_contexts = ["professional", "learning", "social", "psychological", "personal"]
+    label_map = {ctx: i for i, ctx in enumerate(all_contexts)}
+    num_labels = len(all_contexts)
+
     texts, labels = [], []
-    label_map = {}
-    label_idx = 0
 
     all_contexts_path = os.path.join(data_dir, "all_contexts.csv")
     if os.path.exists(all_contexts_path):
         rows = load_hierarchical_csv(all_contexts_path)
         for row in rows:
-            primary_context = row["contexts"][0] if row["contexts"] else None
-            if primary_context:
-                if primary_context not in label_map:
-                    label_map[primary_context] = label_idx
-                    label_idx += 1
+            if not row["contexts"]:
+                continue
+            binary_vector = [0] * num_labels
+            for ctx in row["contexts"]:
+                if ctx in label_map:
+                    binary_vector[label_map[ctx]] = 1
+            if sum(binary_vector) > 0:
                 texts.append(row["message"])
-                labels.append(label_map[primary_context])
+                labels.append(binary_vector)
 
     return texts, labels, label_map
 
@@ -606,11 +613,11 @@ def main():
     # =========================================================================
     if 1 in levels_to_train:
         print(f"\n{'='*80}")
-        print("CONTEXTS - professional, learning, social, psychological, personal")
+        print("CONTEXTS (multi-label) - professional, learning, social, psychological, personal")
         print(f"{'='*80}")
         texts, labels, label_map = prepare_level1_data(args.data_dir)
         if texts:
-            train_single_label(
+            train_multi_label(
                 texts, labels, label_map,
                 model_name=args.model_name,
                 output_dir=os.path.join(args.output_dir, "contexts"),
