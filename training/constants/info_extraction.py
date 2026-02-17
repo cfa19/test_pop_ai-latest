@@ -326,10 +326,18 @@ def build_entity_extraction_prompt(entity_name: str, entity_info: dict, message:
     description = entity_info.get("description", entity_name)
     sub_entities = entity_info.get("sub_entities", {})
 
-    # Build sub-entity list with descriptions
+    # Build sub-entity list with descriptions AND expected fields from EXTRACTION_SCHEMAS
     sub_entity_lines = []
     for sub_key, sub_desc in sub_entities.items():
-        sub_entity_lines.append(f'  - "{sub_key}": {sub_desc}')
+        schema = EXTRACTION_SCHEMAS.get(sub_key)
+        if schema and schema.get("fields"):
+            fields_str = ", ".join(f'"{f}"' for f in schema["fields"])
+            sub_entity_lines.append(f'  - "{sub_key}": {sub_desc}')
+            sub_entity_lines.append(f'    Expected fields: {{{fields_str}}}')
+            if schema.get("task"):
+                sub_entity_lines.append(f'    Task: {schema["task"]}')
+        else:
+            sub_entity_lines.append(f'  - "{sub_key}": {sub_desc}')
     sub_entity_block = "\n".join(sub_entity_lines)
 
     return f"""Extract information about "{entity_name}" from this message.
@@ -344,8 +352,12 @@ STRICT RULES:
 - Extract ONLY information that is EXPLICITLY written in the message.
 - DO NOT infer, assume, or deduce anything beyond what is directly stated.
 - If the message does not mention anything about a sub-entity, OMIT it entirely.
-- Return a JSON object where each key is a sub-entity name and its value is the extracted data.
+- For each sub-entity you include, return an OBJECT with the expected fields listed above.
+- Set fields to null if the message does not provide information for that specific field.
 - If no relevant information exists at all, return an empty object: {{}}
+
+Example format for a sub-entity with fields {{"title", "company", "industry"}}:
+  "dream_roles": {{"title": "CEO", "company": null, "industry": "AI"}}
 
 Return ONLY the JSON object, no additional text."""
 
