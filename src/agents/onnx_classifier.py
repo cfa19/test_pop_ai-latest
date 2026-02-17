@@ -218,8 +218,10 @@ class HierarchicalONNXClassifier:
     """
 
     # Thresholds for secondary detections (primary = argmax, always included)
-    CONTEXT_THRESHOLD = 0.15     # include context if routing prob > 15%
-    ENTITY_THRESHOLD = 0.20      # include entity if softmax prob > 20%
+    # Low thresholds are intentional: false positives are cheap (extraction LLM
+    # returns empty → no card), but false negatives lose user information entirely.
+    CONTEXT_THRESHOLD = 0.05     # include context if routing prob > 5%
+    ENTITY_THRESHOLD = 0.15      # include entity if softmax prob > 15%
 
     def __init__(self, model_path: str):
         model_dir = Path(model_path)
@@ -358,14 +360,12 @@ class HierarchicalONNXClassifier:
             print(f"[HIERARCHICAL ONNX] Contexts model probs: {ctx_debug}")
 
             # Merge: use max probability from either routing or contexts model
-            # Use a lower threshold for the contexts model since it's multi-label (sigmoid)
-            # and can independently detect secondary contexts
-            CONTEXTS_MODEL_THRESHOLD = 0.10
+            # Same low threshold as CONTEXT_THRESHOLD — recall over precision
             ctx_set = {}
             for ctx, prob in detected_contexts:
                 ctx_set[ctx] = prob
             for ctx, prob in ctx_probs.items():
-                if ctx in CONTEXT_TYPES and prob >= CONTEXTS_MODEL_THRESHOLD:
+                if ctx in CONTEXT_TYPES and prob >= self.CONTEXT_THRESHOLD:
                     ctx_set[ctx] = max(ctx_set.get(ctx, 0), prob)
             detected_contexts = sorted(ctx_set.items(), key=lambda x: x[1], reverse=True)
 
