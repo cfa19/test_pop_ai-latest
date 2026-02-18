@@ -12,16 +12,8 @@ ENTITIES = {
         "name": "Personal Life",
         "description": "Life stage, family situation, relationship status, children, dependents, life transitions and priorities.",
         "sub_entities": {
-            "life_stage": "Life stage (early career, mid-career, settling down, etc.)",
-            "age_range": "Age bracket",
-            "relationship_status": "Single, married, partnered, divorced",
-            "partner": "Partner's situation and career",
-            "children": "Kids and ages",
-            "dependents": "Other dependents (parents, family members)",
-            "childcare": "Childcare arrangements",
-            "family_support": "Support system (in-laws, relatives, friends)",
-            "life_transitions": "Recent or upcoming transitions",
-            "life_priorities": "Current life priorities"
+            "demographics": "Age range, life stage (early career, mid-career, settling down)",
+            "family_situation": "Relationship status, partner, children, dependents, support system, transitions, priorities"
         },
         "examples": [
             "I'm in my early 30s with a young family just had our second kid",
@@ -62,13 +54,7 @@ ENTITIES = {
         "name": "Financial Situation",
         "description": "Financial stability, debt, savings, dependents, risk tolerance, financial stress.",
         "sub_entities": {
-            "stability": "Financial stability level",
-            "debt": "Debt situation",
-            "emergency_fund": "Savings cushion",
-            "dependents": "Financial dependents",
-            "income_dependency": "Single or dual income",
-            "risk_tolerance": "Financial risk tolerance",
-            "stress_level": "Financial stress"
+            "financial_situation": "Financial stability, debt, savings, dependents, income dependency, risk tolerance, financial stress"
         },
         "examples": [
             "I have 45k in student loan debt still paying it off",
@@ -85,11 +71,7 @@ ENTITIES = {
         "name": "Personal Goals",
         "description": "Non-career life goals: health, family, relationships, personal growth, lifestyle.",
         "sub_entities": {
-            "non_career_goals": "Personal life goals",
-            "category": "Health, family, relationship, hobby, etc.",
-            "priority": "Importance level",
-            "timeframe": "When they want to achieve it",
-            "progress": "Current progress"
+            "life_goals": "Non-career life goals: health, family, relationships, personal growth, lifestyle, relocation"
         },
         "examples": [
             "I want to maintain sobriety that's my highest priority above everything",
@@ -106,10 +88,7 @@ ENTITIES = {
         "name": "Lifestyle Preferences",
         "description": "Work-life balance importance, ideal schedule, flexibility needs, non-negotiables.",
         "sub_entities": {
-            "work_life_balance": "How important balance is",
-            "ideal_schedule": "Preferred work schedule",
-            "flexibility_needs": "What flexibility they need",
-            "non_negotiables": "What they won't compromise on"
+            "lifestyle_preferences": "Work-life balance importance, ideal schedule, flexibility needs, non-negotiables"
         },
         "examples": [
             "Work-life balance is critical for me 10 out of 10 importance",
@@ -126,11 +105,7 @@ ENTITIES = {
         "name": "Life Constraints",
         "description": "Limitations that affect career options: family, health, location, financial, time.",
         "sub_entities": {
-            "constraint_type": "Family, health, location, financial",
-            "description": "What the constraint is",
-            "impact_on_career": "How it affects career choices",
-            "severity": "How limiting it is",
-            "timeframe": "How long it will last"
+            "life_constraints": "Constraint type, description, career impact, severity, and duration"
         },
         "examples": [
             "I can't travel for work because of childcare responsibilities",
@@ -148,8 +123,8 @@ ENTITIES = {
 
 ENTITY_GUIDANCE = {
     "personal_life": """
-CRITICAL: Personal life = family situation, life stage, relationships, dependents.
-✓ CORRECT: "I'm married with 2 kids", "I take care of my elderly mother"
+CRITICAL: Two sub_entities: demographics (age, life stage) and family_situation (relationships, children, support, transitions).
+✓ CORRECT: "I'm married with 2 kids", "I'm in my early 30s", "I take care of my elderly mother"
 ✗ WRONG: "I value family" (that's personal_values!)
 ✗ WRONG: "I want more family time" (that's personal_goals or lifestyle_preferences!)""",
 
@@ -162,13 +137,14 @@ CRITICAL: MULTI-LABEL entity. Physical, mental, addictions, overall wellbeing.
 A message like "I have chronic pain AND anxiety AND I'm sober, overall 5/10" touches all four.""",
 
     "financial_situation": """
-CRITICAL: Current financial STATE, not career salary goals.
+CRITICAL: Current financial STATE. Uses financial_situation schema with fields:
+stability, debt, savings, incomeDependency, riskTolerance, financialStress.
 ✓ CORRECT: "I have 45k in student debt", "I'm paycheck to paycheck"
 ✗ WRONG: "I want to earn 200k" (that's professional > professional_aspirations!)""",
 
     "personal_goals": """
-CRITICAL: NON-CAREER life goals.
-✓ CORRECT: "I want to run a marathon", "I want more family time"
+CRITICAL: NON-CAREER life goals. Uses life_goals schema with fields: title, description, targetDate, progress.
+✓ CORRECT: "I want to run a marathon", "I want more family time", "I'm planning to move to Barcelona"
 ✗ WRONG: "I want to become a VP" (that's professional > professional_aspirations!)""",
 
     "lifestyle_preferences": """
@@ -185,50 +161,91 @@ CRITICAL: Things that RESTRICT your career options.
 
 MULTI_LABEL_EXAMPLES = [
     {
-        "message": "I'm married with a 1.5 year old and another on the way, my in-laws help with childcare 3 days a week which is a lifesaver, but I have about 40k in student debt and I'm the primary earner so I can't afford career risks right now",
+        "message": (
+            "I'm married with a 1.5 year old and another on the way, my in-laws "
+            "help with childcare 3 days a week which is a lifesaver, but I have "
+            "about 40k in student debt and I'm the primary earner so I can't "
+            "afford career risks right now"
+        ),
         "entities": ["personal_life", "financial_situation", "life_constraints"],
-        "sub_entities": ["relationship_status", "children", "family_support", "debt", "income_dependency", "constraint_type", "impact_on_career"]
+        "sub_entities": ["family_situation", "financial_situation", "life_constraints"]
     },
     {
-        "message": "I have chronic back pain and anxiety that's managed with medication, I'm also 9 months sober and attend AA three times a week, overall my wellbeing is about a 5 out of 10 because the physical pain really gets me down some days",
+        "message": (
+            "I have chronic back pain and anxiety that's managed with medication, "
+            "I'm also 9 months sober and attend AA three times a week, overall my "
+            "wellbeing is about a 5 out of 10 because the physical pain really "
+            "gets me down some days"
+        ),
         "entities": ["health_and_wellbeing"],
-        "sub_entities": ["physical_health", "mental_health", "addictions_or_recovery", "overall_wellbeing"]
+        "sub_entities": [
+            "physical_health", "mental_health",
+            "addictions_or_recovery", "overall_wellbeing"
+        ]
     },
     {
-        "message": "My biggest goal right now is maintaining sobriety and being more present with my family, I won't work more than 45 hours a week and remote work is non-negotiable because I need to be near my AA meetings and my kids school",
+        "message": (
+            "My biggest goal right now is maintaining sobriety and being more "
+            "present with my family, I won't work more than 45 hours a week and "
+            "remote work is non-negotiable because I need to be near my AA "
+            "meetings and my kids school"
+        ),
         "entities": ["personal_goals", "lifestyle_preferences", "life_constraints"],
-        "sub_entities": ["non_career_goals", "priority", "work_life_balance", "non_negotiables", "constraint_type", "description"]
+        "sub_entities": ["life_goals", "lifestyle_preferences", "life_constraints"]
     },
     {
-        "message": "I just got married and we bought our first house in Austin, family is my top priority but I need more fulfillment at work",
+        "message": (
+            "I just got married and we bought our first house in Austin, "
+            "family is my top priority but I need more fulfillment at work"
+        ),
         "entities": ["personal_life"],
-        "sub_entities": ["life_transitions", "life_priorities"]
+        "sub_entities": ["family_situation"]
     },
     {
-        "message": "I'm in my early 30s with no kids so I have a lot of flexibility in my career choices, my main personal goal is to maintain work-life balance",
+        "message": (
+            "I'm in my early 30s with no kids so I have a lot of flexibility "
+            "in my career choices, my main personal goal is to maintain "
+            "work-life balance"
+        ),
         "entities": ["personal_life", "personal_goals"],
-        "sub_entities": ["life_stage", "children", "non_career_goals"]
+        "sub_entities": ["demographics", "family_situation", "life_goals"]
     },
     {
-        "message": "I can't relocate because my partner has tenure at the university, but my parents help with our mortgage so expenses are manageable even on my salary",
+        "message": (
+            "I can't relocate because my partner has tenure at the university, "
+            "but my parents help with our mortgage so expenses are manageable "
+            "even on my salary"
+        ),
         "entities": ["life_constraints", "financial_situation"],
-        "sub_entities": ["constraint_type", "impact_on_career", "stability"]
+        "sub_entities": ["life_constraints", "financial_situation"]
     },
     {
-        "message": "My goal is to run a marathon next year and I've been training 4 days a week, health is important to me",
+        "message": (
+            "My goal is to run a marathon next year and I've been training "
+            "4 days a week, health is important to me"
+        ),
         "entities": ["personal_goals"],
-        "sub_entities": ["non_career_goals", "timeframe", "progress"]
+        "sub_entities": ["life_goals"]
     },
     {
-        "message": "I'm dealing with financial stress because I burned through most of my savings, my spouse is supportive but we're now a single income family with two kids",
+        "message": (
+            "I'm dealing with financial stress because I burned through most "
+            "of my savings, my spouse is supportive but we're now a single "
+            "income family with two kids"
+        ),
         "entities": ["financial_situation", "personal_life"],
-        "sub_entities": ["stress_level", "emergency_fund", "income_dependency", "children", "dependents"]
+        "sub_entities": ["financial_situation", "family_situation"]
     }
 ]
 
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural personal context messages for career coaching. Always respond with valid JSON."""
+MESSAGE_GENERATION_SYSTEM_PROMPT = (
+    "You are an expert at generating natural personal context messages "
+    "for career coaching. Always respond with valid JSON."
+)
 
-SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural personal messages for career coaching specifically about {entity_name} > {sub_entity_name}.
+SINGLE_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural personal messages for career \
+coaching specifically about {entity_name} > {sub_entity_name}.
 
 Context: Personal
 Entity: {entity_name}
@@ -253,7 +270,9 @@ Example messages for {entity_name}:
 Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
-MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple personal topics in a single message.
+MULTI_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} natural, compound messages for career coaching \
+that COMBINE multiple personal topics in a single message.
 
 Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 

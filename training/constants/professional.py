@@ -12,10 +12,7 @@ ENTITIES = {
         "name": "Current Position",
         "description": "Current job title, employer, compensation, and tenure.",
         "sub_entities": {
-            "role": "Current job title/role",
-            "company": "Current employer",
-            "compensation": "Current salary and total comp",
-            "start_date": "When started current role"
+            "current_position": "Current job title, employer, compensation, and tenure"
         },
         "examples": [
             "I'm currently a Senior Product Manager at Google",
@@ -34,11 +31,7 @@ ENTITIES = {
         "name": "Professional Experience",
         "description": "Past roles, employers, responsibilities, achievements, and duration. MUST use action verbs describing real work.",
         "sub_entities": {
-            "past_roles": "Previous job titles",
-            "past_companies": "Previous employers",
-            "responsibilities": "What they did in past roles",
-            "achievements": "Accomplishments and impact metrics",
-            "duration": "How long in each role"
+            "experiences": "Past roles, employers, responsibilities, achievements, and duration"
         },
         "examples": [
             "I worked at Microsoft for 3 years as a PM",
@@ -72,7 +65,11 @@ ENTITIES = {
     },
     "professional_aspirations": {
         "name": "Professional Aspirations",
-        "description": "Career goals: dream roles, target companies/industries, salary expectations, desired work environment, career change considerations, job search status.",
+        "description": (
+            "Career goals: dream roles, target companies/industries, salary "
+            "expectations, desired work environment, career change "
+            "considerations, job search status."
+        ),
         "sub_entities": {
             "dream_roles": "Desired roles, target companies, target industries, career goals",
             "compensation_expectations": "Target salary, minimum acceptable, total comp goals",
@@ -99,13 +96,13 @@ ENTITIES = {
 
 ENTITY_GUIDANCE = {
     "current_position": """
-CRITICAL: Current position = what you do RIGHT NOW. Current employer, current title, current pay.
+CRITICAL: Current position = what you do RIGHT NOW. Uses current_position schema with fields: title, company, compensation, startDate, department.
 ✓ CORRECT: "I'm a PM at Google", "I make 150k base"
 ✗ WRONG: "I worked at Microsoft" (that's professional_experience—PAST)
 ✗ WRONG: "I want to become a VP" (that's professional_aspirations!)""",
 
     "professional_experience": """
-CRITICAL: PAST work. Previous roles, employers, responsibilities, achievements.
+CRITICAL: PAST work. Uses experiences schema with fields: role, company, description, startDate, endDate, achievements.
 Must use ACTION VERBS: Managed, Led, Built, Oversaw, Worked as, Spent X years...
 ✓ CORRECT: "I worked at Amazon for 3 years", "I led a team of 10"
 ✗ WRONG: "I currently work at..." (that's current_position!)""",
@@ -128,35 +125,63 @@ CRITICAL: Professional awards from EMPLOYERS or INDUSTRY.
 
 MULTI_LABEL_EXAMPLES = [
     {
-        "message": "I'm currently a Senior PM at Google making about 280k total comp, but I want to become a VP of Product at a startup in the next 2 years, I'm actively interviewing at a few Series B companies right now",
+        "message": (
+            "I'm currently a Senior PM at Google making about 280k total comp, "
+            "but I want to become a VP of Product at a startup in the next 2 years, "
+            "I'm actively interviewing at a few Series B companies right now"
+        ),
         "entities": ["current_position", "professional_aspirations"],
-        "sub_entities": ["role", "company", "compensation", "dream_roles", "desired_work_environment", "job_search_status"]
+        "sub_entities": ["current_position", "dream_roles", "desired_work_environment", "job_search_status"]
     },
     {
-        "message": "I worked at Amazon for 5 years leading a team of 12 engineers and launched a feature that saved 2M in costs, now I'm at a startup as CTO but honestly I'm thinking about going back to big tech the pay cut is brutal",
+        "message": (
+            "I worked at Amazon for 5 years leading a team of 12 engineers and "
+            "launched a feature that saved 2M in costs, now I'm at a startup as CTO "
+            "but honestly I'm thinking about going back to big tech the pay cut is brutal"
+        ),
         "entities": ["professional_experience", "current_position", "professional_aspirations"],
-        "sub_entities": ["past_companies", "responsibilities", "achievements", "duration", "role", "career_change_considerations"]
+        "sub_entities": ["experiences", "current_position", "career_change_considerations"]
     },
     {
-        "message": "I want to earn at least 200k base in my next role, I'm looking for a hybrid setup at a Series C or later company, I won't work at a place without good work-life balance that's a deal-breaker for me",
+        "message": (
+            "I want to earn at least 200k base in my next role, I'm looking for a "
+            "hybrid setup at a Series C or later company, I won't work at a place "
+            "without good work-life balance that's a deal-breaker for me"
+        ),
         "entities": ["professional_aspirations"],
         "sub_entities": ["compensation_expectations", "desired_work_environment", "dream_roles"]
     },
     {
-        "message": "I spent 10 years at Microsoft going from junior dev to senior engineer, my biggest achievement was architecting the new billing system that handles 50M transactions, I got promoted 4 times and won the engineering excellence award",
+        "message": (
+            "I spent 10 years at Microsoft going from junior dev to senior engineer, "
+            "my biggest achievement was architecting the new billing system that handles "
+            "50M transactions, I got promoted 4 times and won the engineering excellence award"
+        ),
         "entities": ["professional_experience", "awards"],
-        "sub_entities": ["past_companies", "past_roles", "duration", "achievements", "responsibilities", "awards"]
+        "sub_entities": ["experiences", "awards"]
     },
     {
-        "message": "My dream is to be CPO at a mission-driven company ideally in edtech or healthtech, I need at least 250k total comp and remote work is non-negotiable, I'm not in a rush though I'm giving myself 2 years to make the move",
+        "message": (
+            "My dream is to be CPO at a mission-driven company ideally in edtech or "
+            "healthtech, I need at least 250k total comp and remote work is non-negotiable, "
+            "I'm not in a rush though I'm giving myself 2 years to make the move"
+        ),
         "entities": ["professional_aspirations"],
         "sub_entities": ["dream_roles", "compensation_expectations", "desired_work_environment", "job_search_status"]
     }
 ]
 
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural professional context messages for career coaching. Generate messages that sound like real people talking about their career. Cover DIVERSE professions: tech, healthcare, trades, education, finance, creative, service industry, military, government, etc. Always respond with valid JSON."""
+MESSAGE_GENERATION_SYSTEM_PROMPT = (
+    "You are an expert at generating natural professional context messages for "
+    "career coaching. Generate messages that sound like real people talking about "
+    "their career. Cover DIVERSE professions: tech, healthcare, trades, education, "
+    "finance, creative, service industry, military, government, etc. "
+    "Always respond with valid JSON."
+)
 
-SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural professional messages for career coaching specifically about {entity_name} > {sub_entity_name}.
+SINGLE_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural professional messages for career \
+coaching specifically about {entity_name} > {sub_entity_name}.
 
 Context: Professional
 Entity: {entity_name}
@@ -181,7 +206,9 @@ Example messages for {entity_name}:
 Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
-MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple professional topics in a single message.
+MULTI_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} natural, compound messages for career coaching \
+that COMBINE multiple professional topics in a single message.
 
 Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 

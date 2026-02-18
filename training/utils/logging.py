@@ -1,6 +1,23 @@
 from typing import List, Tuple
+
 import pandas as pd
-from training.constants import *
+
+from training.constants import (
+    CHITCHAT_CATEGORIES,
+    CONTEXT_REGISTRY,
+    OFF_TOPIC_CATEGORIES,
+    RAG_QUERY_CATEGORIES,
+)
+
+# Build flat lookup: entity_key -> display name
+_CATEGORY_NAMES = {}
+for _ctx_data in CONTEXT_REGISTRY.values():
+    for _key, _entity in _ctx_data["entities"].items():
+        _CATEGORY_NAMES[_key] = _entity["name"]
+for _cats in [RAG_QUERY_CATEGORIES, CHITCHAT_CATEGORIES, OFF_TOPIC_CATEGORIES]:
+    for _key, _cat in _cats.items():
+        _CATEGORY_NAMES[_key] = _cat["name"]
+
 
 def print_statistics(messages: List[Tuple]):
     """Print generation statistics."""
@@ -17,31 +34,19 @@ def print_statistics(messages: List[Tuple]):
     else:
         df = pd.DataFrame(messages, columns=["message", "category", "subcategory"])
 
-    print(f"\nOverall:")
+    print("\nOverall:")
     print(f"  Total messages: {len(df):,}")
     print(f"  Unique messages: {df['message'].nunique():,}")
     print(f"  Categories: {len(df['subcategory'].unique())}")
 
-    print(f"\nBy subcategory:")
+    print("\nBy subcategory:")
     for category_key in df["subcategory"].unique():
-        # Try all category dictionaries
-        category_name = (
-            ASPIRATION_CATEGORIES.get(category_key, {}).get("name") or
-            PROFESSIONAL_CATEGORIES.get(category_key, {}).get("name") or
-            PSYCHOLOGICAL_CATEGORIES.get(category_key, {}).get("name") or
-            LEARNING_CATEGORIES.get(category_key, {}).get("name") or
-            SOCIAL_CATEGORIES.get(category_key, {}).get("name") or
-            EMOTIONAL_CATEGORIES.get(category_key, {}).get("name") or
-            RAG_QUERY_CATEGORIES.get(category_key, {}).get("name") or
-            CHITCHAT_CATEGORIES.get(category_key, {}).get("name") or
-            OFF_TOPIC_CATEGORIES.get(category_key, {}).get("name") or
-            category_key
-        )
+        category_name = _CATEGORY_NAMES.get(category_key, category_key)
         count = len(df[df["subcategory"] == category_key])
         category_type = df[df["subcategory"] == category_key].iloc[0]["category"]
         print(f"  [{category_type.upper()}] {category_name}: {count:,} messages")
 
-    print(f"\nMessage length statistics:")
+    print("\nMessage length statistics:")
     df["length"] = df["message"].str.len()
     print(f"  Min: {df['length'].min()} chars")
     print(f"  Max: {df['length'].max()} chars")

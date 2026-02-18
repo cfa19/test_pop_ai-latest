@@ -5,8 +5,7 @@ Contains category definitions and prompt templates for generating
 chitchat training data (greetings, thanks, farewells, etc.).
 """
 
-from typing import Dict, List
-
+from typing import List
 
 # ==============================================================================
 # CHITCHAT CATEGORIES

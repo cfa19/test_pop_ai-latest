@@ -522,7 +522,11 @@ def main():
         "--epochs",
         type=float,
         default=5,
-        help="Number of epochs for each classifier (default: 5). Supports fractions (e.g., 0.5 = half dataset). Can be overridden by --primary-epochs and --secondary-epochs"
+        help=(
+            "Number of epochs for each classifier (default: 5). "
+            "Supports fractions (e.g., 0.5 = half dataset). "
+            "Can be overridden by --primary-epochs and --secondary-epochs"
+        )
     )
     parser.add_argument(
         "--primary-epochs",
@@ -569,7 +573,11 @@ def main():
         type=float,
         default=1.0,
         metavar="N",
-        help="Evaluate on validation data every N epochs (e.g. 0.5 = twice per epoch, default: 1.0). Can be overridden by --primary-eval-every and --secondary-eval-every"
+        help=(
+            "Evaluate on validation data every N epochs "
+            "(e.g. 0.5 = twice per epoch, default: 1.0). "
+            "Can be overridden by --primary-eval-every and --secondary-eval-every"
+        )
     )
     parser.add_argument(
         "--primary-eval-every",

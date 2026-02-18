@@ -118,7 +118,7 @@ def export_model_to_onnx(model_dir: Path, output_dir: Path, model_name: str) -> 
     if is_multilabel:
         print(f"  Mode: MULTI-LABEL (sigmoid, threshold={label_config.get('threshold', 0.5)})")
     else:
-        print(f"  Mode: SINGLE-LABEL (softmax)")
+        print("  Mode: SINGLE-LABEL (softmax)")
 
     # Load model and tokenizer
     print("  Loading model...")
@@ -373,7 +373,7 @@ def main():
     metadata_path = output_dir / "hierarchy_metadata.json"
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
-    print(f"\nSaved hierarchy_metadata.json")
+    print("\nSaved hierarchy_metadata.json")
 
     # Optionally remove FP32 models
     if not args.keep_fp32:

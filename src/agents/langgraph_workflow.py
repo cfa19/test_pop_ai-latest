@@ -38,9 +38,8 @@ from src.utils.rag import hybrid_search
 from training.constants.info_extraction import (
     EXTRACTION_SCHEMAS,
     EXTRACTION_SYSTEM_MESSAGE,
-    build_extraction_prompt,
-    build_entity_extraction_prompt,
     build_combined_extraction_prompt,
+    build_extraction_prompt,
 )
 
 # =============================================================================
@@ -1338,7 +1337,6 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
     step_start_index = len(state["workflow_process"])
 
     user_id = state.get("user_id")
-    user_token = state.get("auth_header")
 
     # Get classifier confidence for memory card storage
     unified = state.get("unified_classification")

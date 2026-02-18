@@ -16,8 +16,8 @@ Supports 6 context types:
 import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -789,7 +789,7 @@ def store_extracted_information(
     }
 
     try:
-        result = (
+        (
             supabase.table(Tables.MEMORY_CARDS)
             .insert({
                 "id": card_id,

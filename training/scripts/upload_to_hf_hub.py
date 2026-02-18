@@ -29,7 +29,7 @@ def build_hierarchy_metadata(onnx_dir: Path) -> dict | None:
     """
     existing = onnx_dir / "hierarchy_metadata.json"
     if existing.exists():
-        print(f"  Using existing hierarchy_metadata.json from ONNX export")
+        print("  Using existing hierarchy_metadata.json from ONNX export")
         return None
 
     # Fallback: generate metadata by scanning directory structure
@@ -145,7 +145,7 @@ def main():
         sys.exit(1)
 
     # Build staging directory
-    print(f"\n[1/3] Building staging directory...")
+    print("\n[1/3] Building staging directory...")
     copied, skipped = build_staging(staging_dir, onnx_dir, semantic_gate_dir, tuning_json)
 
     # Calculate size
@@ -155,24 +155,24 @@ def main():
     print(f"  FP32 skipped: {skipped}")
 
     # Show structure
-    print(f"\n  Structure:")
+    print("\n  Structure:")
     for d in sorted(set(f.parent.relative_to(staging_dir) for f in staging_dir.rglob("*") if f.is_file())):
         n_files = sum(1 for f in (staging_dir / d).iterdir() if f.is_file())
         print(f"    {d}/ ({n_files} files)")
 
     if args.dry_run:
         print(f"\n[DRY RUN] Would upload {total_files} files ({total_size / 1024 / 1024:.0f} MB)")
-        print(f"  Cleaning up staging dir...")
+        print("  Cleaning up staging dir...")
         shutil.rmtree(str(staging_dir), ignore_errors=True)
         return
 
     # Create repo
-    print(f"\n[2/3] Creating repo (if needed)...")
+    print("\n[2/3] Creating repo (if needed)...")
     create_repo(args.repo_id, repo_type="model", exist_ok=True)
 
     # Upload
     print(f"\n[3/3] Uploading {total_files} files ({total_size / 1024 / 1024:.0f} MB)...")
-    print(f"  Using upload_large_folder for reliable upload...")
+    print("  Using upload_large_folder for reliable upload...")
     api = HfApi()
     api.upload_large_folder(
         folder_path=str(staging_dir),
@@ -181,7 +181,7 @@ def main():
     )
 
     # Cleanup staging
-    print(f"\n  Cleaning up staging dir...")
+    print("\n  Cleaning up staging dir...")
     shutil.rmtree(str(staging_dir), ignore_errors=True)
 
     print(f"\n{'='*60}")

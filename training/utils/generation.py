@@ -9,10 +9,8 @@ New hierarchical taxonomy: context > entity > sub_entity
 """
 
 import json
-import itertools
-import random
 import time
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 from training.constants import CONTEXT_REGISTRY, NON_CONTEXT_REGISTRY
 
@@ -102,7 +100,6 @@ def generate_single_label_messages(
     if entity_key not in entities:
         raise ValueError(f"Invalid entity: {entity_key}. Valid: {list(entities.keys())}")
 
-    entity = entities[entity_key]
     build_prompt = reg["build_prompt"]
     system_prompt = reg["system_prompt"]
 
@@ -110,7 +107,6 @@ def generate_single_label_messages(
     prompt = build_prompt(entity_key, batch_size, sub_entity_key)
 
     label = sub_entity_key or entity_key
-    entity_name = entity["name"]
     sub_name = sub_entity_key or entity_key
 
     print(f"\n  Generating {num_messages} single-label: {context} > {entity_key} > {sub_name}")
@@ -264,7 +260,10 @@ def generate_cross_context_messages(
         context_details="\n".join(context_details),
     )
 
-    system_prompt = "You are an expert at generating natural career coaching messages that span multiple life contexts. Always respond with valid JSON."
+    system_prompt = (
+        "You are an expert at generating natural career coaching messages "
+        "that span multiple life contexts. Always respond with valid JSON."
+    )
 
     print(f"\n  Generating {num_messages} cross-context ({num_contexts}+ contexts)")
 

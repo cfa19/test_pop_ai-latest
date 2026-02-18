@@ -6,6 +6,7 @@ Simulates concurrent requests to verify sequential processing.
 
 import asyncio
 import time
+
 from src.utils.message_queue import MessageQueue
 
 
@@ -69,10 +70,10 @@ async def test_sequential_processing():
 
     elapsed = time.time() - start_time
 
-    print(f"\n[TEST] All messages processed")
+    print("\n[TEST] All messages processed")
     print(f"[TEST] Total time: {elapsed:.2f}s")
     print(f"[TEST] Expected time (sequential): {len(messages) * 0.5:.2f}s")
-    print(f"[TEST] Expected time (concurrent): 0.5s")
+    print("[TEST] Expected time (concurrent): 0.5s")
 
     # Verify sequential processing
     if elapsed >= (len(messages) * 0.5) - 0.2:  # Allow 0.2s tolerance

@@ -12,10 +12,7 @@ ENTITIES = {
         "name": "Current Skills",
         "description": "Skills they currently have, proficiency level, years of experience, verification.",
         "sub_entities": {
-            "skills": "Skills they currently have",
-            "proficiency": "How proficient they are (beginner, intermediate, expert)",
-            "experience": "Years of experience with the skill",
-            "verification": "How the skill is verified (certs, portfolio, peer review)"
+            "skills": "Skills they currently have, proficiency level, years of experience, and verification"
         },
         "examples": [
             "I'm an expert in product strategy with 8 years experience",
@@ -34,11 +31,7 @@ ENTITIES = {
         "name": "Education History",
         "description": "Degrees earned, schools attended, field of study, GPA, graduation dates.",
         "sub_entities": {
-            "degrees": "Degrees earned (BS, MS, MBA, PhD, etc.)",
-            "institutions": "Schools and universities attended",
-            "field_of_study": "Major, minor, or specialization",
-            "gpa": "Academic performance",
-            "graduation_date": "When they graduated"
+            "education": "Degrees earned, schools attended, field of study, GPA, graduation dates"
         },
         "examples": [
             "I have a BS in Computer Science from UC Berkeley",
@@ -98,10 +91,7 @@ ENTITIES = {
         "name": "Certifications",
         "description": "Certifications already earned, issue date, expiry date, active status.",
         "sub_entities": {
-            "earned_certs": "Certifications they already have",
-            "issue_date": "When they got the certification",
-            "expiry_date": "When it expires",
-            "status": "Active, expired, or pending renewal"
+            "certifications": "Certifications already earned, issue date, expiry date, active status"
         },
         "examples": [
             "I'm AWS Solutions Architect certified got it last year",
@@ -118,9 +108,8 @@ ENTITIES = {
         "name": "Learning History",
         "description": "Past courses taken, books read, bootcamps completed, learning outcomes.",
         "sub_entities": {
-            "past_courses": "Courses and bootcamps completed",
-            "books": "Books they've read for professional development",
-            "outcomes": "What they learned and how it helped"
+            "past_courses": "Courses, bootcamps, and training programs completed",
+            "books_and_resources": "Books and resources read for professional development"
         },
         "examples": [
             "I took Andrew Ng's ML course on Coursera it was excellent",
@@ -138,7 +127,7 @@ ENTITIES = {
 
 ENTITY_GUIDANCE = {
     "current_skills": """
-CRITICAL: Skills they HAVE right now, not skills they want to learn.
+CRITICAL: Skills they HAVE right now. Uses skills schema with fields: name, level, validationDate, validationSource.
 ✓ CORRECT: "I know Python", "I'm proficient in SQL", "I have 8 years of data analysis"
 ✗ WRONG: "I want to learn Python" (that's learning_aspirations!)
 ✗ WRONG: "I need to improve my public speaking" (that's learning_gaps!)""",
@@ -157,7 +146,7 @@ CRITICAL: MULTI-LABEL entity. Skills, degrees, certs they want to PURSUE.
 A message like "I want to learn Python and get AWS certified while doing an MBA" touches all three.""",
 
     "certifications": """
-CRITICAL: Certs they ALREADY HAVE.
+CRITICAL: Certs they ALREADY HAVE. Uses certifications schema with fields: name, issuer, date, expiryDate.
 ✓ CORRECT: "I'm AWS certified", "My PMP expires next year"
 ✗ WRONG: "I want to get PMP certified" (that's learning_aspirations > certification_aspirations!)""",
 
@@ -165,41 +154,69 @@ CRITICAL: Certs they ALREADY HAVE.
 
 MULTI_LABEL_EXAMPLES = [
     {
-        "message": "I know Python at an intermediate level and I have 5 years of data analysis experience, but I need to learn machine learning to transition into a data science role, I'm taking Andrew Ng's course on Coursera and I'm about 40 percent done",
+        "message": (
+            "I know Python at an intermediate level and I have 5 years of data "
+            "analysis experience, but I need to learn machine learning to transition "
+            "into a data science role, I'm taking Andrew Ng's course on Coursera "
+            "and I'm about 40 percent done"
+        ),
         "entities": ["current_skills", "learning_gaps", "learning_aspirations", "learning_history"],
-        "sub_entities": ["skills", "proficiency", "experience", "skill_gaps", "skill_aspirations", "past_courses"]
+        "sub_entities": ["skills", "skill_gaps", "skill_aspirations", "past_courses"]
     },
     {
-        "message": "I have a BS in Computer Science from Berkeley with a 3.8 GPA, now I want to get an MBA from Wharton to transition into product management",
+        "message": (
+            "I have a BS in Computer Science from Berkeley with a 3.8 GPA, "
+            "now I want to get an MBA from Wharton to transition into product management"
+        ),
         "entities": ["education_history", "learning_aspirations"],
-        "sub_entities": ["degrees", "institutions", "gpa", "education_aspirations"]
+        "sub_entities": ["education", "education_aspirations"]
     },
     {
-        "message": "I'm AWS Solutions Architect certified and studying for the Google Cloud cert, I have deep expertise in cloud architecture and distributed systems",
+        "message": (
+            "I'm AWS Solutions Architect certified and studying for the Google Cloud "
+            "cert, I have deep expertise in cloud architecture and distributed systems"
+        ),
         "entities": ["certifications", "learning_aspirations"],
-        "sub_entities": ["earned_certs", "certification_aspirations"]
+        "sub_entities": ["certifications", "certification_aspirations"]
     },
-
     {
-        "message": "I completed a 12-week bootcamp at General Assembly and got the Google UX Design certificate, now I'm studying for the CSPO certification and want to learn Figma at an advanced level",
+        "message": (
+            "I completed a 12-week bootcamp at General Assembly and got the Google "
+            "UX Design certificate, now I'm studying for the CSPO certification "
+            "and want to learn Figma at an advanced level"
+        ),
         "entities": ["learning_history", "certifications", "learning_aspirations"],
-        "sub_entities": ["past_courses", "outcomes", "earned_certs", "certification_aspirations", "skill_aspirations"]
+        "sub_entities": ["past_courses", "certifications", "certification_aspirations", "skill_aspirations"]
     },
     {
-        "message": "My biggest knowledge gap right now is cloud architecture which I need for the Solutions Architect role, I also need better public speaking skills",
+        "message": (
+            "My biggest knowledge gap right now is cloud architecture which I need "
+            "for the Solutions Architect role, I also need better public speaking skills"
+        ),
         "entities": ["learning_gaps"],
         "sub_entities": ["knowledge_gaps", "skill_gaps"]
     },
     {
-        "message": "I have expert-level Python and SQL skills verified by my 10 years of experience, but I lack experience with blockchain technology which is blocking me from a role at Coinbase",
+        "message": (
+            "I have expert-level Python and SQL skills verified by my 10 years of "
+            "experience, but I lack experience with blockchain technology which is "
+            "blocking me from a role at Coinbase"
+        ),
         "entities": ["current_skills", "learning_gaps"],
-        "sub_entities": ["skills", "proficiency", "experience", "knowledge_gaps"]
+        "sub_entities": ["skills", "knowledge_gaps"]
     }
 ]
 
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural learning context messages for career coaching. Generate messages that sound like real people talking about their skills, education, learning, and knowledge. Cover DIVERSE fields and learning styles. Always respond with valid JSON."""
+MESSAGE_GENERATION_SYSTEM_PROMPT = (
+    "You are an expert at generating natural learning context messages for career "
+    "coaching. Generate messages that sound like real people talking about their "
+    "skills, education, learning, and knowledge. Cover DIVERSE fields and learning "
+    "styles. Always respond with valid JSON."
+)
 
-SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural learning messages for career coaching specifically about {entity_name} > {sub_entity_name}.
+SINGLE_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural learning messages for career \
+coaching specifically about {entity_name} > {sub_entity_name}.
 
 Context: Learning
 Entity: {entity_name}
@@ -224,7 +241,9 @@ Example messages for {entity_name}:
 Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
-MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple learning topics in a single message.
+MULTI_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} natural, compound messages for career coaching \
+that COMBINE multiple learning topics in a single message.
 
 Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 

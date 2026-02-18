@@ -5,8 +5,7 @@ Contains category definitions and prompt templates for generating
 off-topic training data (messages unrelated to career coaching).
 """
 
-from typing import Dict, List
-
+from typing import List
 
 # ==============================================================================
 # OFF-TOPIC CATEGORIES
@@ -79,7 +78,9 @@ OFF_TOPIC_CATEGORIES = {
 MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural off-topic messages. Always respond with valid JSON."""
 
 
-MESSAGE_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural OFF-TOPIC messages that are unrelated to career coaching for {category_name}.
+MESSAGE_GENERATION_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural OFF-TOPIC messages that are \
+unrelated to career coaching for {category_name}.
 
 Category: {category_name}
 Description: {category_description}
@@ -103,8 +104,11 @@ CRITICAL REQUIREMENTS:
    - SINGLE WORD: 1 word (e.g., "chocolate", "pizza", "cycling")
    - VERY SHORT: 2-5 words (e.g., "I love sushi", "going to beach")
    - SHORT: 6-12 words (e.g., "I baked a chocolate cake this afternoon it was delicious")
-   - MEDIUM: 13-20 words (e.g., "my dog has been sick for the past few days and I'm taking him to the vet tomorrow morning")
-   - LONG: 21-35+ words (e.g., "I've been really into gardening lately and I just planted some tomatoes and peppers in my backyard but I'm worried they might not get enough sunlight because of the tree nearby")
+   - MEDIUM: 13-20 words (e.g., "my dog has been sick for the past few days \
+and I'm taking him to the vet tomorrow morning")
+   - LONG: 21-35+ words (e.g., "I've been really into gardening lately and \
+I just planted some tomatoes and peppers in my backyard but I'm worried \
+they might not get enough sunlight because of the tree nearby")
 
 3. **Natural typing variations** - Include realistic casual variations:
    - Spelling errors: "i bkaed a choco cake", "resturant", "reciept", "definately"
@@ -132,7 +136,9 @@ Example messages showing WIDE variety:
 - 8 words: "went to the beach with my friends yesterday"
 - 12 words: "I've been watching a lot of Netflix shows lately can't stop"
 - 18 words: "my favorite hobby is gardening and I just planted some tomatoes in my backyard but they're not growing well"
-- 28+ words: "I really enjoy baking and yesterday I tried making a chocolate cake from scratch for the first time and it turned out pretty good although the frosting was a bit too sweet"
+- 28+ words: "I really enjoy baking and yesterday I tried making a chocolate \
+cake from scratch for the first time and it turned out pretty good although \
+the frosting was a bit too sweet"
 - With variations: "i baked a cake", "i bkaed a choco cake", "I bake a delicious cake today", "baked a cake today"
 - Typos: "I wnet to teh store", "my freind loves pizza", "definately going tommorrow"
 

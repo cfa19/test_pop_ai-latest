@@ -4,72 +4,119 @@
 # + 3 non-context types: rag_query, chitchat, off_topic
 
 from .categories import INTENT_CATEGORIES
-from .prompts import (
-    format_rag_query_generic,
-    format_rag_query_knowledge_base,
-    format_context_message,
-    format_chitchat_message,
-    format_offtopic_message,
-    SYSTEM_MESSAGE,
+from .chitchat import (
+    CHITCHAT_CATEGORIES,
+)
+from .chitchat import (
+    MESSAGE_GENERATION_SYSTEM_PROMPT as CHITCHAT_SYSTEM_PROMPT,
+)
+from .chitchat import (
+    build_message_generation_prompt as build_chitchat_prompt,
+)
+from .learning import (
+    ENTITIES as LEARNING_ENTITIES,
+)
+from .learning import (
+    MESSAGE_GENERATION_SYSTEM_PROMPT as LEARNING_SYSTEM_PROMPT,
+)
+from .learning import (
+    MULTI_LABEL_EXAMPLES as LEARNING_MULTI_LABEL_EXAMPLES,
+)
+from .learning import (
+    build_message_generation_prompt as build_learning_prompt,
+)
+from .learning import (
+    build_multilabel_generation_prompt as build_learning_multilabel_prompt,
+)
+from .off_topic import (
+    MESSAGE_GENERATION_SYSTEM_PROMPT as OFF_TOPIC_SYSTEM_PROMPT,
+)
+from .off_topic import (
+    OFF_TOPIC_CATEGORIES,
+)
+from .off_topic import (
+    build_message_generation_prompt as build_off_topic_prompt,
+)
+from .personal import (
+    ENTITIES as PERSONAL_ENTITIES,
+)
+from .personal import (
+    MESSAGE_GENERATION_SYSTEM_PROMPT as PERSONAL_SYSTEM_PROMPT,
+)
+from .personal import (
+    MULTI_LABEL_EXAMPLES as PERSONAL_MULTI_LABEL_EXAMPLES,
+)
+from .personal import (
+    build_message_generation_prompt as build_personal_prompt,
+)
+from .personal import (
+    build_multilabel_generation_prompt as build_personal_multilabel_prompt,
 )
 
 # === New hierarchical taxonomy (5 contexts) ===
 from .professional import (
     ENTITIES as PROFESSIONAL_ENTITIES,
-    CONTEXT_NAME as PROFESSIONAL_CONTEXT_NAME,
-    MULTI_LABEL_EXAMPLES as PROFESSIONAL_MULTI_LABEL_EXAMPLES,
+)
+from .professional import (
     MESSAGE_GENERATION_SYSTEM_PROMPT as PROFESSIONAL_SYSTEM_PROMPT,
+)
+from .professional import (
+    MULTI_LABEL_EXAMPLES as PROFESSIONAL_MULTI_LABEL_EXAMPLES,
+)
+from .professional import (
     build_message_generation_prompt as build_professional_prompt,
+)
+from .professional import (
     build_multilabel_generation_prompt as build_professional_multilabel_prompt,
 )
-from .learning import (
-    ENTITIES as LEARNING_ENTITIES,
-    CONTEXT_NAME as LEARNING_CONTEXT_NAME,
-    MULTI_LABEL_EXAMPLES as LEARNING_MULTI_LABEL_EXAMPLES,
-    MESSAGE_GENERATION_SYSTEM_PROMPT as LEARNING_SYSTEM_PROMPT,
-    build_message_generation_prompt as build_learning_prompt,
-    build_multilabel_generation_prompt as build_learning_multilabel_prompt,
-)
-from .social import (
-    ENTITIES as SOCIAL_ENTITIES,
-    CONTEXT_NAME as SOCIAL_CONTEXT_NAME,
-    MULTI_LABEL_EXAMPLES as SOCIAL_MULTI_LABEL_EXAMPLES,
-    MESSAGE_GENERATION_SYSTEM_PROMPT as SOCIAL_SYSTEM_PROMPT,
-    build_message_generation_prompt as build_social_prompt,
-    build_multilabel_generation_prompt as build_social_multilabel_prompt,
+from .prompts import (
+    SYSTEM_MESSAGE,
+    format_chitchat_message,
+    format_context_message,
+    format_offtopic_message,
+    format_rag_query_generic,
+    format_rag_query_knowledge_base,
 )
 from .psychological import (
     ENTITIES as PSYCHOLOGICAL_ENTITIES,
-    CONTEXT_NAME as PSYCHOLOGICAL_CONTEXT_NAME,
-    MULTI_LABEL_EXAMPLES as PSYCHOLOGICAL_MULTI_LABEL_EXAMPLES,
+)
+from .psychological import (
     MESSAGE_GENERATION_SYSTEM_PROMPT as PSYCHOLOGICAL_SYSTEM_PROMPT,
+)
+from .psychological import (
+    MULTI_LABEL_EXAMPLES as PSYCHOLOGICAL_MULTI_LABEL_EXAMPLES,
+)
+from .psychological import (
     build_message_generation_prompt as build_psychological_prompt,
+)
+from .psychological import (
     build_multilabel_generation_prompt as build_psychological_multilabel_prompt,
 )
-from .personal import (
-    ENTITIES as PERSONAL_ENTITIES,
-    CONTEXT_NAME as PERSONAL_CONTEXT_NAME,
-    MULTI_LABEL_EXAMPLES as PERSONAL_MULTI_LABEL_EXAMPLES,
-    MESSAGE_GENERATION_SYSTEM_PROMPT as PERSONAL_SYSTEM_PROMPT,
-    build_message_generation_prompt as build_personal_prompt,
-    build_multilabel_generation_prompt as build_personal_multilabel_prompt,
+from .rag_query import (
+    MESSAGE_GENERATION_SYSTEM_PROMPT as RAG_QUERY_SYSTEM_PROMPT,
 )
 
 # === Non-context types (rag_query, chitchat, off_topic) ===
 from .rag_query import (
     RAG_QUERY_CATEGORIES,
+)
+from .rag_query import (
     build_message_generation_prompt as build_rag_query_prompt,
-    MESSAGE_GENERATION_SYSTEM_PROMPT as RAG_QUERY_SYSTEM_PROMPT,
 )
-from .chitchat import (
-    CHITCHAT_CATEGORIES,
-    build_message_generation_prompt as build_chitchat_prompt,
-    MESSAGE_GENERATION_SYSTEM_PROMPT as CHITCHAT_SYSTEM_PROMPT,
+from .social import (
+    ENTITIES as SOCIAL_ENTITIES,
 )
-from .off_topic import (
-    OFF_TOPIC_CATEGORIES,
-    build_message_generation_prompt as build_off_topic_prompt,
-    MESSAGE_GENERATION_SYSTEM_PROMPT as OFF_TOPIC_SYSTEM_PROMPT,
+from .social import (
+    MESSAGE_GENERATION_SYSTEM_PROMPT as SOCIAL_SYSTEM_PROMPT,
+)
+from .social import (
+    MULTI_LABEL_EXAMPLES as SOCIAL_MULTI_LABEL_EXAMPLES,
+)
+from .social import (
+    build_message_generation_prompt as build_social_prompt,
+)
+from .social import (
+    build_multilabel_generation_prompt as build_social_multilabel_prompt,
 )
 
 # Registry of all 5 contexts with their entities

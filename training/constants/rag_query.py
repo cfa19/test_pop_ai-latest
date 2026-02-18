@@ -5,8 +5,7 @@ Contains category definitions and prompt templates for generating
 RAG query training data based on knowledge base content.
 """
 
-from typing import Dict, List
-
+from typing import List
 
 # ==============================================================================
 # RAG QUERY CATEGORIES
@@ -118,7 +117,9 @@ RAG_QUERY_CATEGORIES = {
 MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural RAG query messages. Always respond with valid JSON."""
 
 
-MESSAGE_GENERATION_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural questions about {category_name} that users would ask a career coaching chatbot.
+MESSAGE_GENERATION_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural questions about {category_name} \
+that users would ask a career coaching chatbot.
 
 Category: {category_name}
 Description: {category_description}
@@ -131,8 +132,11 @@ CRITICAL REQUIREMENTS:
 1. **EXTREME length variation**: Generate questions ranging from:
    - VERY SHORT: 2-5 words (e.g., "what's popskills?", "popcoach pricing?")
    - SHORT: 6-10 words (e.g., "how much does popcoach cost per month")
-   - MEDIUM: 11-18 words (e.g., "can you explain what the transformation index is and how it measures my progress")
-   - LONG: 19-30+ words (e.g., "I'm interested in learning more about the different runner patterns you mentioned - could you explain what evaluation runners are versus accompaniment runners and give me some examples of each")
+   - MEDIUM: 11-18 words (e.g., "can you explain what the transformation \
+index is and how it measures my progress")
+   - LONG: 19-30+ words (e.g., "I'm interested in learning more about the \
+different runner patterns you mentioned - could you explain what evaluation \
+runners are versus accompaniment runners and give me some examples of each")
 
 2. **Natural typing variations** - Include realistic user variations:
    - Case variations: "What is PopSkills?", "what is popskills", "WHAT IS POPSKILLS"
@@ -163,7 +167,10 @@ Example questions showing WIDE variety:
 - Very short (3 words): "what's popcoach"
 - Short (8 words): "how much does the career sprint program cost"
 - Medium (15 words): "can you tell me what the difference is between PopCoach and the other products you offer"
-- Long (28 words): "I'm really interested in understanding how the transformation index works and how you actually measure whether someone has been successfully transformed through using the platform and what criteria you use"
+- Long (28 words): "I'm really interested in understanding how the \
+transformation index works and how you actually measure whether someone \
+has been successfully transformed through using the platform and what \
+criteria you use"
 - With typos: "what's pposkills", "wat is pop coach", "hwo much does it cost", "can you expalin the priceing"
 
 Generate {batch_size} unique questions as a JSON array. Return ONLY valid JSON with no additional text:

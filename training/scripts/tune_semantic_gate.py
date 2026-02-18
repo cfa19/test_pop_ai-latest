@@ -153,7 +153,7 @@ def load_hierarchical_data(data_dir: str) -> Tuple[Dict[str, List[str]], Dict[st
 
     # Summary
     total_domain = sum(len(msgs) for msgs in primary_messages.values())
-    print(f"\nTotal messages loaded:")
+    print("\nTotal messages loaded:")
     print(f"  Off-topic: {len(offtopic_messages)}")
     print(f"  Domain: {total_domain}")
     for category, msgs in sorted(primary_messages.items()):
@@ -887,8 +887,13 @@ def save_hierarchical_results(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Tune hierarchical semantic gate thresholds for both primary and secondary categories")
-    parser.add_argument("--data-dir", type=str, required=True, help="Directory containing CSV files with message,category,subcategory (includes off_topic)")
+    parser = argparse.ArgumentParser(
+        description="Tune hierarchical semantic gate thresholds for both primary and secondary categories"
+    )
+    parser.add_argument(
+        "--data-dir", type=str, required=True,
+        help="Directory containing CSV files with message,category,subcategory (includes off_topic)"
+    )
     parser.add_argument(
         "--hierarchical-model", type=str, default=None, help="Path to hierarchical model directory (optional, for classifying off-topic)"
     )

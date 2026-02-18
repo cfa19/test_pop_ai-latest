@@ -104,7 +104,11 @@ INTENT_CATEGORIES = {
         ],
     },
     "off_topic": {
-        "description": "Completely off-topic messages unrelated to career coaching - weather, sports, cooking, movies, travel, hobbies, pets, etc. NOTE: Used for testing semantic gate only, NOT for BERT classifier training.",
+        "description": (
+            "Completely off-topic messages unrelated to career coaching - weather, "
+            "sports, cooking, movies, travel, hobbies, pets, etc. "
+            "NOTE: Used for testing semantic gate only, NOT for BERT classifier training."
+        ),
         "examples": [
             "What's the weather like today?",
             "Did you see the game last night?",

@@ -12,12 +12,7 @@ ENTITIES = {
         "name": "Mentors",
         "description": "Current or past mentors, coaches, advisors who guide career development.",
         "sub_entities": {
-            "mentor_name": "Name of mentor",
-            "mentor_role": "Mentor's role/title",
-            "relationship": "Formal or informal relationship",
-            "frequency": "How often they meet",
-            "guidance_areas": "What the mentor helps with",
-            "impact": "How helpful the mentor is"
+            "mentors": "Mentor identity, organization, role, meeting frequency, guidance areas, and impact"
         },
         "examples": [
             "I have a mentor who's a VP at Stripe she's amazing",
@@ -36,10 +31,7 @@ ENTITIES = {
         "name": "Mentees",
         "description": "People they mentor, guide, or support in their career development.",
         "sub_entities": {
-            "mentee_name": "Name of mentee",
-            "mentee_background": "Mentee's background and situation",
-            "guidance_provided": "What help is provided",
-            "progress": "How the mentee is progressing"
+            "mentees": "Mentee identity, background, guidance provided, and progress"
         },
         "examples": [
             "I'm mentoring a junior PM who's transitioning from design",
@@ -56,16 +48,8 @@ ENTITIES = {
         "name": "Professional Network",
         "description": "Professional connections, peers, colleagues, communities, and groups.",
         "sub_entities": {
-            "connections": "People in their network (peers, colleagues, acquaintances)",
-            "relationship_strength": "Strong or weak ties",
-            "interaction_frequency": "How often they interact",
-            "collaboration_type": "How they work together",
-            "last_interaction": "When they last connected",
-            "communities": "Professional communities and groups",
-            "community_type": "Online or in-person communities",
-            "membership_status": "Active or inactive member",
-            "engagement_level": "How engaged they are in communities",
-            "community_value": "What they get from communities"
+            "connections": "People in their network: peers, colleagues, relationship strength, interaction frequency",
+            "communities": "Professional communities, groups, membership status, engagement level"
         },
         "examples": [
             "I have an accountability partner for my career goals we check in weekly",
@@ -105,18 +89,18 @@ ENTITIES = {
 
 ENTITY_GUIDANCE = {
     "mentors": """
-CRITICAL: People who GUIDE and ADVISE them in their career.
-✓ CORRECT: "My mentor helps me with leadership", "I meet with my coach monthly"
+CRITICAL: People who GUIDE and ADVISE them. Uses mentors schema with fields: name, role, organization, frequency, guidanceAreas, impact.
+✓ CORRECT: "My mentor at Stripe helps me with leadership", "I meet with my coach monthly"
 ✗ WRONG: "I mentor junior PMs" (that's mentees—THEY are the mentor!)
 ✗ WRONG: "I know a VP at Stripe" (that's professional_network unless that person mentors them!)""",
 
     "mentees": """
-CRITICAL: People THEY guide and mentor.
+CRITICAL: People THEY guide and mentor. Uses mentees schema with fields: name, background, guidanceAreas, progress.
 ✓ CORRECT: "I mentor a junior PM", "I help new engineers on my team"
 ✗ WRONG: "My mentor helps me" (that's mentors—they are the MENTEE!)""",
 
     "professional_network": """
-CRITICAL: Connections, communities, and professional groups. NOT mentoring relationships.
+CRITICAL: Two sub_entities: connections (people) and communities (groups). NOT mentoring relationships.
 ✓ CORRECT: "I have 500 LinkedIn connections", "I'm in a Slack group for PMs"
 ✗ WRONG: "My mentor is a VP" (that's mentors!)
 ✗ WRONG: "I attended a conference" (that's networking > networking_activities!)""",
@@ -132,50 +116,93 @@ A message like "I want to meet CTOs at AI conferences, preferably in small setti
 
 MULTI_LABEL_EXAMPLES = [
     {
-        "message": "I have a mentor who's a VP at Stripe and she meets with me monthly to work on my executive presence, I also mentor two junior PMs at my company helping them with product strategy and stakeholder management",
+        "message": (
+            "I have a mentor who's a VP at Stripe and she meets with me monthly "
+            "to work on my executive presence, I also mentor two junior PMs at my "
+            "company helping them with product strategy and stakeholder management"
+        ),
         "entities": ["mentors", "mentees"],
-        "sub_entities": ["mentor_role", "frequency", "guidance_areas", "mentee_background", "guidance_provided"]
+        "sub_entities": ["mentors", "mentees"]
     },
     {
-        "message": "I attended ProductCon last month and met some great people including a Director at Airbnb, I'm planning to attend 3 more conferences this year and want to meet more CPOs, I prefer smaller networking events over huge conferences",
+        "message": (
+            "I attended ProductCon last month and met some great people including "
+            "a Director at Airbnb, I'm planning to attend 3 more conferences this "
+            "year and want to meet more CPOs, I prefer smaller networking events "
+            "over huge conferences"
+        ),
         "entities": ["networking", "professional_network"],
         "sub_entities": ["networking_activities", "networking_goals", "networking_preferences", "connections"]
     },
     {
-        "message": "I'm very active in the Reforge community and a PM Slack group with 2000 members which has been great for my career",
+        "message": (
+            "I'm very active in the Reforge community and a PM Slack group "
+            "with 2000 members which has been great for my career"
+        ),
         "entities": ["professional_network"],
-        "sub_entities": ["communities", "community_type", "engagement_level", "community_value"]
+        "sub_entities": ["communities"]
     },
     {
-        "message": "I'm mentoring a career changer from teaching to tech and she's doing great, my own mentor is a retired CEO who gives me brutally honest feedback biweekly, and I just joined a founders mastermind group that meets every Friday",
+        "message": (
+            "I'm mentoring a career changer from teaching to tech and she's doing "
+            "great, my own mentor is a retired CEO who gives me brutally honest "
+            "feedback biweekly, and I just joined a founders mastermind group "
+            "that meets every Friday"
+        ),
         "entities": ["mentees", "mentors", "professional_network"],
-        "sub_entities": ["mentee_background", "progress", "mentor_role", "frequency", "guidance_areas", "communities"]
+        "sub_entities": ["mentees", "mentors", "communities"]
     },
     {
-        "message": "I want to meet more VPs at fintech companies so I've been cold emailing on LinkedIn with about 15 percent response rate, I also had coffee with a PM at Google last week",
+        "message": (
+            "I want to meet more VPs at fintech companies so I've been cold "
+            "emailing on LinkedIn with about 15 percent response rate, I also "
+            "had coffee with a PM at Google last week"
+        ),
         "entities": ["networking"],
         "sub_entities": ["networking_goals", "networking_activities"]
     },
     {
-        "message": "My professional network is pretty weak honestly I only have about 200 LinkedIn connections, I don't have a mentor yet and networking events drain me because I'm an introvert but I know I need to put myself out there more",
+        "message": (
+            "My professional network is pretty weak honestly I only have about "
+            "200 LinkedIn connections, I don't have a mentor yet and networking "
+            "events drain me because I'm an introvert but I know I need to put "
+            "myself out there more"
+        ),
         "entities": ["professional_network", "mentors", "networking"],
-        "sub_entities": ["connections", "relationship_strength", "networking_preferences"]
+        "sub_entities": ["connections", "mentors", "networking_preferences"]
     },
     {
-        "message": "I have a fantastic mentor who helped me land my current role, I also mentor a junior designer who's transitioning to product management and she's making great progress",
+        "message": (
+            "I have a fantastic mentor who helped me land my current role, I also "
+            "mentor a junior designer who's transitioning to product management "
+            "and she's making great progress"
+        ),
         "entities": ["mentors", "mentees"],
-        "sub_entities": ["impact", "guidance_areas", "mentee_background", "guidance_provided", "progress"]
+        "sub_entities": ["mentors", "mentees"]
     },
     {
-        "message": "I'm part of a startup founders community of about 50 people and I meet with my accountability partner weekly, I'm planning to attend Stripe Sessions and AWS re:Invent to expand my network and meet potential investors",
+        "message": (
+            "I'm part of a startup founders community of about 50 people and I "
+            "meet with my accountability partner weekly, I'm planning to attend "
+            "Stripe Sessions and AWS re:Invent to expand my network and meet "
+            "potential investors"
+        ),
         "entities": ["professional_network", "networking"],
-        "sub_entities": ["communities", "connections", "interaction_frequency", "networking_activities", "networking_goals"]
+        "sub_entities": ["communities", "connections", "networking_activities", "networking_goals"]
     }
 ]
 
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural social context messages for career coaching. Generate messages that sound like real people talking about their professional relationships, networks, mentors, and communities. Cover DIVERSE professions and networking styles. Always respond with valid JSON."""
+MESSAGE_GENERATION_SYSTEM_PROMPT = (
+    "You are an expert at generating natural social context messages for career "
+    "coaching. Generate messages that sound like real people talking about their "
+    "professional relationships, networks, mentors, and communities. "
+    "Cover DIVERSE professions and networking styles. "
+    "Always respond with valid JSON."
+)
 
-SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural social context messages for career coaching specifically about {entity_name} > {sub_entity_name}.
+SINGLE_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural social context messages for career \
+coaching specifically about {entity_name} > {sub_entity_name}.
 
 Context: Social
 Entity: {entity_name}
@@ -200,7 +227,9 @@ Example messages for {entity_name}:
 Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
-MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple social topics in a single message.
+MULTI_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} natural, compound messages for career coaching \
+that COMBINE multiple social topics in a single message.
 
 Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 

@@ -12,9 +12,7 @@ ENTITIES = {
         "name": "Personality Profile",
         "description": "Personality type, traits, behavioral tendencies, self-description.",
         "sub_entities": {
-            "personality_type": "MBTI, Big Five, Enneagram, etc.",
-            "traits": "Key personality traits",
-            "self_description": "How they describe themselves"
+            "personality_profile": "Personality type (MBTI, Big Five, Enneagram), key traits, and self-description"
         },
         "examples": [
             "I'm an INTJ and that pretty much sums me up",
@@ -33,8 +31,7 @@ ENTITIES = {
         "name": "Values",
         "description": "Professional values: what matters at work, value priorities.",
         "sub_entities": {
-            "professional_values": "What matters to them at work (autonomy, impact, stability, etc.)",
-            "priorities": "Value priorities and trade-offs"
+            "values": "Professional values, what matters at work, value priorities and trade-offs"
         },
         "examples": [
             "I value autonomy and impact above everything at work",
@@ -53,9 +50,7 @@ ENTITIES = {
         "name": "Motivations",
         "description": "What motivates and demotivates them: intrinsic, extrinsic, and negative.",
         "sub_entities": {
-            "intrinsic_motivations": "Internal motivators (purpose, mastery, autonomy, curiosity)",
-            "extrinsic_motivations": "External motivators (money, status, recognition, promotion)",
-            "demotivators": "What kills their motivation"
+            "motivations": "Intrinsic motivators, extrinsic motivators, and demotivators"
         },
         "examples": [
             "I'm motivated by solving hard problems that's what gets me out of bed",
@@ -98,10 +93,7 @@ ENTITIES = {
         "name": "Stress & Coping",
         "description": "Current stress level, triggers, coping strategies, and their effectiveness.",
         "sub_entities": {
-            "stress_level": "Current stress level (scale or description)",
-            "stress_triggers": "What causes stress at work",
-            "coping_strategies": "How they cope with stress",
-            "effectiveness": "What works and what doesn't work"
+            "stress": "Current stress level, triggers, coping strategies, and effectiveness"
         },
         "examples": [
             "I'm pretty stressed right now about 7 out of 10",
@@ -121,17 +113,16 @@ ENTITIES = {
 
 ENTITY_GUIDANCE = {
     "values": """
-CRITICAL: PROFESSIONAL values—what matters at WORK.
+CRITICAL: PROFESSIONAL values. Uses values schema with fields: workLifeBalance, socialImpact, financialSecurity, personalGrowth, creativity, autonomy.
 ✓ CORRECT: "I value autonomy", "Mission alignment matters most"
 ✗ WRONG: "Family is my top priority" (that's personal > personal_values!)
 ✗ WRONG: "I'm motivated by money" (that's motivations!)""",
 
     "motivations": """
-CRITICAL: What DRIVES or KILLS motivation.
+CRITICAL: What DRIVES or KILLS motivation. Uses motivations schema with fields: intrinsic, extrinsic, demotivators.
 ✓ CORRECT: "I'm motivated by solving problems", "Micromanagement kills my motivation"
 ✗ WRONG: "I value autonomy" (that's values—stable priorities, not drivers!)
 ✗ WRONG: "I'm stressed by deadlines" (that's stress_and_coping!)""",
-
 
     "confidence_and_self_perception": """
 CRITICAL: MULTI-LABEL entity. Confidence, imposter syndrome, self-talk, validation needs.
@@ -141,9 +132,8 @@ CRITICAL: MULTI-LABEL entity. Confidence, imposter syndrome, self-talk, validati
 - confidence_building_strategies: "Wins journal helps", "Working with a coach"
 A single message can touch all four.""",
 
-
     "stress_and_coping": """
-CRITICAL: Stress and how they HANDLE it.
+CRITICAL: Stress and how they HANDLE it. Uses stress schema with fields: name, intensity, frequency, copingStrategy.
 ✓ CORRECT: "I'm stressed 7/10", "Exercise helps me cope"
 ✗ WRONG: "I have anxiety" (that's personal > health_and_wellbeing > mental_health!)
 ✗ WRONG: "I'm burned out" (borderline—burnout from work = stress_and_coping, clinical burnout = personal > health)""",
@@ -151,50 +141,103 @@ CRITICAL: Stress and how they HANDLE it.
 
 MULTI_LABEL_EXAMPLES = [
     {
-        "message": "I'm an INTJ perfectionist who values autonomy above everything, I'm motivated by solving hard problems but micromanagement completely kills my drive, I work best independently with clear goals and minimal oversight",
+        "message": (
+            "I'm an INTJ perfectionist who values autonomy above everything, "
+            "I'm motivated by solving hard problems but micromanagement completely "
+            "kills my drive, I work best independently with clear goals and "
+            "minimal oversight"
+        ),
         "entities": ["personality_profile", "values", "motivations"],
-        "sub_entities": ["personality_type", "traits", "professional_values", "intrinsic_motivations", "demotivators"]
+        "sub_entities": ["personality_profile", "values", "motivations"]
     },
     {
-        "message": "My confidence is about 6 out of 10, I have moderate imposter syndrome especially around senior leaders, my inner critic is very harsh and I rely too much on external validation, working with a coach has been helping though",
+        "message": (
+            "My confidence is about 6 out of 10, I have moderate imposter syndrome "
+            "especially around senior leaders, my inner critic is very harsh and I "
+            "rely too much on external validation, working with a coach has been "
+            "helping though"
+        ),
         "entities": ["confidence_and_self_perception"],
-        "sub_entities": ["confidence_levels", "imposter_syndrome_and_doubt", "self_talk_and_validation", "confidence_building_strategies"]
+        "sub_entities": [
+            "confidence_levels", "imposter_syndrome_and_doubt",
+            "self_talk_and_validation", "confidence_building_strategies"
+        ]
     },
     {
-        "message": "I thrive in fast-paced startup environments where I can build from scratch, tight deadlines stress me but exercise and meditation help me cope, I believe challenges make me stronger and I see failures as learning opportunities",
+        "message": (
+            "I thrive in fast-paced startup environments where I can build from "
+            "scratch, tight deadlines stress me but exercise and meditation help "
+            "me cope, I believe challenges make me stronger and I see failures "
+            "as learning opportunities"
+        ),
         "entities": ["stress_and_coping"],
-        "sub_entities": ["stress_triggers", "coping_strategies"]
+        "sub_entities": ["stress"]
     },
     {
-        "message": "I make career decisions based on data and always consult my mentor, I'm very self-aware about my emotions and I can read a room well but I struggle with not taking criticism personally and that affects my confidence",
+        "message": (
+            "I make career decisions based on data and always consult my mentor, "
+            "I'm very self-aware about my emotions and I can read a room well but "
+            "I struggle with not taking criticism personally and that affects "
+            "my confidence"
+        ),
         "entities": ["confidence_and_self_perception"],
         "sub_entities": ["confidence_levels"]
     },
     {
-        "message": "I'm an extrovert who loves collaborative brainstorming but I prefer direct written communication, I'm motivated by recognition and building things from scratch, and I need a small team environment where everyone knows each other",
+        "message": (
+            "I'm an extrovert who loves collaborative brainstorming but I prefer "
+            "direct written communication, I'm motivated by recognition and building "
+            "things from scratch, and I need a small team environment where everyone "
+            "knows each other"
+        ),
         "entities": ["personality_profile", "motivations"],
-        "sub_entities": ["traits", "self_description", "extrinsic_motivations", "intrinsic_motivations"]
+        "sub_entities": ["personality_profile", "motivations"]
     },
     {
-        "message": "I'm pretty stressed right now about 7 out of 10, conflict with colleagues triggers it most, I try to cope by exercising and talking to my therapist but sometimes I fall into a fixed mindset and just want to give up",
+        "message": (
+            "I'm pretty stressed right now about 7 out of 10, conflict with "
+            "colleagues triggers it most, I try to cope by exercising and talking "
+            "to my therapist but sometimes I fall into a fixed mindset and just "
+            "want to give up"
+        ),
         "entities": ["stress_and_coping"],
-        "sub_entities": ["stress_level", "stress_triggers", "coping_strategies", "effectiveness"]
+        "sub_entities": ["stress"]
     },
     {
-        "message": "I value mission alignment and intellectual challenge at work, I trust my gut for career decisions and I'm very confident once I commit, I believe talent is mostly developed through hard work and I embrace challenges",
+        "message": (
+            "I value mission alignment and intellectual challenge at work, I trust "
+            "my gut for career decisions and I'm very confident once I commit, "
+            "I believe talent is mostly developed through hard work and I embrace "
+            "challenges"
+        ),
         "entities": ["values"],
-        "sub_entities": ["professional_values", "priorities"]
+        "sub_entities": ["values"]
     },
     {
-        "message": "I'm empathetic sometimes too much so which leads to people-pleasing, I need external validation more than I'd like to admit, this affects my confidence which dropped after a project failure, I'm trying meditation and coaching to help",
+        "message": (
+            "I'm empathetic sometimes too much so which leads to people-pleasing, "
+            "I need external validation more than I'd like to admit, this affects "
+            "my confidence which dropped after a project failure, I'm trying "
+            "meditation and coaching to help"
+        ),
         "entities": ["confidence_and_self_perception", "stress_and_coping"],
-        "sub_entities": ["self_talk_and_validation", "confidence_levels", "confidence_building_strategies", "coping_strategies"]
+        "sub_entities": [
+            "self_talk_and_validation", "confidence_levels",
+            "confidence_building_strategies", "stress"
+        ]
     }
 ]
 
-MESSAGE_GENERATION_SYSTEM_PROMPT = """You are an expert at generating natural psychological context messages for career coaching. Generate messages that sound like real people talking about their personality, values, motivations, confidence, stress, and mindset. Be authentic and sometimes vulnerable. Always respond with valid JSON."""
+MESSAGE_GENERATION_SYSTEM_PROMPT = (
+    "You are an expert at generating natural psychological context messages for "
+    "career coaching. Generate messages that sound like real people talking about "
+    "their personality, values, motivations, confidence, stress, and mindset. "
+    "Be authentic and sometimes vulnerable. Always respond with valid JSON."
+)
 
-SINGLE_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} diverse, natural psychological messages for career coaching specifically about {entity_name} > {sub_entity_name}.
+SINGLE_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} diverse, natural psychological messages for career \
+coaching specifically about {entity_name} > {sub_entity_name}.
 
 Context: Psychological
 Entity: {entity_name}
@@ -219,7 +262,9 @@ Example messages for {entity_name}:
 Generate {batch_size} unique messages as JSON:
 {{"messages": ["message1", "message2", ...]}}"""
 
-MULTI_LABEL_PROMPT_TEMPLATE = """Generate {batch_size} natural, compound messages for career coaching that COMBINE multiple psychological topics in a single message.
+MULTI_LABEL_PROMPT_TEMPLATE = """\
+Generate {batch_size} natural, compound messages for career coaching \
+that COMBINE multiple psychological topics in a single message.
 
 Each message should naturally touch on {num_labels} or more of these sub-entities: {sub_entity_list}
 

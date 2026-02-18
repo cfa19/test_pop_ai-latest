@@ -14,7 +14,6 @@ import argparse
 import csv
 import os
 
-
 # Map old .txt filenames to new category names
 FILE_MAPPING = {
     "chitchat.txt": "chitchat",

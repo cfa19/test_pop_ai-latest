@@ -21,15 +21,14 @@ import csv
 import json
 import os
 import sys
-from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, f1_score
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, get_linear_schedule_with_warmup
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, Dataset
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
@@ -290,7 +289,7 @@ def train_single_label(
     if rare_labels:
         rare_names = [name for name, idx in label_map.items() if idx in rare_labels]
         print(f"  ⚠ Removing {len(rare_labels)} class(es) with <2 samples: {rare_names}")
-        filtered = [(t, l) for t, l in zip(texts, labels) if l not in rare_labels]
+        filtered = [(t, lbl) for t, lbl in zip(texts, labels) if lbl not in rare_labels]
         if not filtered:
             print("  ! No data left after filtering, skipping")
             return
@@ -305,7 +304,7 @@ def train_single_label(
                 old_to_new[old_idx] = new_idx
                 new_label_map[name] = new_idx
                 new_idx += 1
-        labels = [old_to_new[l] for l in labels]
+        labels = [old_to_new[lbl] for lbl in labels]
         label_map = new_label_map
         print(f"  Classes after filtering: {len(label_map)}, Samples: {len(texts)}")
 
@@ -385,7 +384,11 @@ def train_single_label(
             print(f"  Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} - Val F1: {val_f1:.4f} ★ best")
         else:
             epochs_without_improvement += 1
-            print(f"  Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} - Val F1: {val_f1:.4f} (no improvement {epochs_without_improvement}/{patience})")
+            print(
+                f"  Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}"
+                f" - Val F1: {val_f1:.4f}"
+                f" (no improvement {epochs_without_improvement}/{patience})"
+            )
 
         if epochs_without_improvement >= patience:
             print(f"\n  Early stopping: no improvement for {patience} epochs")
@@ -509,7 +512,11 @@ def train_multi_label(
             print(f"  Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} - Val F1 (micro): {val_f1:.4f} ★ best")
         else:
             epochs_without_improvement += 1
-            print(f"  Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} - Val F1 (micro): {val_f1:.4f} (no improvement {epochs_without_improvement}/{patience})")
+            print(
+                f"  Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}"
+                f" - Val F1 (micro): {val_f1:.4f}"
+                f" (no improvement {epochs_without_improvement}/{patience})"
+            )
 
         if epochs_without_improvement >= patience:
             print(f"\n  Early stopping: no improvement for {patience} epochs")

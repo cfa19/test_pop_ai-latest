@@ -29,12 +29,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from src.config import get_openai
-from training.constants import CONTEXT_REGISTRY, NON_CONTEXT_REGISTRY, ALL_CONTEXTS, ALL_NON_CONTEXTS, ALL_TYPES
+from training.constants import ALL_CONTEXTS, ALL_NON_CONTEXTS, ALL_TYPES, CONTEXT_REGISTRY, NON_CONTEXT_REGISTRY
 from training.utils.generation import (
     generate_full_context,
-    generate_non_context_messages,
     generate_messages_by_type,
-    generate_cross_context_messages,
 )
 
 
@@ -193,7 +191,7 @@ def main():
         cats = NON_CONTEXT_REGISTRY[nct]["categories"]
         total_estimate += len(cats) * args.non_context_messages
 
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Messages per sub-entity: {args.messages_per_sub_entity}")
     print(f"  Multi-label per context: {args.multilabel_messages}")
     print(f"  Cross-context per context: {args.cross_context_messages}")

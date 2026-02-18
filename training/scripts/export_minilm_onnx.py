@@ -77,13 +77,13 @@ def export_minilm_onnx(
     norm = np.linalg.norm(pooled, axis=1, keepdims=True)
     embedding = pooled / np.clip(norm, 1e-9, None)
 
-    print(f"[Export] Verification passed!")
+    print("[Export] Verification passed!")
     print(f"  Output shape: {last_hidden_state.shape}")
     print(f"  Embedding shape: {embedding.shape}")
     print(f"  Embedding norm: {np.linalg.norm(embedding):.4f}")
 
     # Also download full precision model for fallback
-    print(f"\n[Export] Also downloading full precision model...")
+    print("\n[Export] Also downloading full precision model...")
     full_path = output_path / "model.onnx"
     downloaded_full = hf_hub_download(
         repo_id=model_name,

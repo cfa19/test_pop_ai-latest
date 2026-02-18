@@ -1,10 +1,24 @@
-import os
-import pandas as pd
-from typing import List, Tuple
 import json
+import os
+from typing import List, Tuple
 
-from training.constants import *
+import pandas as pd
 
+from training.constants import (
+    CHITCHAT_CATEGORIES,
+    CONTEXT_REGISTRY,
+    OFF_TOPIC_CATEGORIES,
+    RAG_QUERY_CATEGORIES,
+)
+
+# Build flat lookup: entity_key -> display name
+_CATEGORY_NAMES = {}
+for _ctx_data in CONTEXT_REGISTRY.values():
+    for _key, _entity in _ctx_data["entities"].items():
+        _CATEGORY_NAMES[_key] = _entity["name"]
+for _cats in [RAG_QUERY_CATEGORIES, CHITCHAT_CATEGORIES, OFF_TOPIC_CATEGORIES]:
+    for _key, _cat in _cats.items():
+        _CATEGORY_NAMES[_key] = _cat["name"]
 
 # ==============================================================================
 # SAVE FUNCTIONS
@@ -38,24 +52,12 @@ def save_to_csv(
     print(f"\n✓ Saved {len(messages):,} messages to: {output_path}")
 
     if has_entities:
-        print(f"  Columns: message, category, subcategory, entities (JSON)")
+        print("  Columns: message, category, subcategory, entities (JSON)")
 
     # Print sample by category
     print("\nSample messages by category:")
     for category_key in df["subcategory"].unique():
-        # Try all category dictionaries
-        category_name = (
-            ASPIRATION_CATEGORIES.get(category_key, {}).get("name") or
-            PROFESSIONAL_CATEGORIES.get(category_key, {}).get("name") or
-            PSYCHOLOGICAL_CATEGORIES.get(category_key, {}).get("name") or
-            LEARNING_CATEGORIES.get(category_key, {}).get("name") or
-            SOCIAL_CATEGORIES.get(category_key, {}).get("name") or
-            EMOTIONAL_CATEGORIES.get(category_key, {}).get("name") or
-            RAG_QUERY_CATEGORIES.get(category_key, {}).get("name") or
-            CHITCHAT_CATEGORIES.get(category_key, {}).get("name") or
-            OFF_TOPIC_CATEGORIES.get(category_key, {}).get("name") or
-            category_key
-        )
+        category_name = _CATEGORY_NAMES.get(category_key, category_key)
         samples = df[df["subcategory"] == category_key].head(3)
         category_type = df[df["subcategory"] == category_key].iloc[0]["category"]
         print(f"\n[{category_type.upper()}] {category_name}:")
