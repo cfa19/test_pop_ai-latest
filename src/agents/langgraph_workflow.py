@@ -1332,7 +1332,7 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
     Currently in DRY-RUN mode: logs what WOULD be stored without calling NextJS API.
     Set STORE_DRY_RUN = False when ready to enable actual memory card creation.
     """
-    STORE_DRY_RUN = False
+    STORE_DRY_RUN = True
 
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])

@@ -2,8 +2,7 @@
 Professional Context Constants for Hierarchical Multi-Label Classification
 
 Taxonomy: professional > entity > sub_entity
-6 entities: current_position, professional_experience, awards, licenses_and_permits,
-            professional_aspirations, volunteer_experience
+4 entities: current_position, professional_experience, awards, professional_aspirations
 """
 
 CONTEXT_NAME = "professional"
@@ -71,26 +70,6 @@ ENTITIES = {
             "My team won the best project award at the company offsite"
         ]
     },
-    "licenses_and_permits": {
-        "name": "Licenses & Permits",
-        "description": "Driving licenses, professional licenses, security clearances, operating permits.",
-        "sub_entities": {
-            "driving_licenses": "Driver's licenses (CDL, standard, motorcycle)",
-            "professional_licenses": "Professional licenses (medical, law, CPA, engineering)",
-            "security_clearances": "Government clearances (Secret, Top Secret)",
-            "operating_permits": "Other permits (forklift, crane, hazmat)"
-        },
-        "examples": [
-            "I have a California drivers license",
-            "I have a Secret security clearance that's still active",
-            "My medical license expires next year need to renew",
-            "I'm a licensed CPA in the state of New York",
-            "I have my CDL class A for driving commercial trucks",
-            "I passed the bar exam in two states California and Texas",
-            "I have a forklift operators permit",
-            "I hold a professional engineering license PE in civil engineering"
-        ]
-    },
     "professional_aspirations": {
         "name": "Professional Aspirations",
         "description": "Career goals: dream roles, target companies/industries, salary expectations, desired work environment, career change considerations, job search status.",
@@ -114,23 +93,6 @@ ENTITIES = {
             "I'd love to work at Stripe or a similar payments company",
             "I want to transition into the AI/ML industry",
             "I got an offer from Google but I'm not sure if I should take it"
-        ]
-    },
-    "volunteer_experience": {
-        "name": "Volunteer Experience",
-        "description": "Volunteer positions, community service, pro-bono work.",
-        "sub_entities": {
-            "volunteer_roles": "Volunteer positions and community service"
-        },
-        "examples": [
-            "I mentor junior PMs at Product School as a volunteer",
-            "I volunteer at Habitat for Humanity on weekends",
-            "I do pro bono consulting for nonprofits in my spare time",
-            "I teach coding workshops at the local community center for free",
-            "I'm on the board of a local food bank",
-            "I volunteer coach a kids basketball team every Saturday",
-            "I help out at the animal shelter twice a month",
-            "I run a free resume review clinic for veterans"
         ]
     }
 }
@@ -179,21 +141,6 @@ MULTI_LABEL_EXAMPLES = [
         "message": "I want to earn at least 200k base in my next role, I'm looking for a hybrid setup at a Series C or later company, I won't work at a place without good work-life balance that's a deal-breaker for me",
         "entities": ["professional_aspirations"],
         "sub_entities": ["compensation_expectations", "desired_work_environment", "dream_roles"]
-    },
-    {
-        "message": "I have my CPA license and a Secret security clearance, I worked in government contracting for 8 years and won the contractor excellence award twice, now I want to transition to private sector fintech",
-        "entities": ["licenses_and_permits", "professional_experience", "awards", "professional_aspirations"],
-        "sub_entities": ["professional_licenses", "security_clearances", "past_roles", "duration", "awards", "career_change_considerations", "dream_roles"]
-    },
-    {
-        "message": "I've applied to about 15 companies in the last month and have 3 interviews lined up, I also volunteer mentor junior PMs at Product School which gives me energy when the job search gets discouraging",
-        "entities": ["professional_aspirations", "volunteer_experience"],
-        "sub_entities": ["job_search_status", "volunteer_roles"]
-    },
-    {
-        "message": "I'm a licensed electrician making 85k running a crew of 6, I got the safety excellence award last year, but I'm thinking about getting into project management, probably need to accept a pay cut initially",
-        "entities": ["current_position", "licenses_and_permits", "awards", "professional_aspirations"],
-        "sub_entities": ["role", "compensation", "professional_licenses", "awards", "career_change_considerations"]
     },
     {
         "message": "I spent 10 years at Microsoft going from junior dev to senior engineer, my biggest achievement was architecting the new billing system that handles 50M transactions, I got promoted 4 times and won the engineering excellence award",

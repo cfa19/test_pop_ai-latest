@@ -32,7 +32,7 @@ def download_models():
     from src.config import HF_REPO_ID, HIERARCHICAL_MODEL_PATH
 
     # Check if hierarchical models already exist locally (e.g., dev environment)
-    hierarchical_exists = (Path(HIERARCHICAL_MODEL_PATH) / "routing").exists()
+    hierarchical_exists = (Path(HIERARCHICAL_MODEL_PATH) / "unified").exists()
 
     if hierarchical_exists:
         logger.info("Hierarchical ONNX models found locally, skipping HF Hub download")

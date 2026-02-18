@@ -2,8 +2,7 @@
 Learning Context Constants for Hierarchical Multi-Label Classification
 
 Taxonomy: learning > entity > sub_entity
-11 entities: current_skills, languages, education_history, learning_gaps, learning_aspirations,
-             certifications, knowledge_areas, learning_preferences, learning_history, publications, academic_awards
+6 entities: current_skills, education_history, learning_gaps, learning_aspirations, certifications, learning_history
 """
 
 CONTEXT_NAME = "learning"
@@ -29,27 +28,6 @@ ENTITIES = {
             "I'm a beginner at machine learning just started learning",
             "I'm very strong in financial modeling and Excel",
             "I have advanced skills in Adobe Creative Suite been using it for 12 years"
-        ]
-    },
-    "languages": {
-        "name": "Languages",
-        "description": "Languages spoken, proficiency level, language certifications and test scores.",
-        "sub_entities": {
-            "language": "Languages spoken",
-            "proficiency": "Proficiency level (native, fluent, B1, B2, etc.)",
-            "certifications": "Language test scores and certifications (TOEFL, IELTS, DELE)"
-        },
-        "examples": [
-            "I speak Spanish at B1 level",
-            "I'm fluent in Mandarin Chinese its my native language",
-            "I got a 110 on the TOEFL",
-            "English is my second language I'm fluent but not native",
-            "I speak French and Italian at a conversational level",
-            "I passed the JLPT N2 for Japanese",
-            "I'm bilingual English and Portuguese",
-            "I'm learning German currently at A2 level",
-            "My IELTS score is 8.0 overall",
-            "I speak 4 languages English Spanish French and a bit of Arabic"
         ]
     },
     "education_history": {
@@ -136,43 +114,6 @@ ENTITIES = {
             "I have 3 active Azure certifications"
         ]
     },
-    "knowledge_areas": {
-        "name": "Knowledge Areas",
-        "description": "Broader domains of expertise and knowledge.",
-        "sub_entities": {
-            "expertise_domains": "Broader knowledge areas and domains of expertise"
-        },
-        "examples": [
-            "I'm knowledgeable about fintech and payments",
-            "I have deep expertise in platform architecture",
-            "My knowledge base is mostly in healthcare IT systems",
-            "I know a lot about supply chain management and logistics",
-            "I have broad knowledge of the SaaS industry",
-            "I'm an expert in regulatory compliance for financial services",
-            "I have deep domain knowledge in renewable energy",
-            "I know the edtech space really well inside and out"
-        ]
-    },
-    "learning_preferences": {
-        "name": "Learning Preferences",
-        "description": "How they prefer to learn: formats, pace, budget, time available.",
-        "sub_entities": {
-            "preferred_formats": "How they like to learn (books, videos, hands-on, courses)",
-            "pace": "Fast or slow learner, learning speed",
-            "budget": "Learning budget available",
-            "time_available": "Hours per week available for learning"
-        },
-        "examples": [
-            "I learn best through hands-on projects",
-            "I prefer books over video courses",
-            "I can dedicate 10 hours per week to learning",
-            "I have about 2000 dollars per year for courses and training",
-            "I'm a fast learner I pick things up quickly",
-            "I like structured online courses with deadlines",
-            "I learn best by doing not by watching lectures",
-            "I only have about 5 hours a week for studying so I need efficient resources"
-        ]
-    },
     "learning_history": {
         "name": "Learning History",
         "description": "Past courses taken, books read, bootcamps completed, learning outcomes.",
@@ -191,41 +132,8 @@ ENTITIES = {
             "I completed a coding bootcamp and it helped me transition to tech",
             "I just finished reading Cracking the PM Interview super helpful"
         ]
-    },
-    "publications": {
-        "name": "Publications",
-        "description": "Articles, papers, blog posts, talks they've written or given.",
-        "sub_entities": {
-            "publications": "Articles, papers, blog posts, conference talks authored"
-        },
-        "examples": [
-            "I wrote an article about platform products on Medium",
-            "I published a paper on machine learning in a peer-reviewed journal",
-            "I maintain a technical blog about AI and it gets 5k monthly readers",
-            "I gave a talk at PyCon about testing best practices",
-            "I write a weekly newsletter about product management",
-            "I co-authored a paper on distributed systems",
-            "I published a book chapter on healthcare informatics",
-            "I have 3 patents in computer vision technology"
-        ]
-    },
-    "academic_awards": {
-        "name": "Academic Awards",
-        "description": "Academic honors and recognitions from educational institutions.",
-        "sub_entities": {
-            "academic_awards": "Academic honors, dean's list, scholarships, honors societies"
-        },
-        "examples": [
-            "I made the Dean's List every semester in college",
-            "I graduated Summa Cum Laude from my university",
-            "I received the Outstanding Student Award in engineering",
-            "I was inducted into Phi Beta Kappa",
-            "I got a full scholarship to my MBA program",
-            "I won the best thesis award in my department",
-            "I was valedictorian of my high school class",
-            "I received the National Merit Scholarship"
-        ]
     }
+
 }
 
 ENTITY_GUIDANCE = {
@@ -253,10 +161,6 @@ CRITICAL: Certs they ALREADY HAVE.
 ✓ CORRECT: "I'm AWS certified", "My PMP expires next year"
 ✗ WRONG: "I want to get PMP certified" (that's learning_aspirations > certification_aspirations!)""",
 
-    "academic_awards": """
-CRITICAL: Awards from EDUCATIONAL institutions.
-✓ CORRECT: "Dean's List", "Summa Cum Laude", "Best Thesis Award"
-✗ WRONG: "Employee of the Month" (that's professional > awards!)""",
 }
 
 MULTI_LABEL_EXAMPLES = [
@@ -266,39 +170,30 @@ MULTI_LABEL_EXAMPLES = [
         "sub_entities": ["skills", "proficiency", "experience", "skill_gaps", "skill_aspirations", "past_courses"]
     },
     {
-        "message": "I have a BS in Computer Science from Berkeley with a 3.8 GPA, I graduated Summa Cum Laude and made the Dean's List, now I want to get an MBA from Wharton to transition into product management",
-        "entities": ["education_history", "academic_awards", "learning_aspirations"],
-        "sub_entities": ["degrees", "institutions", "gpa", "academic_awards", "education_aspirations"]
+        "message": "I have a BS in Computer Science from Berkeley with a 3.8 GPA, now I want to get an MBA from Wharton to transition into product management",
+        "entities": ["education_history", "learning_aspirations"],
+        "sub_entities": ["degrees", "institutions", "gpa", "education_aspirations"]
     },
     {
-        "message": "I'm AWS Solutions Architect certified and studying for the Google Cloud cert, I have deep expertise in cloud architecture and distributed systems, I learn best through hands-on labs and I dedicate about 10 hours per week to studying",
-        "entities": ["certifications", "learning_aspirations", "knowledge_areas", "learning_preferences"],
-        "sub_entities": ["earned_certs", "certification_aspirations", "expertise_domains", "preferred_formats", "time_available"]
+        "message": "I'm AWS Solutions Architect certified and studying for the Google Cloud cert, I have deep expertise in cloud architecture and distributed systems",
+        "entities": ["certifications", "learning_aspirations"],
+        "sub_entities": ["earned_certs", "certification_aspirations"]
+    },
+
+    {
+        "message": "I completed a 12-week bootcamp at General Assembly and got the Google UX Design certificate, now I'm studying for the CSPO certification and want to learn Figma at an advanced level",
+        "entities": ["learning_history", "certifications", "learning_aspirations"],
+        "sub_entities": ["past_courses", "outcomes", "earned_certs", "certification_aspirations", "skill_aspirations"]
     },
     {
-        "message": "I speak Spanish at B1 level and I'm fluent in English, I scored 110 on the TOEFL, I need better language skills for the international PM role I want so I'm taking an intensive Spanish course 3 evenings a week",
-        "entities": ["languages", "learning_gaps", "learning_aspirations"],
-        "sub_entities": ["language", "proficiency", "certifications", "skill_gaps", "skill_aspirations"]
+        "message": "My biggest knowledge gap right now is cloud architecture which I need for the Solutions Architect role, I also need better public speaking skills",
+        "entities": ["learning_gaps"],
+        "sub_entities": ["knowledge_gaps", "skill_gaps"]
     },
     {
-        "message": "I published 3 papers on machine learning and I maintain a technical blog with 10k monthly readers, I also have deep expertise in NLP and computer vision, I read about 30 technical books a year to stay current",
-        "entities": ["publications", "knowledge_areas", "learning_history"],
-        "sub_entities": ["publications", "expertise_domains", "books"]
-    },
-    {
-        "message": "I completed a 12-week bootcamp at General Assembly and got the Google UX Design certificate, now I'm studying for the CSPO certification and want to learn Figma at an advanced level, I have about 2000 a year for training",
-        "entities": ["learning_history", "certifications", "learning_aspirations", "learning_preferences"],
-        "sub_entities": ["past_courses", "outcomes", "earned_certs", "certification_aspirations", "skill_aspirations", "budget"]
-    },
-    {
-        "message": "I'm a fast learner who picks things up in about half the time of my peers, I prefer hands-on projects over lectures, my biggest knowledge gap right now is cloud architecture which I need for the Solutions Architect role",
-        "entities": ["learning_preferences", "learning_gaps"],
-        "sub_entities": ["pace", "preferred_formats", "knowledge_gaps", "skill_gaps"]
-    },
-    {
-        "message": "I have expert-level Python and SQL skills verified by my 10 years of experience, I'm knowledgeable about fintech and payments, but I lack experience with blockchain technology which is blocking me from a role at Coinbase",
-        "entities": ["current_skills", "knowledge_areas", "learning_gaps"],
-        "sub_entities": ["skills", "proficiency", "experience", "expertise_domains", "knowledge_gaps"]
+        "message": "I have expert-level Python and SQL skills verified by my 10 years of experience, but I lack experience with blockchain technology which is blocking me from a role at Coinbase",
+        "entities": ["current_skills", "learning_gaps"],
+        "sub_entities": ["skills", "proficiency", "experience", "knowledge_gaps"]
     }
 ]
 

@@ -2,9 +2,7 @@
 Personal Context Constants for Hierarchical Multi-Label Classification
 
 Taxonomy: personal > entity > sub_entity
-12 entities: personal_life, health_and_wellbeing, living_situation, financial_situation,
-             personal_goals, personal_projects, lifestyle_preferences, life_constraints,
-             life_enablers, major_life_events, personal_values, life_satisfaction
+6 entities: personal_life, health_and_wellbeing, financial_situation, personal_goals, lifestyle_preferences, life_constraints
 """
 
 CONTEXT_NAME = "personal"
@@ -60,28 +58,6 @@ ENTITIES = {
             "I have low energy most days probably need to see a doctor about it"
         ]
     },
-    "living_situation": {
-        "name": "Living Situation",
-        "description": "Housing, location, who they live with, willingness to relocate, home office setup.",
-        "sub_entities": {
-            "housing_type": "Own, rent, etc.",
-            "location": "Where they live",
-            "living_with": "Who they live with",
-            "relocation_openness": "Willing to move or not",
-            "constraints": "What prevents relocation",
-            "home_office": "Remote work setup"
-        },
-        "examples": [
-            "I own a house in Austin Texas with my family",
-            "I can't relocate because my partner has tenure at the university",
-            "I have a great home office setup with dual monitors and standing desk",
-            "I rent an apartment in Brooklyn and my lease is up in 6 months",
-            "I live with my parents to save money while I pay off student loans",
-            "I'd be open to relocating for the right opportunity anywhere in the US",
-            "I live in a rural area so remote work is really my only option",
-            "We just bought our first house so I need to stay in this area"
-        ]
-    },
     "financial_situation": {
         "name": "Financial Situation",
         "description": "Financial stability, debt, savings, dependents, risk tolerance, financial stress.",
@@ -126,29 +102,6 @@ ENTITIES = {
             "I want to spend more quality time with my aging parents while I can"
         ]
     },
-    "personal_projects": {
-        "name": "Personal Projects",
-        "description": "Side projects, hobbies, creative work, both career-relevant and purely personal.",
-        "sub_entities": {
-            "project_name": "Name or description of the project",
-            "project_description": "What the project does or is about",
-            "project_type": "Career-related, hobby, creative, etc.",
-            "project_role": "Their role in the project",
-            "project_skills": "Skills used if applicable",
-            "time_commitment": "Hours per week",
-            "motivation": "Why they do it"
-        },
-        "examples": [
-            "I built an open-source analytics dashboard that has 500 GitHub stars",
-            "I maintain a product management blog with 10k monthly readers",
-            "I'm restoring a vintage motorcycle with my dad it's our weekend project",
-            "I have a vegetable garden in my backyard it's very therapeutic",
-            "I spend about 3 hours a week on my side project building an app",
-            "I do woodworking as a hobby I make furniture for friends and family",
-            "I have an Etsy shop selling handmade jewelry brings in 500 a month",
-            "I volunteer coach a kids soccer team every Saturday morning"
-        ]
-    },
     "lifestyle_preferences": {
         "name": "Lifestyle Preferences",
         "description": "Work-life balance importance, ideal schedule, flexibility needs, non-negotiables.",
@@ -189,84 +142,8 @@ ENTITIES = {
             "My health condition means I can't do physically demanding work anymore",
             "I can't relocate for the next 3 years until my kid finishes high school"
         ]
-    },
-    "life_enablers": {
-        "name": "Life Enablers",
-        "description": "Things that help and support their career: family support, financial cushion, location.",
-        "sub_entities": {
-            "enabler_type": "Family, support, location, financial, etc.",
-            "description": "What helps them",
-            "benefit_to_career": "How it helps their career",
-            "strength": "How strong the enabler is"
-        },
-        "examples": [
-            "My in-laws provide free childcare 3 days a week which is huge",
-            "My spouse is very supportive of my career and picks up slack at home",
-            "My AA community keeps me accountable and grounded",
-            "Living in San Francisco gives me access to tons of tech companies",
-            "I have no debt and savings so I can afford to take career risks",
-            "My partner makes good money so I can take a lower paying job I love",
-            "My parents help with the mortgage so my housing costs are low",
-            "I live near a major university so there are always networking events"
-        ]
-    },
-    "major_life_events": {
-        "name": "Major Life Events",
-        "description": "Significant events: marriage, birth, health events, moves, losses, career changes.",
-        "sub_entities": {
-            "event_type": "Marriage, birth, move, health, loss, etc.",
-            "date": "When it happened",
-            "description": "What happened",
-            "impact": "How it affected them"
-        },
-        "examples": [
-            "I got married last year and it shifted my priorities completely",
-            "My first child was born in 2023 and everything changed",
-            "I started recovery 9 months ago hardest and best thing I've done",
-            "We bought our first house last month huge milestone for us",
-            "I got laid off 6 months ago and I'm still processing it emotionally",
-            "My parent passed away last year and it made me rethink my career",
-            "I survived a serious health scare that made me reprioritize everything",
-            "I moved to a new city for my partner's job had to start over professionally"
-        ]
-    },
-    "personal_values": {
-        "name": "Personal Values",
-        "description": "What matters in LIFE (not just work): family, health, authenticity, community, faith.",
-        "sub_entities": {
-            "life_values": "What matters most in life",
-            "importance": "Priority level"
-        },
-        "examples": [
-            "Family is my top priority above any career achievement",
-            "Health and sobriety are the most important things in my life",
-            "I value authenticity and honesty in all my relationships",
-            "Community and giving back matter deeply to me",
-            "Experiences matter more to me than material things",
-            "I value freedom and independence in how I live my life",
-            "Faith and spirituality are central to who I am",
-            "I believe in leaving the world better than I found it"
-        ]
-    },
-    "life_satisfaction": {
-        "name": "Life Satisfaction",
-        "description": "Overall life satisfaction, satisfaction by area, areas they want to improve.",
-        "sub_entities": {
-            "overall_satisfaction": "Overall life satisfaction score",
-            "satisfaction_by_area": "Breakdown by area (career, family, health)",
-            "areas_to_improve": "What they want to improve"
-        },
-        "examples": [
-            "I'm satisfied with life overall about a 7 out of 10",
-            "I'm very happy with my family life 9 out of 10 but work is a 4",
-            "I want to improve my work fulfillment that's the biggest gap right now",
-            "I'm dissatisfied with my social connections only a 5 out of 10",
-            "My health and fitness are where I want them but career is lagging",
-            "Overall I'd rate my life satisfaction at about 6 out of 10",
-            "I'm content with most areas but financial stress brings everything down",
-            "My relationships are strong but I feel unfulfilled professionally"
-        ]
     }
+
 }
 
 ENTITY_GUIDANCE = {
@@ -304,17 +181,13 @@ CRITICAL: Things that RESTRICT your career options.
 ✓ CORRECT: "I can't travel", "I can't relocate", "I can't take a pay cut"
 ✗ WRONG: "My in-laws help with childcare" (that's life_enablers, a positive!)""",
 
-    "life_enablers": """
-CRITICAL: Things that HELP and SUPPORT your career.
-✓ CORRECT: "My spouse is supportive", "Free childcare from in-laws"
-✗ WRONG: "I can't afford risks" (that's life_constraints or financial_situation!)""",
 }
 
 MULTI_LABEL_EXAMPLES = [
     {
         "message": "I'm married with a 1.5 year old and another on the way, my in-laws help with childcare 3 days a week which is a lifesaver, but I have about 40k in student debt and I'm the primary earner so I can't afford career risks right now",
-        "entities": ["personal_life", "life_enablers", "financial_situation", "life_constraints"],
-        "sub_entities": ["relationship_status", "children", "family_support", "enabler_type", "debt", "income_dependency", "constraint_type", "impact_on_career"]
+        "entities": ["personal_life", "financial_situation", "life_constraints"],
+        "sub_entities": ["relationship_status", "children", "family_support", "debt", "income_dependency", "constraint_type", "impact_on_career"]
     },
     {
         "message": "I have chronic back pain and anxiety that's managed with medication, I'm also 9 months sober and attend AA three times a week, overall my wellbeing is about a 5 out of 10 because the physical pain really gets me down some days",
@@ -327,29 +200,29 @@ MULTI_LABEL_EXAMPLES = [
         "sub_entities": ["non_career_goals", "priority", "work_life_balance", "non_negotiables", "constraint_type", "description"]
     },
     {
-        "message": "I just got married and we bought our first house in Austin, I'm very happy with my family life at 9 out of 10 but my career satisfaction is only about 4 because I feel stuck, family is my top priority but I need more fulfillment at work",
-        "entities": ["major_life_events", "living_situation", "life_satisfaction", "personal_values"],
-        "sub_entities": ["event_type", "impact", "location", "housing_type", "overall_satisfaction", "satisfaction_by_area", "areas_to_improve", "life_values"]
+        "message": "I just got married and we bought our first house in Austin, family is my top priority but I need more fulfillment at work",
+        "entities": ["personal_life"],
+        "sub_entities": ["life_transitions", "life_priorities"]
     },
     {
-        "message": "I built an open source analytics dashboard that has 500 GitHub stars and I spend about 5 hours a week on it, I also have a vegetable garden that keeps me sane, I'm in my early 30s with no kids so I have a lot of flexibility",
-        "entities": ["personal_projects", "personal_life"],
-        "sub_entities": ["project_name", "project_description", "time_commitment", "life_stage", "children"]
+        "message": "I'm in my early 30s with no kids so I have a lot of flexibility in my career choices, my main personal goal is to maintain work-life balance",
+        "entities": ["personal_life", "personal_goals"],
+        "sub_entities": ["life_stage", "children", "non_career_goals"]
     },
     {
-        "message": "I can't relocate because my partner has tenure at the university, but living in a college town gives me access to great networking opportunities and my parents help with our mortgage so expenses are manageable even on my salary",
-        "entities": ["life_constraints", "life_enablers", "living_situation", "financial_situation"],
-        "sub_entities": ["constraint_type", "constraints", "enabler_type", "benefit_to_career", "location", "stability"]
+        "message": "I can't relocate because my partner has tenure at the university, but my parents help with our mortgage so expenses are manageable even on my salary",
+        "entities": ["life_constraints", "financial_situation"],
+        "sub_entities": ["constraint_type", "impact_on_career", "stability"]
     },
     {
-        "message": "I value health and family above everything else, my goal is to run a marathon next year and I've been training 4 days a week, I'm pretty satisfied with life overall about a 7 out of 10 but I want to improve my career fulfillment",
-        "entities": ["personal_values", "personal_goals", "life_satisfaction"],
-        "sub_entities": ["life_values", "importance", "non_career_goals", "timeframe", "progress", "overall_satisfaction", "areas_to_improve"]
+        "message": "My goal is to run a marathon next year and I've been training 4 days a week, health is important to me",
+        "entities": ["personal_goals"],
+        "sub_entities": ["non_career_goals", "timeframe", "progress"]
     },
     {
-        "message": "I got laid off 6 months ago and it was devastating, I'm still processing it while dealing with financial stress because I burned through most of my savings, my spouse is supportive but we're now a single income family with two kids",
-        "entities": ["major_life_events", "financial_situation", "life_enablers", "personal_life"],
-        "sub_entities": ["event_type", "impact", "stress_level", "emergency_fund", "income_dependency", "enabler_type", "children", "dependents"]
+        "message": "I'm dealing with financial stress because I burned through most of my savings, my spouse is supportive but we're now a single income family with two kids",
+        "entities": ["financial_situation", "personal_life"],
+        "sub_entities": ["stress_level", "emergency_fund", "income_dependency", "children", "dependents"]
     }
 ]
 

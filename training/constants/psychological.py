@@ -2,9 +2,7 @@
 Psychological Context Constants for Hierarchical Multi-Label Classification
 
 Taxonomy: psychological > entity > sub_entity
-10 entities: personality_profile, values, motivations, working_style_preferences,
-             confidence_and_self_perception, career_decision_making_style,
-             work_environment_preferences, stress_and_coping, emotional_intelligence, growth_mindset
+5 entities: personality_profile, values, motivations, confidence_and_self_perception, stress_and_coping
 """
 
 CONTEXT_NAME = "psychological"
@@ -72,28 +70,6 @@ ENTITIES = {
             "I thrive when I have a clear sense of purpose in my work"
         ]
     },
-    "working_style_preferences": {
-        "name": "Working Style Preferences",
-        "description": "How they prefer to work, collaborate, make decisions, and communicate.",
-        "sub_entities": {
-            "work_style": "How they prefer to work (independent, structured, flexible)",
-            "collaboration_style": "How they work with others",
-            "decision_making": "How they make decisions (data-driven, intuitive, consensus)",
-            "communication_style": "How they communicate (direct, diplomatic, written, verbal)"
-        },
-        "examples": [
-            "I work best independently with clear goals and minimal oversight",
-            "I like collaborative brainstorming sessions early in a project",
-            "I make decisions quickly based on data not gut feeling",
-            "I prefer written communication over meetings honestly",
-            "I'm very direct in my communication style sometimes too blunt",
-            "I need structure and clear processes to do my best work",
-            "I thrive in ambiguity and figure things out as I go",
-            "I prefer async communication and hate unnecessary meetings",
-            "I'm a consensus builder I like to get everyone aligned before deciding",
-            "I work in bursts of intense focus followed by rest periods"
-        ]
-    },
     "confidence_and_self_perception": {
         "name": "Confidence & Self-Perception",
         "description": "Confidence levels, imposter syndrome, self-doubt, self-talk, validation needs, confidence-building strategies.",
@@ -118,46 +94,6 @@ ENTITIES = {
             "I constantly compare myself to peers who seem more successful"
         ]
     },
-    "career_decision_making_style": {
-        "name": "Career Decision Making Style",
-        "description": "How they make career decisions, what influences them, confidence in decisions.",
-        "sub_entities": {
-            "decision_style": "Analytical, intuitive, or mixed decision-making approach",
-            "decision_factors": "What influences career decisions (data, gut, advice, values)",
-            "decision_confidence": "How confident they are in career decisions"
-        },
-        "examples": [
-            "I make career decisions based on data and spreadsheets",
-            "I trust my gut when choosing jobs I know within 5 minutes",
-            "I struggle with big career decisions I overthink everything",
-            "I always consult my mentor before making a big career move",
-            "I make a pros and cons list for every career decision",
-            "I let my values guide me when I'm stuck on a career choice",
-            "I'm indecisive about career moves and it's held me back",
-            "I'm very confident in my career decisions once I commit I don't look back"
-        ]
-    },
-    "work_environment_preferences": {
-        "name": "Work Environment Preferences",
-        "description": "What work environment they thrive in, stressors, and energizers at work.",
-        "sub_entities": {
-            "ideal_environment": "What environment they thrive in",
-            "stressors": "What stresses them at work",
-            "energizers": "What gives them energy at work"
-        },
-        "examples": [
-            "I thrive in fast-paced high-growth environments",
-            "Open offices stress me out I need quiet to focus",
-            "I love working on collaborative cross-functional projects",
-            "I need a calm structured environment to do my best work",
-            "Ambiguity and constant change energize me I love startups",
-            "I hate corporate politics it's the worst part of any job",
-            "I'm energized by building products from zero to one",
-            "I need a small team where everyone knows each other",
-            "I thrive when theres a healthy amount of pressure and deadlines",
-            "I'm drained by large meetings and unnecessary process"
-        ]
-    },
     "stress_and_coping": {
         "name": "Stress & Coping",
         "description": "Current stress level, triggers, coping strategies, and their effectiveness.",
@@ -179,45 +115,8 @@ ENTITIES = {
             "I've tried meditation but it doesn't work for me honestly",
             "Taking breaks and going for walks is my most effective stress relief"
         ]
-    },
-    "emotional_intelligence": {
-        "name": "Emotional Intelligence",
-        "description": "Self-awareness, empathy, emotional regulation abilities.",
-        "sub_entities": {
-            "self_awareness": "Understanding own emotions and their impact",
-            "empathy": "Understanding and responding to others' emotions",
-            "emotional_regulation": "Managing own emotions effectively"
-        },
-        "examples": [
-            "I'm very self-aware about my emotions and triggers",
-            "I'm working on being more empathetic with my team",
-            "I can read a room well I pick up on unspoken dynamics",
-            "I struggle to regulate my emotions when I'm frustrated",
-            "I'm good at empathy but it sometimes becomes people-pleasing",
-            "I can stay calm under pressure that's one of my strengths",
-            "I know when I'm getting stressed before it affects my work",
-            "I have a hard time not taking criticism personally"
-        ]
-    },
-    "growth_mindset": {
-        "name": "Growth Mindset",
-        "description": "Fixed vs growth mindset, beliefs about talent, approach to challenges.",
-        "sub_entities": {
-            "mindset_level": "Fixed, growth, or mixed mindset",
-            "beliefs_about_talent": "Whether abilities are innate or developed",
-            "approach_to_challenges": "How they approach challenges and failures"
-        },
-        "examples": [
-            "I believe abilities can be developed with effort and practice",
-            "I see failures as learning opportunities not defeats",
-            "I love challenging myself with things outside my comfort zone",
-            "I sometimes fall into a fixed mindset when things get hard",
-            "I believe talent is 20 percent innate and 80 percent hard work",
-            "I embrace challenges they make me stronger",
-            "I'm working on not giving up when things get difficult",
-            "I get frustrated when I don't pick things up quickly"
-        ]
     }
+
 }
 
 ENTITY_GUIDANCE = {
@@ -233,11 +132,6 @@ CRITICAL: What DRIVES or KILLS motivation.
 ✗ WRONG: "I value autonomy" (that's values—stable priorities, not drivers!)
 ✗ WRONG: "I'm stressed by deadlines" (that's stress_and_coping!)""",
 
-    "working_style_preferences": """
-CRITICAL: HOW they work, not WHERE or what environment.
-✓ CORRECT: "I prefer async communication", "I make data-driven decisions"
-✗ WRONG: "I thrive in fast-paced environments" (that's work_environment_preferences!)
-✗ WRONG: "I want remote work" (that's professional > desired_work_environment or personal > lifestyle_preferences!)""",
 
     "confidence_and_self_perception": """
 CRITICAL: MULTI-LABEL entity. Confidence, imposter syndrome, self-talk, validation needs.
@@ -247,11 +141,6 @@ CRITICAL: MULTI-LABEL entity. Confidence, imposter syndrome, self-talk, validati
 - confidence_building_strategies: "Wins journal helps", "Working with a coach"
 A single message can touch all four.""",
 
-    "work_environment_preferences": """
-CRITICAL: What ENVIRONMENT they thrive in—not working style.
-✓ CORRECT: "I thrive in startups", "Open offices stress me out"
-✗ WRONG: "I prefer async work" (that's working_style_preferences!)
-✗ WRONG: "I want remote work" (that's professional > desired_work_environment!)""",
 
     "stress_and_coping": """
 CRITICAL: Stress and how they HANDLE it.
@@ -263,8 +152,8 @@ CRITICAL: Stress and how they HANDLE it.
 MULTI_LABEL_EXAMPLES = [
     {
         "message": "I'm an INTJ perfectionist who values autonomy above everything, I'm motivated by solving hard problems but micromanagement completely kills my drive, I work best independently with clear goals and minimal oversight",
-        "entities": ["personality_profile", "values", "motivations", "working_style_preferences"],
-        "sub_entities": ["personality_type", "traits", "professional_values", "intrinsic_motivations", "demotivators", "work_style"]
+        "entities": ["personality_profile", "values", "motivations"],
+        "sub_entities": ["personality_type", "traits", "professional_values", "intrinsic_motivations", "demotivators"]
     },
     {
         "message": "My confidence is about 6 out of 10, I have moderate imposter syndrome especially around senior leaders, my inner critic is very harsh and I rely too much on external validation, working with a coach has been helping though",
@@ -273,33 +162,33 @@ MULTI_LABEL_EXAMPLES = [
     },
     {
         "message": "I thrive in fast-paced startup environments where I can build from scratch, tight deadlines stress me but exercise and meditation help me cope, I believe challenges make me stronger and I see failures as learning opportunities",
-        "entities": ["work_environment_preferences", "stress_and_coping", "growth_mindset"],
-        "sub_entities": ["ideal_environment", "energizers", "stress_triggers", "coping_strategies", "approach_to_challenges", "mindset_level"]
+        "entities": ["stress_and_coping"],
+        "sub_entities": ["stress_triggers", "coping_strategies"]
     },
     {
         "message": "I make career decisions based on data and always consult my mentor, I'm very self-aware about my emotions and I can read a room well but I struggle with not taking criticism personally and that affects my confidence",
-        "entities": ["career_decision_making_style", "emotional_intelligence", "confidence_and_self_perception"],
-        "sub_entities": ["decision_style", "decision_factors", "self_awareness", "empathy", "emotional_regulation", "confidence_levels"]
+        "entities": ["confidence_and_self_perception"],
+        "sub_entities": ["confidence_levels"]
     },
     {
         "message": "I'm an extrovert who loves collaborative brainstorming but I prefer direct written communication, I'm motivated by recognition and building things from scratch, and I need a small team environment where everyone knows each other",
-        "entities": ["personality_profile", "working_style_preferences", "motivations", "work_environment_preferences"],
-        "sub_entities": ["traits", "self_description", "collaboration_style", "communication_style", "extrinsic_motivations", "intrinsic_motivations", "ideal_environment"]
+        "entities": ["personality_profile", "motivations"],
+        "sub_entities": ["traits", "self_description", "extrinsic_motivations", "intrinsic_motivations"]
     },
     {
         "message": "I'm pretty stressed right now about 7 out of 10, conflict with colleagues triggers it most, I try to cope by exercising and talking to my therapist but sometimes I fall into a fixed mindset and just want to give up",
-        "entities": ["stress_and_coping", "growth_mindset"],
-        "sub_entities": ["stress_level", "stress_triggers", "coping_strategies", "effectiveness", "mindset_level", "approach_to_challenges"]
+        "entities": ["stress_and_coping"],
+        "sub_entities": ["stress_level", "stress_triggers", "coping_strategies", "effectiveness"]
     },
     {
         "message": "I value mission alignment and intellectual challenge at work, I trust my gut for career decisions and I'm very confident once I commit, I believe talent is mostly developed through hard work and I embrace challenges",
-        "entities": ["values", "career_decision_making_style", "growth_mindset"],
-        "sub_entities": ["professional_values", "priorities", "decision_style", "decision_confidence", "beliefs_about_talent", "approach_to_challenges"]
+        "entities": ["values"],
+        "sub_entities": ["professional_values", "priorities"]
     },
     {
         "message": "I'm empathetic sometimes too much so which leads to people-pleasing, I need external validation more than I'd like to admit, this affects my confidence which dropped after a project failure, I'm trying meditation and coaching to help",
-        "entities": ["emotional_intelligence", "confidence_and_self_perception", "stress_and_coping"],
-        "sub_entities": ["empathy", "emotional_regulation", "self_talk_and_validation", "confidence_levels", "confidence_building_strategies", "coping_strategies"]
+        "entities": ["confidence_and_self_perception", "stress_and_coping"],
+        "sub_entities": ["self_talk_and_validation", "confidence_levels", "confidence_building_strategies", "coping_strategies"]
     }
 ]
 

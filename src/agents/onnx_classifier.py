@@ -1,24 +1,20 @@
 """
 Hierarchical ONNX-based Intent Classifier.
 
-4-level classification pipeline using ONNX Runtime:
-  1. Routing (softmax 8 classes) → determines context or non-context type
-  2. Contexts (softmax 5 classes) → confirms which context
-  3. Entities (softmax N classes per context) → which entities within context
-  4. Sub-entities (sigmoid multi-label per entity) → which sub-entities (multiple active)
+2-level classification pipeline using ONNX Runtime:
+  1. Unified (sigmoid 8 classes, multi-label) → detects active contexts + non-context types
+  2. Entities (softmax N classes per context) → which entities within each active context
+
+Sub-entities are resolved by LLM extraction using CONTEXT_REGISTRY taxonomy lookup.
 
 All models loaded from disk as quantized ONNX. No PyTorch required.
 
 Directory structure expected:
     {model_path}/
     ├── hierarchy_metadata.json
-    ├── routing/          (model_quantized.onnx, config.json, label_mappings.json, tokenizer)
-    ├── contexts/         (model_quantized.onnx, ...)
+    ├── unified/          (model_quantized.onnx, config.json, label_mappings.json, tokenizer)
     ├── professional/
     │   ├── entities/     (model_quantized.onnx, ...)
-    │   ├── current_position/      (model_quantized.onnx, ... multi-label)
-    │   ├── professional_aspirations/
-    │   └── ...
     ├── learning/
     │   ├── entities/
     │   └── ...
@@ -207,21 +203,21 @@ CONTEXT_TYPES = {"professional", "learning", "social", "psychological", "persona
 
 class HierarchicalONNXClassifier:
     """
-    Hierarchical 4-level ONNX classifier with multi-path detection.
+    Hierarchical 2-level ONNX classifier with multi-path detection.
 
-    For each message, detects MULTIPLE contexts, entities, and sub-entities
+    For each message, detects MULTIPLE contexts and entities
     using probability thresholds at every level (not just argmax).
 
     Pipeline:
-      routing (top-N contexts above threshold)
-        → for each context: entities (top-N above threshold)
-          → for each entity: sub-entities (sigmoid multi-label)
+      unified (sigmoid multi-label, 8 classes → active contexts)
+        → for each context: entities (softmax, top-N above threshold)
+    Sub-entities are resolved by LLM extraction using CONTEXT_REGISTRY.
     """
 
-    # Entity model threshold: each context has ~6-17 entities (softmax).
-    # Random uniform = ~10-17%. A real signal gives the top entity >50%.
-    # 30% filters noise while keeping legitimate detections like social (34%).
-    # This is the ONLY filter — routing doesn't limit which contexts to explore.
+    # Entity model threshold: each context has ~4-6 entities (softmax).
+    # Random uniform = ~17-25%. A real signal gives the top entity >50%.
+    # 30% filters noise while keeping legitimate detections.
+    # This is the ONLY filter — unified model doesn't limit which contexts to explore.
     ENTITY_THRESHOLD = 0.30
 
     def __init__(self, model_path: str):
@@ -238,13 +234,10 @@ class HierarchicalONNXClassifier:
             with open(metadata_file) as f:
                 self.metadata = json.load(f)
 
-        # Level 0: Routing
-        self.routing_model = self._load_model(model_dir / "routing", "routing")
+        # Level 0: Unified (8 classes, multi-label sigmoid)
+        self.unified_model = self._load_model(model_dir / "unified", "unified")
 
-        # Level 1: Contexts
-        self.contexts_model = self._load_model(model_dir / "contexts", "contexts")
-
-        # Level 2: Entity models (one per context)
+        # Level 1: Entity models (one per context, softmax)
         self.entity_models: dict[str, ONNXModel] = {}
         for ctx in CONTEXT_TYPES:
             entity_dir = model_dir / ctx / "entities"
@@ -253,14 +246,9 @@ class HierarchicalONNXClassifier:
                 if model:
                     self.entity_models[ctx] = model
 
-        # Level 3: Sub-entity models skipped — LLM extraction handles sub-entities
-        # The classifier only needs to identify context + entity (2 levels).
-        # Sub-entities are looked up from CONTEXT_REGISTRY and extracted by the LLM.
-        self.sub_entity_models: dict[str, dict[str, ONNXModel]] = {}
-
         # Summary
         n_entity = len(self.entity_models)
-        print(f"[HIERARCHICAL ONNX] Loaded: routing + contexts + {n_entity} entity models (sub-entities handled by LLM)")
+        print(f"[HIERARCHICAL ONNX] Loaded: unified (multi-label) + {n_entity} entity models (sub-entities handled by LLM)")
 
     def _load_model(self, model_dir: Path, name: str) -> Optional[ONNXModel]:
         """Load a single ONNX model, returning None if not found."""
@@ -290,29 +278,36 @@ class HierarchicalONNXClassifier:
         Run full hierarchical classification with multi-path detection.
 
         Flow:
-            1. Routing → get ALL contexts above threshold (not just top-1)
-            2. For each context → get ALL entities above threshold
-            3. For each entity → get sub-entities (sigmoid multi-label)
+            1. Unified (sigmoid multi-label) → detect active classes
+            2. For each active context → entities (softmax, top-N above threshold)
 
         Example result for "Quiero ser CEO de Apple, gano 100k y sé Python":
             contexts:
-              - professional (0.65):
-                  - professional_aspirations → [dream_roles, compensation_expectations]
-                  - current_position → [compensation]
-              - learning (0.25):
-                  - current_skills → [skills]
+              - professional:
+                  - professional_aspirations
+                  - current_position
+              - learning:
+                  - current_skills
         """
         # =====================================================================
-        # STEP 1: Routing (8 classes) → find ALL relevant contexts
+        # STEP 1: Unified (8 classes, multi-label sigmoid)
         # =====================================================================
-        if not self.routing_model:
+        if not self.unified_model:
             return HierarchicalClassification(
                 route="chitchat", route_confidence=0.0, is_context=False,
-                reasoning="No routing model loaded",
+                reasoning="No unified model loaded",
             )
 
-        route, route_conf, route_probs = self.routing_model.predict_single_label(message)
+        active_labels, all_probs = self.unified_model.predict_multi_label(message)
+
+        # Primary route = highest probability class
+        route = max(all_probs.items(), key=lambda x: x[1])[0]
+        route_conf = all_probs[route]
         is_context = route in CONTEXT_TYPES
+
+        probs_str = ", ".join(f"{k}={v:.1%}" for k, v in sorted(all_probs.items(), key=lambda x: x[1], reverse=True))
+        print(f"[HIERARCHICAL ONNX] Unified: route={route} ({route_conf:.1%}), active={active_labels}")
+        print(f"[HIERARCHICAL ONNX]   All probs: {probs_str}")
 
         if not is_context:
             # Non-context route (rag_query, chitchat, off_topic) → no extraction
@@ -320,54 +315,45 @@ class HierarchicalONNXClassifier:
                 route=route,
                 route_confidence=route_conf,
                 is_context=False,
-                route_probabilities=route_probs,
-                reasoning=f"Routing: {route} ({route_conf:.1%})",
+                route_probabilities=all_probs,
+                reasoning=f"Unified: {route} ({route_conf:.1%})",
             )
 
         # =================================================================
-        # Route IS a context → run ALL 5 entity models (ONNX, free).
-        # The routing model is softmax and concentrates ~97% on one context,
-        # so we DON'T use routing probabilities to filter contexts.
-        # Instead, each entity model decides if its context is relevant
-        # based on ENTITY_THRESHOLD (40%). Only those trigger LLM calls.
+        # Route IS a context → run ALL entity models (ONNX, free).
+        # Each entity model decides if its context is relevant based on
+        # ENTITY_THRESHOLD. Only contexts with entities above threshold
+        # trigger LLM calls downstream.
         # =================================================================
-        detected_contexts = [
-            (ctx, 1.0) for ctx in self.entity_models
-        ]
-        print(f"[HIERARCHICAL ONNX] Running all {len(detected_contexts)} entity models")
+        print(f"[HIERARCHICAL ONNX] Running all {len(self.entity_models)} entity models")
 
         # =====================================================================
-        # STEP 2 & 3: For each context → entities → sub-entities
+        # STEP 2: For each context → entities
         # =====================================================================
         context_results = []
-        reasoning_parts = [f"Routing: {route} ({route_conf:.1%})"]
+        reasoning_parts = [f"Unified: {route} ({route_conf:.1%})"]
 
-        for ctx, ctx_conf in detected_contexts:
-            # Get entities for this context
+        for ctx in self.entity_models:
+            _, _, entity_probs = self.entity_models[ctx].predict_single_label(message)
+            top_entity = max(entity_probs.items(), key=lambda x: x[1])
+            print(f"[HIERARCHICAL ONNX]   {ctx}: top={top_entity[0]} ({top_entity[1]:.1%})")
+            detected_entities = self._get_entities_above_threshold(entity_probs)
+
             entity_results = []
-
-            if ctx in self.entity_models:
-                _, _, entity_probs = self.entity_models[ctx].predict_single_label(message)
-                top_entity = max(entity_probs.items(), key=lambda x: x[1])
-                print(f"[HIERARCHICAL ONNX]   {ctx}: top={top_entity[0]} ({top_entity[1]:.1%})")
-                detected_entities = self._get_entities_above_threshold(entity_probs)
-
-                for entity, entity_conf in detected_entities:
-                    # Sub-entities are resolved downstream by the LLM extraction node
-                    # using CONTEXT_REGISTRY lookups — no Level 3 ONNX model needed.
-                    entity_results.append(SubEntityResult(
-                        entity=entity,
-                        sub_entities=[],
-                        probabilities={},
-                    ))
-                    reasoning_parts.append(f"{ctx}.{entity} ({entity_conf:.0%})")
+            for entity, entity_conf in detected_entities:
+                entity_results.append(SubEntityResult(
+                    entity=entity,
+                    sub_entities=[],
+                    probabilities={},
+                ))
+                reasoning_parts.append(f"{ctx}.{entity} ({entity_conf:.0%})")
 
             if entity_results:
                 context_results.append(ContextResult(
                     context=ctx,
-                    context_confidence=ctx_conf,
+                    context_confidence=all_probs.get(ctx, 0.0),
                     entities=entity_results,
-                    entity_probabilities=entity_probs if ctx in self.entity_models else {},
+                    entity_probabilities=entity_probs,
                 ))
 
         return HierarchicalClassification(
@@ -375,7 +361,7 @@ class HierarchicalONNXClassifier:
             route_confidence=route_conf,
             is_context=bool(context_results),
             contexts=context_results,
-            route_probabilities=route_probs,
+            route_probabilities=all_probs,
             reasoning=" | ".join(reasoning_parts),
         )
 
