@@ -21,18 +21,30 @@ from pathlib import Path
 from huggingface_hub import HfApi, create_repo
 
 
-def build_hierarchy_metadata(onnx_dir: Path) -> dict:
-    """Build hierarchy_metadata.json from the exported ONNX directory structure."""
+def build_hierarchy_metadata(onnx_dir: Path) -> dict | None:
+    """Build hierarchy_metadata.json from the exported ONNX directory structure.
+
+    If hierarchy_metadata.json already exists in onnx_dir (generated during ONNX export),
+    returns None to signal that the existing file should be used as-is.
+    """
+    existing = onnx_dir / "hierarchy_metadata.json"
+    if existing.exists():
+        print(f"  Using existing hierarchy_metadata.json from ONNX export")
+        return None
+
+    # Fallback: generate metadata by scanning directory structure
     contexts = ["professional", "learning", "social", "psychological", "personal"]
 
     metadata = {
         "version": "2.0",
-        "description": "Hierarchical 4-level intent classification (ONNX INT8 quantized)",
+        "architecture": "unified",
         "levels": {
-            "routing": {"path": "routing/", "type": "single_label"},
-            "contexts": {"path": "contexts/", "type": "single_label"},
+            "unified": {
+                "path": "unified/",
+                "type": "multi_label",
+                "description": "8-class multi-label: 5 contexts + rag_query + chitchat + off_topic",
+            },
             "entities": {"type": "single_label", "models": {}},
-            "sub_entities": {"type": "multi_label", "models": {}},
         },
     }
 
@@ -44,29 +56,6 @@ def build_hierarchy_metadata(onnx_dir: Path) -> dict:
             metadata["levels"]["entities"]["models"][ctx] = {
                 "path": f"{ctx}/entities/",
                 "labels": list(config.get("id2label", {}).values()),
-            }
-
-        ctx_dir = onnx_dir / ctx
-        if not ctx_dir.exists():
-            continue
-        for sub_dir in sorted(ctx_dir.iterdir()):
-            if sub_dir.name == "entities" or not sub_dir.is_dir():
-                continue
-            if not (sub_dir / "model_quantized.onnx").exists():
-                continue
-            labels, threshold = [], 0.5
-            if (sub_dir / "label_mappings.json").exists():
-                with open(sub_dir / "label_mappings.json") as f:
-                    lc = json.load(f)
-                lm = lc.get("label_mappings", lc.get("id2label", lc))
-                labels = list(lm.values()) if isinstance(lm, dict) else lm
-                threshold = lc.get("threshold", 0.5)
-            if ctx not in metadata["levels"]["sub_entities"]["models"]:
-                metadata["levels"]["sub_entities"]["models"][ctx] = {}
-            metadata["levels"]["sub_entities"]["models"][ctx][sub_dir.name] = {
-                "path": f"{ctx}/{sub_dir.name}/",
-                "labels": labels,
-                "threshold": threshold,
             }
 
     return metadata
@@ -96,11 +85,12 @@ def build_staging(staging_dir: Path, onnx_dir: Path, semantic_gate_dir: Path, tu
             shutil.copy2(str(src_file), str(dst))
             copied += 1
 
-        # Generate hierarchy_metadata.json
+        # Generate hierarchy_metadata.json only if not already copied from source
         metadata = build_hierarchy_metadata(onnx_dir)
-        with open(dest_hier / "hierarchy_metadata.json", "w") as f:
-            json.dump(metadata, f, indent=2)
-        copied += 1
+        if metadata is not None:
+            with open(dest_hier / "hierarchy_metadata.json", "w") as f:
+                json.dump(metadata, f, indent=2)
+            copied += 1
 
     # 2. Copy semantic gate files
     if semantic_gate_dir.exists():
