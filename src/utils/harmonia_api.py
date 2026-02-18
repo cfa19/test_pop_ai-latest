@@ -799,7 +799,7 @@ def store_extracted_information(
                 "confidence": round(min(confidence, 1.0), 2),
                 "source": source,
                 "status": "proposed",
-                "tags": [category, entity or subcategory, subcategory],
+                "tags": [],
                 "raw_data": raw_data,
             })
             .execute()

@@ -35,7 +35,13 @@ from src.utils.conversation_memory import format_conversation_context, search_co
 from src.utils.rag import hybrid_search
 
 # from src.utils.harmonia_api import store_extracted_information  # imported inside store_information_node when STORE_DRY_RUN=False
-from training.constants.info_extraction import EXTRACTION_SCHEMAS, EXTRACTION_SYSTEM_MESSAGE, build_extraction_prompt, build_entity_extraction_prompt, build_combined_extraction_prompt
+from training.constants.info_extraction import (
+    EXTRACTION_SCHEMAS,
+    EXTRACTION_SYSTEM_MESSAGE,
+    build_extraction_prompt,
+    build_entity_extraction_prompt,
+    build_combined_extraction_prompt,
+)
 
 # =============================================================================
 # Intent Classification Models
@@ -93,7 +99,6 @@ def load_secondary_classifier(category: str, model_base_path: str):
         Tuple of (model, tokenizer, label_mappings, device) or None if not found
     """
     global _secondary_classifier_cache
-
 
     # Check if category should have secondary classifier
     if category in SKIP_SECONDARY_CATEGORIES:
@@ -206,7 +211,6 @@ def load_secondary_onnx_classifier(category: str, base_path: str):
         Tuple of (session, tokenizer, label_mappings, input_names) or None if not found
     """
     global _secondary_onnx_cache
-
 
     if category in SKIP_SECONDARY_CATEGORIES:
         return None
@@ -438,7 +442,7 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
         try:
             from deep_translator import GoogleTranslator
 
-            translated_message = GoogleTranslator(source=lang_hint, target='en').translate(message)
+            translated_message = GoogleTranslator(source=lang_hint, target="en").translate(message)
 
             if translated_message and translated_message.strip():
                 state["message"] = translated_message
@@ -875,6 +879,7 @@ async def semantic_gate_node(state: WorkflowState) -> WorkflowState:
         if gate is None:
             print("[WORKFLOW] Semantic Gate: Not preloaded, lazy loading ONNX...")
             from src.agents.semantic_gate_onnx import get_semantic_gate_onnx
+
             gate = get_semantic_gate_onnx()
 
         gate_type = type(gate).__name__
@@ -1021,7 +1026,8 @@ def _collect_entities_from_hierarchy(state: WorkflowState) -> list[tuple[str, st
         if ctx.entity_probabilities:
             top_entities = sorted(
                 ctx.entity_probabilities.items(),
-                key=lambda x: x[1], reverse=True,
+                key=lambda x: x[1],
+                reverse=True,
             )[:MAX_ENTITIES_PER_CONTEXT]
             entity_keys = [e[0] for e in top_entities]
             probs_str = ", ".join(f"{k}={v:.0%}" for k, v in top_entities)
@@ -1077,9 +1083,12 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
 
 
 async def _extract_by_entity(
-    state: WorkflowState, chat_client: OpenAI,
-    entity_paths: list[tuple[str, str, dict]], message: str,
-    t0: float, step_start_index: int,
+    state: WorkflowState,
+    chat_client: OpenAI,
+    entity_paths: list[tuple[str, str, dict]],
+    message: str,
+    t0: float,
+    step_start_index: int,
 ) -> WorkflowState:
     """
     Combined extraction: 1 SINGLE LLM call for ALL entities.
@@ -1102,12 +1111,9 @@ async def _extract_by_entity(
 
         response = chat_client.chat.completions.create(
             model=state["chat_model"],
-            messages=[
-                {"role": "system", "content": EXTRACTION_SYSTEM_MESSAGE},
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "system", "content": EXTRACTION_SYSTEM_MESSAGE}, {"role": "user", "content": prompt}],
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
 
         combined_result = json.loads(response.choices[0].message.content)
@@ -1140,11 +1146,7 @@ async def _extract_by_entity(
 
                 # Lists of dicts → flatten names into ONE card
                 if isinstance(sub_data, list) and sub_data and isinstance(sub_data[0], dict):
-                    names = [
-                        it.get("name") or str(it)
-                        for it in sub_data
-                        if any(v for v in it.values() if v is not None and v != "")
-                    ]
+                    names = [it.get("name") or str(it) for it in sub_data if any(v for v in it.values() if v is not None and v != "")]
                     if not names:
                         continue
 
@@ -1157,10 +1159,14 @@ async def _extract_by_entity(
                     extraction_data["content"] = json.dumps(flat_data, default=str)
                     extraction_data["type"] = "fact"
 
-                    all_extractions.append({
-                        "context": context, "entity": entity,
-                        "sub_entity": sub_key, "data": extraction_data,
-                    })
+                    all_extractions.append(
+                        {
+                            "context": context,
+                            "entity": entity,
+                            "sub_entity": sub_key,
+                            "data": extraction_data,
+                        }
+                    )
                     found_any = True
                     continue
 
@@ -1185,10 +1191,14 @@ async def _extract_by_entity(
                     extraction_data["content"] = json.dumps(sub_data, default=str)
                     extraction_data["type"] = "fact"
 
-                    all_extractions.append({
-                        "context": context, "entity": entity,
-                        "sub_entity": sub_key, "data": extraction_data,
-                    })
+                    all_extractions.append(
+                        {
+                            "context": context,
+                            "entity": entity,
+                            "sub_entity": sub_key,
+                            "data": extraction_data,
+                        }
+                    )
                     found_any = True
                 else:
                     merged_simple_values[sub_key] = sub_data
@@ -1203,10 +1213,14 @@ async def _extract_by_entity(
                 extraction_data["content"] = json.dumps(merged_simple_values, default=str)
                 extraction_data["type"] = "fact"
 
-                all_extractions.append({
-                    "context": context, "entity": entity,
-                    "sub_entity": entity, "data": extraction_data,
-                })
+                all_extractions.append(
+                    {
+                        "context": context,
+                        "entity": entity,
+                        "sub_entity": entity,
+                        "data": extraction_data,
+                    }
+                )
                 found_any = True
 
             if not found_any:
@@ -1237,9 +1251,7 @@ async def _extract_by_entity(
     if all_extractions:
         state["extracted_information"] = all_extractions[0]["data"]
         state["metadata"]["extracted_information"] = [e["data"] for e in all_extractions]
-        state["metadata"]["extraction_paths"] = [
-            f"{e['context']}/{e['entity']}/{e['sub_entity']}" for e in all_extractions
-        ]
+        state["metadata"]["extraction_paths"] = [f"{e['context']}/{e['entity']}/{e['sub_entity']}" for e in all_extractions]
     else:
         state["extracted_information"] = {}
 
@@ -1250,9 +1262,12 @@ async def _extract_by_entity(
 
 
 async def _extract_by_sub_entity(
-    state: WorkflowState, chat_client: OpenAI,
-    paths: list[tuple[str, str, str]], message: str,
-    t0: float, step_start_index: int,
+    state: WorkflowState,
+    chat_client: OpenAI,
+    paths: list[tuple[str, str, str]],
+    message: str,
+    t0: float,
+    step_start_index: int,
 ) -> WorkflowState:
     """Legacy per-sub-entity extraction for non-ONNX classifiers."""
     print(f"[WORKFLOW] Information Extraction: {len(paths)} path(s) to extract (legacy)")
@@ -1269,12 +1284,9 @@ async def _extract_by_sub_entity(
             extraction_prompt = build_extraction_prompt(schema, message)
             response = chat_client.chat.completions.create(
                 model=state["chat_model"],
-                messages=[
-                    {"role": "system", "content": EXTRACTION_SYSTEM_MESSAGE},
-                    {"role": "user", "content": extraction_prompt}
-                ],
+                messages=[{"role": "system", "content": EXTRACTION_SYSTEM_MESSAGE}, {"role": "user", "content": extraction_prompt}],
                 temperature=0.1,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
 
             extracted = json.loads(response.choices[0].message.content)
@@ -1285,12 +1297,14 @@ async def _extract_by_sub_entity(
             if not filled:
                 continue
 
-            all_extractions.append({
-                "context": context,
-                "entity": entity,
-                "sub_entity": sub_entity,
-                "data": extracted,
-            })
+            all_extractions.append(
+                {
+                    "context": context,
+                    "entity": entity,
+                    "sub_entity": sub_entity,
+                    "data": extracted,
+                }
+            )
         except Exception as e:
             print(f"[WORKFLOW] Information Extraction: Error extracting {sub_entity} - {e}")
 
@@ -1298,9 +1312,7 @@ async def _extract_by_sub_entity(
     if all_extractions:
         state["extracted_information"] = all_extractions[0]["data"]
         state["metadata"]["extracted_information"] = [e["data"] for e in all_extractions]
-        state["metadata"]["extraction_paths"] = [
-            f"{e['context']}/{e['entity']}/{e['sub_entity']}" for e in all_extractions
-        ]
+        state["metadata"]["extraction_paths"] = [f"{e['context']}/{e['entity']}/{e['sub_entity']}" for e in all_extractions]
     else:
         state["extracted_information"] = {}
 
@@ -1345,24 +1357,35 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
         if not classification or not classification.subcategory:
             print("[WORKFLOW] Store Information: No subcategory, skipping")
             return state
-        extraction_results = [{
-            "context": classification.category.value,
-            "entity": classification.subcategory,
-            "sub_entity": classification.subcategory,
-            "data": extracted_info,
-        }]
+        extraction_results = [
+            {
+                "context": classification.category.value,
+                "entity": classification.subcategory,
+                "sub_entity": classification.subcategory,
+                "data": extracted_info,
+            }
+        ]
 
     mode_label = "DRY-RUN" if STORE_DRY_RUN else "LIVE"
     print(f"[WORKFLOW] Store Information [{mode_label}]: {len(extraction_results)} extraction(s)")
     state["workflow_process"].append(f"💾 Store Information [{mode_label}]: {len(extraction_results)} memory card(s)")
 
     all_created_ids = []
+    seen_tags = set()
 
     for i, extraction in enumerate(extraction_results, 1):
         context = extraction["context"]
         entity = extraction["entity"]
         sub_entity = extraction["sub_entity"]
         extracted_data = extraction["data"]
+
+        # Deduplicate: skip if this tag path was already stored
+        tag_key = (context, entity, sub_entity)
+        if tag_key in seen_tags:
+            print(f"[WORKFLOW] Store Information: Card {i}/{len(extraction_results)} → duplicate tags {context}/{entity}/{sub_entity}, skipped")
+            state["workflow_process"].append(f"  ⏭️ Card {i}: {context}/{entity}/{sub_entity} → duplicate, skipped")
+            continue
+        seen_tags.add(tag_key)
 
         # Log what would be stored
         filled = {k: v for k, v in extracted_data.items() if v and k not in ("content", "type")}
@@ -1379,16 +1402,17 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
             continue
 
         print(f"[WORKFLOW] Store Information: Card {i}/{len(extraction_results)}")
-        print(f"  linkedContexts: [\"{context}\", \"{sub_entity}\"]")
+        print(f'  linkedContexts: ["{context}", "{sub_entity}"]')
         print(f"  data: {preview}")
 
         if STORE_DRY_RUN:
             state["workflow_process"].append(f"  📝 [DRY-RUN] Card {i}: {context}/{entity}/{sub_entity}")
-            state["workflow_process"].append(f"    linkedContexts: [\"{context}\", \"{sub_entity}\"]")
+            state["workflow_process"].append(f'    linkedContexts: ["{context}", "{sub_entity}"]')
             state["workflow_process"].append(f"    data: {preview}")
         else:
             try:
                 from src.utils.harmonia_api import store_extracted_information
+
                 result = store_extracted_information(
                     supabase=state["supabase"],
                     category=context,
@@ -1768,7 +1792,7 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
     try:
         from deep_translator import GoogleTranslator
 
-        translated_response = GoogleTranslator(source='en', target=language_code).translate(state["response"])
+        translated_response = GoogleTranslator(source="en", target=language_code).translate(state["response"])
 
         if translated_response and translated_response.strip():
             print(f"[WORKFLOW] Response Translation: Translated ({len(translated_response)} characters) [Google Translate]")
