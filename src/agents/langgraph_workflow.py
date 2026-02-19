@@ -1128,11 +1128,14 @@ async def _extract_by_entity(
                 state["workflow_process"].append(f"  ⏭️ {key} → empty")
                 continue
 
-            # Unwrap if LLM wrapped under entity name
-            if len(result) == 1 and entity in result and isinstance(result[entity], dict):
+            sub_entities = entity_info.get("sub_entities", {})
+
+            # Unwrap if LLM wrapped under entity name (but NOT if entity name is also a sub_entity key)
+            if (len(result) == 1 and entity in result
+                    and isinstance(result[entity], dict)
+                    and entity not in sub_entities):
                 result = result[entity]
 
-            sub_entities = entity_info.get("sub_entities", {})
             found_any = False
             merged_simple_values = {}
 
