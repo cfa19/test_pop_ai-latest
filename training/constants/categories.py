@@ -9,7 +9,7 @@ used for synthetic data generation.
 # STORE A CONTEXTS
 # ==============================================================================
 
-STORE_A_CONTEXTS = ["professional", "psychological", "learning", "social", "emotional", "aspirational"]
+STORE_A_CONTEXTS = ["professional", "psychological", "learning", "social", "personal"]
 
 # ==============================================================================
 # INTENT CATEGORIES
@@ -66,24 +66,17 @@ INTENT_CATEGORIES = {
             "My former manager is now a CTO at a startup",
         ],
     },
-    "emotional": {
-        "description": "Emotional wellbeing, confidence, stress, anxiety, burnout, feelings",
+    "personal": {
+        "description": (
+            "Personal life context: family, health, finances, "
+            "life goals, lifestyle, constraints"
+        ),
         "examples": [
-            "I'm feeling burned out from work",
-            "I lack confidence in my technical abilities",
-            "I'm anxious about changing careers",
-            "I feel overwhelmed by the pace of technology changes",
-            "I'm proud of my recent project success",
-        ],
-    },
-    "aspirational": {
-        "description": "Career goals, dreams, ambitions, future plans",
-        "examples": [
-            "I want to become a CTO in 5 years",
-            "My goal is to work at a FAANG company",
-            "I dream of starting my own tech startup",
-            "I aspire to be a thought leader in AI",
-            "I want to transition from frontend to full-stack development",
+            "I'm married with a 1.5-year-old",
+            "I have 45k in student loan debt",
+            "I want to move to Barcelona next year",
+            "I can't travel because of childcare",
+            "Work-life balance is non-negotiable for me",
         ],
     },
     "chitchat": {
@@ -170,7 +163,7 @@ def get_training_categories() -> list:
     Returns:
         List of 7 training category names
     """
-    return ["rag_query", "professional", "psychological", "learning", "social", "emotional", "aspirational"]
+    return ["rag_query", "professional", "psychological", "learning", "social", "personal"]
 
 
 def get_store_a_contexts() -> list:
@@ -180,4 +173,4 @@ def get_store_a_contexts() -> list:
     Returns:
         List of 6 Store A context names
     """
-    return ["professional", "psychological", "learning", "social", "emotional", "aspirational"]
+    return ["professional", "psychological", "learning", "social", "personal"]

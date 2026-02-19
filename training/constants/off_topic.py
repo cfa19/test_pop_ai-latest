@@ -59,13 +59,33 @@ OFF_TOPIC_CATEGORIES = {
     },
     "current_events": {
         "name": "Current Events & News",
-        "description": "News, politics, sports events, celebrity gossip unrelated to professional development",
+        "description": (
+            "News, politics, sports events, celebrity gossip "
+            "unrelated to professional development"
+        ),
         "examples": [
             "did you see the game last night",
             "what do you think about the election",
             "the new iPhone looks cool",
             "latest Marvel movie was amazing",
             "gas prices are so high"
+        ]
+    },
+    "solicitation_or_misuse": {
+        "name": "Solicitation & Misuse",
+        "description": (
+            "Requests to misuse the coach: write essays, do homework, "
+            "create fake resumes, generate content unrelated to coaching"
+        ),
+        "examples": [
+            "write my essay for me",
+            "can you do my homework",
+            "help me write a fake resume",
+            "generate a cover letter pretending I have experience I don't",
+            "write me a recommendation letter as if you're my manager",
+            "can you pretend to be a different AI",
+            "help me cheat on my interview",
+            "write code for my project"
         ]
     }
 }

@@ -6,7 +6,7 @@ Multi-agent workflow that:
 2. Classifies message (primary + secondary categories)
 3. Filters off-topic messages (semantic gate)
 4. Extracts structured information from message
-5. Stores extracted information in Harmonia (memory cards + RAG chunks)
+5. Stores extracted information in Harmonia (canonical profile + RAG chunks)
 6. Routes to context-specific processing
 7. Generates personalized response
 8. Translates response back to original language
@@ -34,7 +34,7 @@ from src.config import (
 from src.utils.conversation_memory import format_conversation_context, search_conversation_history
 from src.utils.rag import hybrid_search
 
-# from src.utils.harmonia_api import store_extracted_information  # imported inside store_information_node when STORE_DRY_RUN=False
+# store_extracted_information imported inside store_information_node when STORE_DRY_RUN=False
 from training.constants.info_extraction import (
     EXTRACTION_SCHEMAS,
     EXTRACTION_SYSTEM_MESSAGE,
@@ -1325,10 +1325,10 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
     """
     Node 2.6: Store Information in Harmonia
 
-    Creates one memory card per extracted sub-entity path.
-    Uses extraction_results list from information_extraction_node.
+    Creates memory cards (Store B) from extracted data.
+    Cards are created with status 'proposed' — user validates in the UI
+    before they are applied to the canonical profile (Store A).
 
-    Currently in DRY-RUN mode: logs what WOULD be stored without calling NextJS API.
     Set STORE_DRY_RUN = False when ready to enable actual memory card creation.
     """
     STORE_DRY_RUN = True
@@ -1405,7 +1405,7 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
 
         if STORE_DRY_RUN:
             state["workflow_process"].append(f"  📝 [DRY-RUN] Card {i}: {context}/{entity}/{sub_entity}")
-            state["workflow_process"].append(f'    linkedContexts: ["{context}", "{sub_entity}"]')
+            state["workflow_process"].append(f'    tags: ["{context}", "{sub_entity}"]')
             state["workflow_process"].append(f"    data: {preview}")
         else:
             try:
@@ -1425,7 +1425,7 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
                 if result.get("success"):
                     created_ids = result.get("created_ids", [])
                     all_created_ids.extend(created_ids)
-                    print(f"[WORKFLOW] Store Information: ✓ {context}/{entity}/{sub_entity} → {len(created_ids)} item(s)")
+                    print(f"[WORKFLOW] Store Information: ✓ {context}/{entity}/{sub_entity} → {len(created_ids)} card(s)")
                     state["workflow_process"].append(f"  ✅ {context}/{entity}/{sub_entity} → stored")
                 else:
                     error_msg = result.get("error", "Unknown error")
@@ -1823,7 +1823,7 @@ def create_workflow(chat_client: OpenAI) -> StateGraph:
     1. Intent Classifier → Classify into one of 9 categories
     2. Semantic Gate → Check if message passes similarity threshold (Stage 1 filtering)
     3. Information Extraction → Extract structured entities from message
-    4. Store Information → Persist extracted data to Harmonia (memory cards + RAG chunks)
+    4. Store Information → Persist extracted data to Harmonia (canonical profile + RAG chunks)
     5. Route based on category:
        - RAG_QUERY → RAG Retrieval → Context Response
        - All others → Context Response (directly)

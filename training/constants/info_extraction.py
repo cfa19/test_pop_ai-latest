@@ -16,11 +16,11 @@ EXTRACTION_SCHEMAS = {
     "dream_roles": {
         "task": (
             "Extract all desired jobs or roles mentioned in the message, including target companies, "
-            "industries, priority, readiness, skill gaps, connections, and networking actions."
+            "industries, priority, readiness, feasibility assessment, skill gaps, connections, and networking actions."
         ),
         "fields": [
             "desiredRoles", "targetCompanies", "targetIndustries", "priority",
-            "timeframe", "readiness", "skillGaps", "connections", "networkingActions",
+            "timeframe", "readiness", "feasibility", "skillGaps", "connections", "networkingActions",
         ],
         "type": "fact",
     },
@@ -73,18 +73,18 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "skills": {
-        "task": "Extract all skills, competencies, and abilities mentioned.",
-        "fields": ["name", "level", "validationDate", "validationSource"],
+        "task": "Extract all skills, competencies, and abilities mentioned, including years of experience if stated.",
+        "fields": ["name", "level", "yearsExperience", "validationDate", "validationSource"],
         "type": "fact",
     },
     "experiences": {
-        "task": "Extract past job experiences including roles, companies, responsibilities, achievements, and duration.",
-        "fields": ["role", "company", "description", "startDate", "endDate", "achievements"],
+        "task": "Extract past job experiences including roles, companies, responsibilities, achievements, duration, and skills used.",
+        "fields": ["role", "company", "description", "startDate", "endDate", "achievements", "skills"],
         "type": "fact",
     },
     "certifications": {
-        "task": "Extract certifications, licenses, degrees, and formal qualifications mentioned.",
-        "fields": ["name", "issuer", "date", "expiryDate"],
+        "task": "Extract certifications, licenses, degrees, and formal qualifications mentioned, including credential URLs if provided.",
+        "fields": ["name", "issuer", "date", "expiryDate", "credentialUrl"],
         "type": "fact",
     },
     "current_position": {
@@ -95,6 +95,24 @@ EXTRACTION_SCHEMAS = {
     "awards": {
         "task": "Extract professional awards and recognitions: name, issuer, date, and significance.",
         "fields": ["name", "issuer", "date", "significance"],
+        "type": "fact",
+    },
+    "portfolio_items": {
+        "task": "Extract portfolio items, projects, or work samples mentioned: title, type (project/article/app/design), URL, description, and skills demonstrated.",
+        "fields": ["title", "type", "url", "description", "skills"],
+        "type": "fact",
+    },
+    "workplace_challenges": {
+        "task": (
+            "Extract workplace challenges: issue type (toxic culture, "
+            "bad management, conflicts, dead-end role, overwork, "
+            "discrimination), description, severity, duration, "
+            "and impact on career decisions."
+        ),
+        "fields": [
+            "issueType", "description", "severity",
+            "duration", "careerImpact",
+        ],
         "type": "fact",
     },
 
@@ -150,8 +168,8 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "skill_gaps": {
-        "task": "Extract missing skills that are blocking career goals, including what aspiration they block.",
-        "fields": ["missingSkills", "impact", "blockingAspiration", "aspirationType"],
+        "task": "Extract missing skills that are blocking career goals, including current level, target level, gap size, and what aspiration they block.",
+        "fields": ["missingSkills", "currentLevel", "targetLevel", "gapSize", "impact", "blockingAspiration", "aspirationType"],
         "type": "fact",
     },
     "knowledge_gaps": {
@@ -164,8 +182,8 @@ EXTRACTION_SCHEMAS = {
     # Social context
     # =========================================================================
     "mentors": {
-        "task": "Extract information about mentors, coaches, and advisors: name, role, organization, meeting frequency, guidance areas, and impact.",
-        "fields": ["name", "role", "organization", "frequency", "guidanceAreas", "impact"],
+        "task": "Extract information about mentors, coaches, and advisors: name, role, organization, relationship type, meeting frequency, guidance areas, and impact.",
+        "fields": ["name", "role", "organization", "relationshipType", "frequency", "guidanceAreas", "impact"],
         "type": "fact",
     },
     "mentees": {
@@ -184,8 +202,8 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "journey_peers": {
-        "task": "Extract information about peers, colleagues at similar level, and peer connections.",
-        "fields": ["connectionType", "sharedGoals"],
+        "task": "Extract information about peers, colleagues at similar level, and peer connections: name, journey stage, connection type, and shared goals.",
+        "fields": ["name", "journeyStage", "connectionType", "sharedGoals"],
         "type": "fact",
     },
     "people_helped": {
@@ -194,8 +212,8 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "testimonials": {
-        "task": "Extract feedback, recognition, and what others have said about them.",
-        "fields": ["from", "text", "date"],
+        "task": "Extract feedback, recognition, and what others have said about them, including any rating or score.",
+        "fields": ["from", "text", "rating", "date"],
         "type": "fact",
     },
     "networking_activities": {
@@ -218,8 +236,8 @@ EXTRACTION_SCHEMAS = {
     # Psychological context
     # =========================================================================
     "personality_profile": {
-        "task": "Extract personality type (MBTI, Big Five, Enneagram), key traits, behavioral tendencies, and self-description.",
-        "fields": ["type", "traits", "selfDescription", "assessmentDate"],
+        "task": "Extract personality type (MBTI, Big Five, Enneagram), key traits, dimensions/scores, behavioral insights, and self-description.",
+        "fields": ["type", "traits", "dimensions", "insights", "selfDescription", "assessmentDate"],
         "type": "fact",
     },
     "strengths": {
@@ -238,8 +256,8 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "work_style": {
-        "task": "Extract work style preferences: how they work, collaborate, make decisions, and communicate.",
-        "fields": ["workStyle", "collaborationStyle", "decisionMaking", "communicationStyle"],
+        "task": "Extract work style preferences: how they work, collaborate, make decisions, communicate, preferred environments, and autonomy level.",
+        "fields": ["workStyle", "collaborationStyle", "decisionMaking", "communicationStyle", "preferredEnvironments", "autonomyLevel"],
         "type": "fact",
     },
     "values": {
@@ -306,8 +324,8 @@ EXTRACTION_SCHEMAS = {
         "type": "fact",
     },
     "energy_patterns": {
-        "task": "Extract energy patterns, burnout, motivation cycles, when feeling most productive or drained.",
-        "fields": ["type", "value", "timeOfDay", "notes"],
+        "task": "Extract energy patterns, burnout, motivation cycles: daily/weekly patterns, peak hours, and when feeling most productive or drained.",
+        "fields": ["dailyPattern", "weeklyPattern", "peakHours", "type", "value", "timeOfDay", "notes"],
         "type": "fact",
     },
     "celebration_moments": {
@@ -379,6 +397,11 @@ EXTRACTION_SCHEMAS = {
     "life_goals": {
         "task": "Extract personal life goals, lifestyle aspirations, and non-career ambitions mentioned.",
         "fields": ["title", "description", "targetDate", "progress"],
+        "type": "fact",
+    },
+    "values_alignment": {
+        "task": "Extract how aligned the person's values are with their career or desired roles: alignment score, which roles align, and what aspects are misaligned.",
+        "fields": ["alignmentScore", "alignedRoles", "misalignedAspects"],
         "type": "fact",
     },
     "impact_legacy": {

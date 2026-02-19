@@ -69,6 +69,23 @@ CHITCHAT_CATEGORIES = {
             "how have you been",
             "hope you're doing well"
         ]
+    },
+    "feedback": {
+        "name": "Feedback & Reactions",
+        "description": (
+            "User reacting to the coach's output: positive feedback, "
+            "disagreement, requests for clarification or elaboration"
+        ),
+        "examples": [
+            "that was really helpful",
+            "I don't think that's right",
+            "can you elaborate on that",
+            "that's not what I meant",
+            "good point I hadn't thought of that",
+            "could you explain that differently",
+            "I disagree with that assessment",
+            "that's exactly what I needed to hear"
+        ]
     }
 }
 

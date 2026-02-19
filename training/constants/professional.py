@@ -2,7 +2,8 @@
 Professional Context Constants for Hierarchical Multi-Label Classification
 
 Taxonomy: professional > entity > sub_entity
-4 entities: current_position, professional_experience, awards, professional_aspirations
+6 entities: current_position, professional_experience, awards,
+            professional_aspirations, workplace_challenges, job_search_status
 """
 
 CONTEXT_NAME = "professional"
@@ -68,14 +69,13 @@ ENTITIES = {
         "description": (
             "Career goals: dream roles, target companies/industries, salary "
             "expectations, desired work environment, career change "
-            "considerations, job search status."
+            "considerations."
         ),
         "sub_entities": {
             "dream_roles": "Desired roles, target companies, target industries, career goals",
             "compensation_expectations": "Target salary, minimum acceptable, total comp goals",
             "desired_work_environment": "Remote/hybrid, company size, culture, deal-breakers",
             "career_change_considerations": "Considering change, risk tolerance, obstacles",
-            "job_search_status": "Currently searching, applications, interviews, offers"
         },
         "examples": [
             "I want to become a VP of Product in 2 years",
@@ -85,11 +85,58 @@ ENTITIES = {
             "I want to work hybrid not fully remote",
             "I'm looking for a Series C startup with good culture",
             "I'm thinking about switching from engineering to PM",
-            "I'm casually looking for new opportunities right now",
-            "I have 2 interviews next week at fintech companies",
             "I'd love to work at Stripe or a similar payments company",
             "I want to transition into the AI/ML industry",
-            "I got an offer from Google but I'm not sure if I should take it"
+        ]
+    },
+    "workplace_challenges": {
+        "name": "Workplace Challenges",
+        "description": (
+            "Workplace issues: toxic culture, bad management, conflicts, "
+            "dead-end roles, office politics, discrimination, overwork."
+        ),
+        "sub_entities": {
+            "workplace_challenges": (
+                "Workplace issues, conflicts, toxic culture, "
+                "management problems, and career blockers"
+            ),
+        },
+        "examples": [
+            "My manager micromanages everything I do",
+            "The team culture is really toxic nobody trusts each other",
+            "I'm stuck in a dead-end role with no growth opportunities",
+            "There's so much office politics it's exhausting",
+            "I keep getting passed over for promotions despite good reviews",
+            "My boss takes credit for my work all the time",
+            "The workload is insane I'm doing the job of three people",
+            "I'm dealing with a difficult coworker who undermines me",
+            "There's no clear career path at my company",
+            "I feel like I'm being discriminated against at work",
+        ]
+    },
+    "job_search_status": {
+        "name": "Job Search Status",
+        "description": (
+            "Active job search: applications sent, interviews scheduled, "
+            "offers received, search urgency, desired start date."
+        ),
+        "sub_entities": {
+            "job_search_status": (
+                "Currently searching, applications, interviews, "
+                "offers, urgency, desired start date"
+            ),
+        },
+        "examples": [
+            "I'm casually looking for new opportunities right now",
+            "I have 2 interviews next week at fintech companies",
+            "I got an offer from Google but I'm not sure if I should take it",
+            "I've applied to about 15 companies in the last month",
+            "I'm actively interviewing at 3 different startups",
+            "I just started my job search this week",
+            "I have a final round at Amazon next Monday",
+            "I got two offers and need to decide by Friday",
+            "I'm not looking yet but keeping my options open",
+            "I need to find something within the next 2 months",
         ]
     }
 }
@@ -108,13 +155,25 @@ Must use ACTION VERBS: Managed, Led, Built, Oversaw, Worked as, Spent X years...
 ✗ WRONG: "I currently work at..." (that's current_position!)""",
 
     "professional_aspirations": """
-CRITICAL: MULTI-LABEL entity. Dream roles, salary goals, work environment preferences, career change, job search.
+CRITICAL: MULTI-LABEL entity. Dream roles, salary goals, work environment preferences, career change.
 - dream_roles: "I want to be a VP", "I'd love to work at Stripe"
 - compensation_expectations: "I want 200k+", "Need at least 150k base"
 - desired_work_environment: "I want remote work", "Looking for a startup"
 - career_change_considerations: "Thinking of switching to PM"
-- job_search_status: "I'm actively interviewing", "Got 2 offers"
-A message like "I want to be a VP at a fintech startup making 300k" touches dream_roles + compensation_expectations + desired_work_environment.""",
+A message like "I want to be a VP at a fintech startup making 300k" touches dream_roles + compensation_expectations + desired_work_environment.
+✗ WRONG: "I'm actively interviewing" (that's job_search_status!)""",
+
+    "workplace_challenges": """
+CRITICAL: WORKPLACE ISSUES affecting the person at their current job.
+✓ CORRECT: "My boss micromanages me", "The culture is toxic", "I'm stuck with no growth"
+✗ WRONG: "I'm stressed about work" (that's psychological > stress_and_coping!)
+✗ WRONG: "I want to leave my job" (that's professional_aspirations or job_search_status!)""",
+
+    "job_search_status": """
+CRITICAL: ACTIVE job search activities ONLY. Must mention searching, applying, interviewing, or offers.
+✓ CORRECT: "I'm interviewing at 3 companies", "I got an offer from Google", "Applied to 15 jobs"
+✗ WRONG: "I want to be a CEO" (that's professional_aspirations > dream_roles!)
+✗ WRONG: "I'm thinking about leaving" (that's career_change_considerations!)""",
 
     "awards": """
 CRITICAL: Professional awards from EMPLOYERS or INDUSTRY.
@@ -127,48 +186,68 @@ MULTI_LABEL_EXAMPLES = [
     {
         "message": (
             "I'm currently a Senior PM at Google making about 280k total comp, "
-            "but I want to become a VP of Product at a startup in the next 2 years, "
-            "I'm actively interviewing at a few Series B companies right now"
+            "but I want to become a VP of Product at a startup in the next "
+            "2 years and I've started interviewing at a few Series B companies"
         ),
-        "entities": ["current_position", "professional_aspirations"],
-        "sub_entities": ["current_position", "dream_roles", "desired_work_environment", "job_search_status"]
+        "entities": [
+            "current_position", "professional_aspirations", "job_search_status",
+        ],
+        "sub_entities": [
+            "current_position", "dream_roles",
+            "desired_work_environment", "job_search_status",
+        ]
     },
     {
         "message": (
-            "I worked at Amazon for 5 years leading a team of 12 engineers and "
-            "launched a feature that saved 2M in costs, now I'm at a startup as CTO "
-            "but honestly I'm thinking about going back to big tech the pay cut is brutal"
+            "I worked at Amazon for 5 years leading a team of 12 engineers "
+            "and launched a feature that saved 2M in costs, now I'm at a "
+            "startup as CTO but honestly I'm thinking about going back to "
+            "big tech the pay cut is brutal"
         ),
-        "entities": ["professional_experience", "current_position", "professional_aspirations"],
-        "sub_entities": ["experiences", "current_position", "career_change_considerations"]
+        "entities": [
+            "professional_experience", "current_position",
+            "professional_aspirations",
+        ],
+        "sub_entities": [
+            "experiences", "current_position",
+            "career_change_considerations",
+        ]
     },
     {
         "message": (
-            "I want to earn at least 200k base in my next role, I'm looking for a "
-            "hybrid setup at a Series C or later company, I won't work at a place "
-            "without good work-life balance that's a deal-breaker for me"
+            "My boss micromanages everything and takes credit for my work, "
+            "I'm stuck with no growth path here so I've applied to about "
+            "15 companies and have 2 interviews next week"
         ),
-        "entities": ["professional_aspirations"],
-        "sub_entities": ["compensation_expectations", "desired_work_environment", "dream_roles"]
+        "entities": ["workplace_challenges", "job_search_status"],
+        "sub_entities": ["workplace_challenges", "job_search_status"]
     },
     {
         "message": (
-            "I spent 10 years at Microsoft going from junior dev to senior engineer, "
-            "my biggest achievement was architecting the new billing system that handles "
-            "50M transactions, I got promoted 4 times and won the engineering excellence award"
+            "I spent 10 years at Microsoft going from junior dev to senior "
+            "engineer, my biggest achievement was architecting the new "
+            "billing system that handles 50M transactions, I got promoted "
+            "4 times and won the engineering excellence award"
         ),
         "entities": ["professional_experience", "awards"],
         "sub_entities": ["experiences", "awards"]
     },
     {
         "message": (
-            "My dream is to be CPO at a mission-driven company ideally in edtech or "
-            "healthtech, I need at least 250k total comp and remote work is non-negotiable, "
-            "I'm not in a rush though I'm giving myself 2 years to make the move"
+            "The team culture is toxic and there's constant office politics "
+            "but I want to earn at least 200k in my next role at a company "
+            "with good work-life balance, I'm giving myself 2 months to "
+            "find something better"
         ),
-        "entities": ["professional_aspirations"],
-        "sub_entities": ["dream_roles", "compensation_expectations", "desired_work_environment", "job_search_status"]
-    }
+        "entities": [
+            "workplace_challenges", "professional_aspirations",
+            "job_search_status",
+        ],
+        "sub_entities": [
+            "workplace_challenges", "compensation_expectations",
+            "desired_work_environment", "job_search_status",
+        ]
+    },
 ]
 
 MESSAGE_GENERATION_SYSTEM_PROMPT = (

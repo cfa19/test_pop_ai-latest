@@ -18,7 +18,7 @@ class ChatRequest(BaseModel):
 class IntentClassificationResponse(BaseModel):
     """Unified classification response (RAG query or Store A context)"""
 
-    category: str  # rag_query, professional, psychological, learning, social, emotional, aspirational
+    category: str  # rag_query, professional, psychological, learning, social, personal, chitchat, off_topic
     confidence: float
     secondary_categories: Optional[list[str]] = None
     reasoning: Optional[str] = None
