@@ -14,6 +14,9 @@ from pydantic import BaseModel, Field, model_validator
 class EmbeddingModel(str, Enum):
     """Supported embedding models."""
 
+    VOYAGE_4_LARGE = "voyage-4-large"
+    VOYAGE_4 = "voyage-4"
+    VOYAGE_4_LITE = "voyage-4-lite"
     VOYAGE_3_LARGE = "voyage-3-large"
     VOYAGE_3 = "voyage-3"
     VOYAGE_3_LITE = "voyage-3-lite"

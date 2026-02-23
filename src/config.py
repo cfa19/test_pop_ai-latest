@@ -43,7 +43,7 @@ if not VOYAGE_API_KEY:
     raise ValueError("VOYAGE_API_KEY must be set in environment variables")
 
 # Model configuration
-EMBED_MODEL = os.getenv("EMBED_MODEL", "voyage-3-large")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "voyage-4-large")
 EMBED_DIMENSIONS = int(os.getenv("EMBED_DIMENSIONS", "1024"))
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
