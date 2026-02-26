@@ -66,15 +66,26 @@ def store_extracted_information(
     Returns:
         Dict with "success", "context", "resource", and "created_ids"
     """
-    content = extracted_data.get("content")
+    raw_content = extracted_data.get("content")
     card_type = extracted_data.get("type")
 
-    if not content or not card_type:
+    if not raw_content or not card_type:
         logger.warning(
             f"Skipping memory card for {category}.{subcategory}: "
             "missing content or type"
         )
         return {"success": False, "error": "Missing content or type"}
+
+    # Wrap content with subcategory name so the tree view in the UI
+    # shows e.g. "work_history { role: ..., company: ... }"
+    try:
+        fields = json.loads(raw_content)
+        # Remove meta fields that aren't user data
+        fields.pop("content", None)
+        fields.pop("type", None)
+        content = json.dumps({subcategory: fields})
+    except (json.JSONDecodeError, TypeError):
+        content = raw_content
 
     try:
         supabase = get_supabase()
@@ -89,11 +100,11 @@ def store_extracted_information(
         "content": content,
         "type": card_type,
         "confidence": 0.9,
-        "source": json.dumps({
+        "source": {
             "type": "coach",
             "sourceId": "pop-ai",
             "extractedAt": now,
-        }),
+        },
         "status": "proposed",
         "tags": [category, subcategory],
         "linked_contexts": [category, subcategory],
