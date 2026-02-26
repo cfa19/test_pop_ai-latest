@@ -25,20 +25,20 @@ from supabase import Client
 from voyageai.client import Client as VoyageAI
 
 from src.config import LANG_DETECT_ALLOWED_LANGUAGES, LANG_DETECT_FASTTEXT_MODEL_PATH, LANGUAGE_NAMES, ONNX_MODELS_PATH
-from src.utils.conversation_memory import format_conversation_context, search_conversation_history
-from src.utils.harmonia_api import store_extracted_information
-from src.utils.rag import hybrid_search
-from training.constants.info_extraction import (
+from src.schemas.info_extraction import (
     EXTRACTION_SCHEMAS,
     EXTRACTION_SYSTEM_MESSAGE,
     build_extraction_prompt,
 )
+from src.utils.conversation_memory import format_conversation_context, search_conversation_history
+from src.utils.harmonia_api import store_extracted_information
+from src.utils.rag import hybrid_search
 
 try:
-    from training.constants.ner_extractor import (
+    from src.schemas.ner_extractor import (
         extract_entity_spans as _ner_extract_spans,
     )
-    from training.constants.ner_extractor import (
+    from src.schemas.ner_extractor import (
         spans_to_fields as _ner_spans_to_fields,
     )
     _NER_AVAILABLE = True
