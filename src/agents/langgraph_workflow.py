@@ -1293,11 +1293,6 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
     t0 = time.perf_counter()
     step_start_index = len(state["workflow_process"])
 
-    from src.config import NEXT_PUBLIC_BASE_URL
-    if not NEXT_PUBLIC_BASE_URL:
-        print("[WORKFLOW] Store Information: Harmonia API not configured (NEXT_PUBLIC_BASE_URL), skipping")
-        return state
-
     user_token = state.get("auth_header")
     if not user_token:
         print("[WORKFLOW] Store Information: No user token, skipping")
