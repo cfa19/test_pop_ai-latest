@@ -37,37 +37,42 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY must be set in environment variables")
 
+# Groq (fast chat, OpenAI-compatible API)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
 # Voyage AI (all embeddings)
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
 if not VOYAGE_API_KEY:
     raise ValueError("VOYAGE_API_KEY must be set in environment variables")
 
-# Model configuration
-EMBED_MODEL = os.getenv("EMBED_MODEL", "voyage-4-large")
+# Provider + Model configuration
+CHAT_PROVIDER = os.getenv("CHAT_PROVIDER", "openai")
+EMBED_PROVIDER = os.getenv("EMBED_PROVIDER", "voyage")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "voyage-3-large")
 EMBED_DIMENSIONS = int(os.getenv("EMBED_DIMENSIONS", "1024"))
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
-# Intent classifier settings
-PRIMARY_INTENT_CLASSIFIER_TYPE = os.getenv("PRIMARY_INTENT_CLASSIFIER_TYPE", "openai")  # "openai", "onnx", or "bert"
-SECONDARY_INTENT_CLASSIFIER_TYPE = os.getenv("SECONDARY_INTENT_CLASSIFIER_TYPE", "openai")  # "openai" or "bert"
-INTENT_CLASSIFIER_MODEL_PATH = os.getenv("INTENT_CLASSIFIER_MODEL_PATH", "training/models/latest")
-ONNX_HIERARCHY_PATH = os.getenv("ONNX_HIERARCHY_PATH", "training/models/onnx")
-HIERARCHICAL_MODEL_PATH = os.getenv("HIERARCHICAL_MODEL_PATH", "training/models/full_onnx")
+# ONNX token classifier path
+ONNX_MODELS_PATH = os.getenv("ONNX_MODELS_PATH", "training/models_onnx")
 
-# Semantic gate settings (Stage 1 filtering)
-SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("true", "1", "yes")
-SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
-SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_hierarchical_tuning.json")
-SEMANTIC_GATE_ONNX_MODEL_PATH = os.getenv("SEMANTIC_GATE_ONNX_MODEL_PATH", "training/models/onnx/semantic_gate")
-SEMANTIC_GATE_CENTROIDS_DIR = os.getenv("SEMANTIC_GATE_CENTROIDS_DIR", "training/models/semantic_gate")
-# Use only cached model (no network). Set to "true" for offline; model must be in cache_folder first.
-SEMANTIC_GATE_LOCAL_FILES_ONLY = os.getenv("SEMANTIC_GATE_LOCAL_FILES_ONLY", "false").lower() in ("true", "1", "yes")
-SEMANTIC_GATE_MODEL_PATH = os.getenv("SEMANTIC_GATE_MODEL_PATH", "training/models/sentence_transformers")
+# --- Semantic gate (disabled — token classifier handles off-topic via O label) ---
+# SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "false").lower() in ("true", "1", "yes")
+# SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
+# SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_tuning.json")
+# SEMANTIC_GATE_LOCAL_FILES_ONLY = os.getenv("SEMANTIC_GATE_LOCAL_FILES_ONLY", "false").lower() in ("true", "1", "yes")
+# SEMANTIC_GATE_MODEL_PATH = os.getenv("SEMANTIC_GATE_MODEL_PATH", "training/models/sentence_transformers")
+
+# --- Legacy PyTorch classifier paths (replaced by ONNX_MODELS_PATH) ---
+# PRIMARY_INTENT_CLASSIFIER_TYPE = os.getenv("PRIMARY_INTENT_CLASSIFIER_TYPE", "openai")
+# SECONDARY_INTENT_CLASSIFIER_TYPE = os.getenv("SECONDARY_INTENT_CLASSIFIER_TYPE", "openai")
+# INTENT_CLASSIFIER_MODEL_PATH = os.getenv("INTENT_CLASSIFIER_MODEL_PATH", "training/models/latest")
+# SPAN_CLASSIFIER_MODEL_PATH = os.getenv("SPAN_CLASSIFIER_MODEL_PATH", "")
 
 # Language detection (optional FastText model for redundancy)
-LANG_DETECT_FASTTEXT_MODEL_PATH = os.getenv("LANG_DETECT_FASTTEXT_MODEL_PATH", "")  # e.g. "fasttext/lid.176.bin"
+LANG_DETECT_FASTTEXT_MODEL_PATH = os.getenv("LANG_DETECT_FASTTEXT_MODEL_PATH", "")  # e.g. "data/lid.176.bin"
 
 # Allowed languages (ISO 639-1 codes). Only these are considered; others fall back to "en".
+# Comma-separated, e.g. "en,es,fr,de,pt,it,nl,pl,ru,ar,zh,ja,ko,hi". "en" is always included.
 _LANG_DETECT_ALLOWED_RAW = os.getenv("LANG_DETECT_ALLOWED_LANGUAGES", "en,es,fr")
 LANG_DETECT_ALLOWED_LANGUAGES: frozenset[str] = frozenset(
     c.strip().lower()[:2] for c in _LANG_DETECT_ALLOWED_RAW.split(",") if c.strip()
@@ -97,18 +102,8 @@ LANGUAGE_NAMES = {
     "et": "Estonian",
 }
 
-# HuggingFace Hub (model downloads for deployment)
-HF_REPO_ID = os.getenv("HF_REPO_ID", "cfa0819/pop-skills-onnx")
-
-# Groq (fast entity extraction + chat - optional)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-
 # Verbose mode (set by CLI flag -v)
 VERBOSE_MODE = False
-
-# Models readiness flag (set to True after background model download/preload completes)
-MODELS_READY = False
 
 # =============================================================================
 # Constants
@@ -124,8 +119,6 @@ class Tables:
     RETRIEVAL_CHUNKS = "retrieval_chunks"
     GENERAL_EMBEDDINGS_1024 = "general_embeddings_1024"
     USER_EMBEDDINGS_1024 = "user_embeddings_1024"
-    MEMORY_CARDS = "memory_cards"
-    JOURNEY_PROFILES = "journey_profiles"
 
 
 class RPCFunctions:
@@ -161,70 +154,81 @@ def get_openai() -> OpenAI:
     return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
 
 
-@lru_cache(maxsize=1)
-def get_groq() -> OpenAI | None:
-    """Create and cache the Groq client (OpenAI-compatible). Returns None if no API key."""
-    if not GROQ_API_KEY:
-        return None
-    return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
-
-
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=2)
 def get_client_by_provider(provider: str) -> OpenAI:
     """
-    Get client based on provider name. Cached to avoid recreating clients.
+    Get embedding client based on provider name. Cached to avoid recreating clients.
 
     Args:
-        provider: Provider name ('openai', 'voyage', or 'groq')
+        provider: Provider name ('openai' or 'voyage')
 
     Returns:
-        OpenAI, VoyageAI, or Groq client for the specified provider
+        OpenAI or VoyageAI client for the specified provider
     """
     if provider == "openai":
         return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
+    elif provider == "groq":
+        return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
     elif provider == "voyage":
         return VoyageAI(api_key=VOYAGE_API_KEY, timeout=30.0)
-    elif provider == "groq":
-        if not GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY must be set to use Groq as chat provider")
-        return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
     else:
-        raise ValueError(f"Unsupported provider: {provider}. Must be 'openai', 'voyage', or 'groq'.")
+        raise ValueError(f"Unsupported provider: {provider}. Must be 'openai', 'groq', or 'voyage'.")
 
 
 # =============================================================================
 # Model Instances (preloaded on startup)
 # =============================================================================
 
-_intent_classifier_instance = None
-_semantic_gate_instance = None
+_hierarchical_classifier_instance = None
 
 
-def set_intent_classifier(classifier):
-    """Set the preloaded intent classifier instance (called during startup)."""
-    global _intent_classifier_instance
-    _intent_classifier_instance = classifier
+def set_hierarchical_classifier(classifier):
+    """Set the preloaded hierarchical ONNX classifier (called during startup)."""
+    global _hierarchical_classifier_instance
+    _hierarchical_classifier_instance = classifier
 
 
-def get_intent_classifier():
+def get_hierarchical_classifier():
     """
-    Get the preloaded intent classifier instance.
+    Get the preloaded hierarchical ONNX classifier.
 
     Returns None if not preloaded (will fall back to lazy loading in workflow).
     """
-    return _intent_classifier_instance
+    return _hierarchical_classifier_instance
 
 
-def set_semantic_gate(gate):
-    """Set the preloaded semantic gate instance (called during startup)."""
-    global _semantic_gate_instance
-    _semantic_gate_instance = gate
+# --- Semantic gate singleton (disabled) ---
+# _semantic_gate_instance = None
+#
+# def set_semantic_gate(gate):
+#     global _semantic_gate_instance
+#     _semantic_gate_instance = gate
+#
+# def get_semantic_gate_instance():
+#     return _semantic_gate_instance
 
-
-def get_semantic_gate_instance():
-    """
-    Get the preloaded semantic gate instance.
-
-    Returns None if not preloaded (will fall back to lazy loading in workflow).
-    """
-    return _semantic_gate_instance
+# --- Legacy PyTorch span classifier singletons (replaced by ONNX) ---
+# _intent_classifier_instance = None
+# _primary_span_classifier_instance = None
+# _secondary_span_classifier_instances: dict = {}
+#
+# def set_intent_classifier(classifier):
+#     global _intent_classifier_instance
+#     _intent_classifier_instance = classifier
+#
+# def get_intent_classifier():
+#     return _intent_classifier_instance
+#
+# def set_primary_span_classifier(classifier):
+#     global _primary_span_classifier_instance
+#     _primary_span_classifier_instance = classifier
+#
+# def get_primary_span_classifier():
+#     return _primary_span_classifier_instance
+#
+# def set_secondary_span_classifier(category, classifier):
+#     global _secondary_span_classifier_instances
+#     _secondary_span_classifier_instances[category] = classifier
+#
+# def get_secondary_span_classifier(category):
+#     return _secondary_span_classifier_instances.get(category)

@@ -1,0 +1,256 @@
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_id": "123e4567-e89b-12d3-a456-426614174000",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-02-12T14:20:00Z",
+
+  "role_id": "aa1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+
+  "target_company_id": "bb2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
+
+  "target_company_criteria": null,
+
+  "location_preferences": [
+    "cc3d4e5f-6a7b-8c9d-0e1f-2a3b4c5d6e7f",
+    "dd4e5f6a-7b8c-9d0e-1f2a-3b4c5d6e7f8a"
+  ],
+
+  "aspiration_details": {
+    "time_horizon": "3_years",
+    "priority_level": "primary",
+    "status": "committed",
+    "target_achievement_date": "2027-01-01"
+  },
+
+  "motivation_meaning": {
+    "why_this_role": "I want to lead product strategy and make decisions that impact millions of users. I'm passionate about building products that solve real problems.",
+    "core_motivations": ["impact", "leadership", "autonomy", "learning"],
+    "values_alignment_ids": [
+      "ee5f6a7b-8c9d-0e1f-2a3b-4c5d6e7f8a9b",
+      "ff6a7b8c-9d0e-1f2a-3b4c-5d6e7f8a9b0c"
+    ],
+    "definition_of_success": "Leading a product team that ships features users love, maintaining work-life balance, and mentoring others",
+    "lifestyle_expectations": {
+      "work_life_balance": 7,
+      "travel_frequency": "occasional",
+      "flexibility_needed": "Need to pick up kids from school 3x per week"
+    }
+  },
+
+  "required_skills": [
+    {
+      "skill_id": "aa1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+      "importance": "critical",
+      "required_proficiency": 9
+    },
+    {
+      "skill_id": "bb2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "importance": "critical",
+      "required_proficiency": 8
+    },
+    {
+      "skill_id": "cc3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "importance": "important",
+      "required_proficiency": 7
+    }
+  ],
+
+  "skill_gaps": [
+    {
+      "skill_id": "dd4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "current_proficiency": 4,
+      "required_proficiency": 8,
+      "gap_level": "large",
+      "development_plan": "Take executive leadership course, shadow VP for 3 months",
+      "priority": "high"
+    },
+    {
+      "skill_id": "ee5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "current_proficiency": 5,
+      "required_proficiency": 8,
+      "gap_level": "moderate",
+      "development_plan": "Complete online course on financial management, manage small budget first",
+      "priority": "high"
+    },
+    {
+      "skill_id": "ff6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+      "current_proficiency": 6,
+      "required_proficiency": 8,
+      "gap_level": "small",
+      "development_plan": "Practice through current role, seek feedback from executives",
+      "priority": "medium"
+    }
+  ],
+
+  "required_experience": [
+    "5+ years in product management",
+    "Led cross-functional teams of 10+ people",
+    "Managed P&L for a product line",
+    "Experience launching successful products to market"
+  ],
+
+  "required_credentials": [
+    "MBA or equivalent experience",
+    "Product Management certification (optional)"
+  ],
+
+  "leadership_scope": {
+    "team_size_range": {
+      "min": 15,
+      "max": 30
+    },
+    "budget_responsibility": "$5M-$10M annual product budget",
+    "board_exposure": true,
+    "reports_to": "VP of Product or CEO"
+  },
+
+  "confidence_level": 6,
+
+  "readiness_assessment": {
+    "current_role_id": "aa0a1b2c-3d4e-5f6a-7b8c-9d0e1f2a3b4c",
+    "gap_summary": "Need more experience with P&L management and executive communication. Should expand network of VP+ product leaders.",
+    "top_development_areas": [
+      "Financial management and P&L ownership",
+      "Executive presence and communication",
+      "Strategic thinking at company level",
+      "Team scaling and organizational design",
+      "Stakeholder management at board level"
+    ],
+    "biggest_barrier": "Lack of experience managing large teams (15+ people) and significant budgets",
+    "limiting_beliefs": [
+      "I might not be strategic enough for C-suite conversations",
+      "I need an MBA to be taken seriously at this level"
+    ],
+    "external_constraints": [
+      {
+        "constraint_type": "location",
+        "description": "Kids are in school, can't relocate until they graduate",
+        "severity": "major"
+      },
+      {
+        "constraint_type": "family",
+        "description": "Spouse has job in current city",
+        "severity": "moderate"
+      }
+    ]
+  },
+
+  "expected_compensation_id": "gg7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+
+  "action_progress": {
+    "milestones": [
+      {
+        "id": "m1-hh8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+        "milestone_name": "Get promoted to Group PM",
+        "target_date": "2024-12-31",
+        "status": "in_progress"
+      },
+      {
+        "id": "m2-ii9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e",
+        "milestone_name": "Complete executive leadership course",
+        "target_date": "2024-06-30",
+        "status": "not_started"
+      },
+      {
+        "id": "m3-jj0d1e2f-3a4b-5c6d-7e8f-9a0b1c2d3e4f",
+        "milestone_name": "Secure mentor who is Head of Product or VP",
+        "target_date": "2024-03-31",
+        "status": "in_progress"
+      }
+    ],
+    "linked_goals": [
+      "kk1e2f3a-4b5c-6d7e-8f9a-0b1c2d3e4f5a"
+    ],
+    "resources_needed": [
+      {
+        "resource_type": "mentor",
+        "description": "VP or Head of Product at a scale-up (50-500 employees)",
+        "priority": "high",
+        "status": "in_progress"
+      },
+      {
+        "resource_type": "course",
+        "description": "Executive leadership program (e.g., Reforge, Maven)",
+        "priority": "medium",
+        "status": "needed"
+      },
+      {
+        "resource_type": "network",
+        "description": "Connections with Series B/C startup founders and executives",
+        "priority": "medium",
+        "status": "in_progress"
+      },
+      {
+        "resource_type": "experience",
+        "description": "P&L ownership opportunity in current role",
+        "priority": "high",
+        "status": "needed"
+      }
+    ],
+    "progress_percentage": 35,
+    "last_reviewed_date": "2024-02-10",
+    "coach_notes": [
+      {
+        "date": "2024-02-10T15:30:00Z",
+        "note": "User showing strong progress on skill development. Need to focus on securing P&L ownership in current role as stepping stone. Consider proposing new initiative to manager.",
+        "coach_id": "c0a1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"
+      }
+    ],
+    "user_reflections": [
+      {
+        "date": "2024-02-05T20:00:00Z",
+        "reflection": "Feeling more confident after talking to 3 current heads of product. They all emphasized that the jump is more about mindset and influence than technical skills. Need to start acting like a leader now."
+      }
+    ]
+  },
+
+  "emotional_identity": {
+    "identity_statement": "I want to become someone who shapes product direction and empowers teams to do their best work",
+    "fears": [
+      "Failing publicly and letting the team down",
+      "Not being technical enough for a technology company",
+      "Work consuming my personal life and missing kids' milestones",
+      "Making wrong strategic bets that hurt the business"
+    ],
+    "excitement_level": 9,
+    "imposter_syndrome_level": 6,
+    "energy_level": 8,
+    "authenticity_score": 9
+  },
+
+  "market_reality": {
+    "market_demand_rating": "high",
+    "typical_career_path": [
+      "path1-ll2f3a4b-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+      "path2-mm3a4b5c-6d7e-8f9a-0b1c-2d3e4f5a6b7c",
+      "path3-nn4b5c6d-7e8f-9a0b-1c2d-3e4f5a6b7c8d",
+      "path4-oo5c6d7e-8f9a-0b1c-2d3e-4f5a6b7c8d9e",
+      "path5-pp6d7e8f-9a0b-1c2d-3e4f-5a6b7c8d9e0f"
+    ],
+    "alternative_pathways": [
+      {
+        "pathway_description": "Technical PM → Senior PM → Principal PM → Director → VP of Product",
+        "role_sequence": [
+          "path1-ll2f3a4b-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+          "alt1-qq7e8f9a-0b1c-2d3e-4f5a-6b7c8d9e0f1a"
+        ]
+      },
+      {
+        "pathway_description": "PM → Founder/CEO → Head of Product at larger company",
+        "role_sequence": [
+          "alt2-rr8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b",
+          "alt3-ss9a0b1c-2d3e-4f5a-6b7c-8d9e0f1a2b3c"
+        ]
+      }
+    ],
+    "transition_type": "external"
+  },
+
+  "metadata": {
+    "is_active": true,
+    "archived_date": null,
+    "archived_reason": null,
+    "tags": ["leadership", "product", "career-growth", "3-year-plan"],
+    "visibility": "shared_with_coach"
+  }
+}

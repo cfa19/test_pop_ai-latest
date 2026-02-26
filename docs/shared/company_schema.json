@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://popskills.ai/schemas/shared/company.json",
+  "title": "Company",
+  "type": "object",
+  "description": "Shared schema for company/organization information",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Company or organization name",
+      "maxLength": 200
+    },
+    "industry": {
+      "type": "string",
+      "description": "Industry or sector",
+      "maxLength": 100,
+      "examples": ["Technology", "Healthcare", "Finance", "Education", "Retail", "Manufacturing"]
+    },
+    "sub_industry": {
+      "type": "string",
+      "description": "More specific industry classification",
+      "maxLength": 100,
+      "examples": ["SaaS", "E-commerce", "Fintech", "Edtech", "Healthtech"]
+    },
+    "company_type": {
+      "type": "string",
+      "enum": [
+        "startup",
+        "scale_up",
+        "mid_size",
+        "enterprise",
+        "fortune_500",
+        "nonprofit",
+        "government",
+        "academia",
+        "self_employed",
+        "other"
+      ],
+      "description": "Type/stage of organization"
+    },
+    "company_stage": {
+      "type": "string",
+      "enum": [
+        "pre_seed",
+        "seed",
+        "series_a",
+        "series_b",
+        "series_c_plus",
+        "pre_ipo",
+        "public",
+        "established",
+        "mature",
+        "not_applicable"
+      ],
+      "description": "Funding/maturity stage (for startups/tech companies)"
+    },
+    "company_size": {
+      "type": "object",
+      "description": "Organization size metrics",
+      "properties": {
+        "employee_count_range": {
+          "type": "string",
+          "enum": [
+            "1-10",
+            "11-50",
+            "51-200",
+            "201-500",
+            "501-1000",
+            "1001-5000",
+            "5001-10000",
+            "10001+"
+          ],
+          "description": "Number of employees"
+        },
+        "employee_count_exact": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Exact employee count if known"
+        }
+      }
+    },
+    "website": {
+      "type": "string",
+      "format": "uri",
+      "description": "Company website URL"
+    },
+    "mission": {
+      "type": "string",
+      "description": "Company mission or purpose",
+      "maxLength": 500
+    },
+    "culture_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags describing company culture",
+      "examples": [["fast-paced", "data-driven", "collaborative", "innovative"]]
+    }
+  }
+}

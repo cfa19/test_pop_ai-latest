@@ -2,7 +2,6 @@
 Single chat endpoint with authentication and conversation memory
 """
 
-import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
@@ -10,7 +9,11 @@ from fastapi import APIRouter, HTTPException, Request
 import src.config as config
 from src.agents.langgraph_workflow import MessageCategory, run_workflow
 from src.config import (
+    CHAT_MODEL,
+    CHAT_PROVIDER,
     EMBED_DIMENSIONS,
+    EMBED_MODEL,
+    EMBED_PROVIDER,
     get_client_by_provider,
     get_supabase,
 )
@@ -64,24 +67,13 @@ async def chat(request_body: ChatRequest, request: Request):
     except AuthenticationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
 
-    # Step 1.5: Wait for models to be ready (FastText, ONNX classifier, semantic gate)
-    if not config.MODELS_READY:
-        logger.info("[CHAT] Models not ready yet, waiting for background download to complete...")
-        for _ in range(120):  # wait up to 120 seconds
-            await asyncio.sleep(1)
-            if config.MODELS_READY:
-                break
-        if not config.MODELS_READY:
-            raise HTTPException(status_code=503, detail="Models are still loading. Please retry in a few seconds.")
-        logger.info("[CHAT] Models ready, proceeding with request")
-
     # Step 2: Process chat message with conversation memory
     try:
         # Use request parameters or fall back to config defaults
-        embed_provider = request_body.embed_provider
-        embed_model = request_body.embed_model
-        chat_provider = request_body.chat_provider
-        chat_model = request_body.chat_model
+        embed_provider = request_body.embed_provider or EMBED_PROVIDER
+        embed_model = request_body.embed_model or EMBED_MODEL
+        chat_provider = request_body.chat_provider or CHAT_PROVIDER
+        chat_model = request_body.chat_model or CHAT_MODEL
 
         # Get the appropriate embedding and chat clients based on provider
         embed_client = get_client_by_provider(embed_provider)
@@ -108,8 +100,9 @@ async def chat(request_body: ChatRequest, request: Request):
             embed_model=embed_model,
             embed_dimensions=EMBED_DIMENSIONS,
             chat_model=chat_model,
-            intent_classifier_type=request_body.intent_classifier_type,
-            semantic_gate_enabled=request_body.semantic_gate_enabled,
+            # --- Disabled (token classifier handles off-topic via O label) ---
+            # intent_classifier_type=request_body.intent_classifier_type,
+            # semantic_gate_enabled=request_body.semantic_gate_enabled,
         )
 
         logger.info(f"[CHAT] Message processed (queue size: {message_queue.get_queue_size()})")
@@ -137,7 +130,7 @@ async def chat(request_body: ChatRequest, request: Request):
         category = (
             unified_classification.category
             if unified_classification
-            else MessageCategory.PERSONAL  # fallback = worthy (personal has highest weight)
+            else MessageCategory.PSYCHOLOGICAL  # fallback = worthy
         )
         is_worthy = category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
 

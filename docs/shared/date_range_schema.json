@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://popskills.ai/schemas/shared/date_range.json",
+  "title": "DateRange",
+  "type": "object",
+  "description": "Shared schema for date ranges and time periods",
+  "properties": {
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Start date (YYYY-MM-DD format)"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "description": "End date (YYYY-MM-DD format), null if ongoing"
+    },
+    "is_current": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this period is currently ongoing"
+    },
+    "duration": {
+      "type": "object",
+      "description": "Calculated or explicit duration",
+      "properties": {
+        "years": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 11
+        },
+        "total_months": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total duration in months"
+        },
+        "display_text": {
+          "type": "string",
+          "description": "Human-readable duration",
+          "examples": ["2 years 3 months", "6 months", "3+ years"]
+        }
+      }
+    },
+    "precision": {
+      "type": "string",
+      "enum": ["day", "month", "year", "approximate"],
+      "description": "Precision of the dates"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Additional notes about the time period"
+    }
+  }
+}

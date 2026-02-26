@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://popskills.ai/schemas/shared/compensation.json",
+  "title": "Compensation",
+  "type": "object",
+  "description": "Shared schema for compensation information (actual or expected)",
+  "required": ["currency"],
+  "properties": {
+    "currency": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 3,
+      "pattern": "^[A-Z]{3}$",
+      "default": "USD",
+      "description": "Currency code (ISO 4217)",
+      "examples": ["USD", "EUR", "GBP", "CAD"]
+    },
+    "base_salary": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Base salary amount"
+    },
+    "bonus": {
+      "type": "object",
+      "description": "Bonus/variable compensation",
+      "properties": {
+        "target_amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Target bonus amount"
+        },
+        "target_percentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 500,
+          "description": "Target bonus as percentage of base"
+        },
+        "actual_amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Actual bonus received (for historical data)"
+        }
+      }
+    },
+    "equity": {
+      "type": "object",
+      "description": "Equity compensation",
+      "properties": {
+        "has_equity": {
+          "type": "boolean",
+          "description": "Whether equity is included"
+        },
+        "equity_type": {
+          "type": "string",
+          "enum": ["stock_options", "rsu", "stock_grant", "profit_sharing", "other"],
+          "description": "Type of equity compensation"
+        },
+        "equity_percentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Equity as percentage of company (for startups)"
+        },
+        "equity_value_estimate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Estimated current value of equity"
+        },
+        "vesting_schedule": {
+          "type": "string",
+          "description": "Vesting schedule description",
+          "examples": ["4 years with 1 year cliff", "Monthly over 48 months"]
+        },
+        "vesting_details": {
+          "type": "object",
+          "properties": {
+            "total_duration_months": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cliff_months": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "acceleration_clauses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Conditions for accelerated vesting"
+            }
+          }
+        }
+      }
+    },
+    "total_compensation": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total compensation (base + bonus + equity value)"
+    },
+    "benefits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "benefit_type": {
+            "type": "string",
+            "enum": [
+              "health_insurance",
+              "dental_insurance",
+              "vision_insurance",
+              "life_insurance",
+              "disability_insurance",
+              "retirement_401k",
+              "retirement_pension",
+              "pto_vacation",
+              "sick_leave",
+              "parental_leave",
+              "education_stipend",
+              "wellness_budget",
+              "gym_membership",
+              "commuter_benefits",
+              "relocation_assistance",
+              "sign_on_bonus",
+              "retention_bonus",
+              "stock_purchase_plan",
+              "profit_sharing",
+              "company_car",
+              "phone_stipend",
+              "internet_stipend",
+              "home_office_budget",
+              "professional_development",
+              "conference_budget",
+              "childcare_assistance",
+              "meal_stipend",
+              "other"
+            ],
+            "description": "Type of benefit"
+          },
+          "description": {
+            "type": "string",
+            "description": "Benefit description",
+            "maxLength": 200
+          },
+          "value_estimate": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Estimated annual monetary value"
+          },
+          "employer_contribution": {
+            "type": "string",
+            "description": "Employer contribution details",
+            "examples": ["100% employer paid", "50% employer contribution", "Up to $5000/year"]
+          }
+        },
+        "required": ["benefit_type"]
+      },
+      "description": "Additional benefits and perks"
+    },
+    "compensation_frequency": {
+      "type": "string",
+      "enum": ["hourly", "daily", "weekly", "biweekly", "semi_monthly", "monthly", "annual"],
+      "description": "How frequently compensation is paid"
+    },
+    "compensation_period": {
+      "type": "string",
+      "enum": ["hourly", "annual"],
+      "description": "Whether amounts are stated per hour or per year"
+    }
+  }
+}

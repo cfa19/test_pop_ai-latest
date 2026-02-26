@@ -36,6 +36,7 @@ info/
 # Models download from HuggingFace Hub at startup, not baked into image
 training/data/
 training/models/
+training/models_onnx/
 training/results/
 training/utils/
 training/scripts/

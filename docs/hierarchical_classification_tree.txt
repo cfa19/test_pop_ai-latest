@@ -1,0 +1,481 @@
+HIERARCHICAL CLASSIFICATION TREE
+================================
+
+NOTES:
+  - Aspirational context has been removed and absorbed into:
+    * Career aspirations → professional > professional_aspirations
+    * Life aspirations → personal > personal_goals
+
+  - Target companies and industries consolidated into dream_roles (2026-02-16):
+    * 1.8.2 target_companies → 1.8.1 dream_roles (company field)
+    * 1.8.3 target_industries → 1.8.1 dream_roles (industry field)
+    * Rationale: These are tightly coupled with dream roles in natural language
+
+  - Learning aspirations grouped under common entity (2026-02-16):
+    * 2.2 skill_aspirations → 2.4.1 learning_aspirations > skill_aspirations
+    * 2.5 education_aspirations → 2.4.2 learning_aspirations > education_aspirations
+    * 2.7 certification_aspirations → 2.4.3 learning_aspirations > certification_aspirations
+    * Rationale: All future learning goals naturally belong together
+
+  - Learning gaps grouped under common entity (2026-02-16):
+    * 2.2 skill_gaps → 2.3.1 learning_gaps > skill_gaps
+    * 2.7 knowledge_gaps → 2.3.2 learning_gaps > knowledge_gaps
+    * Rationale: Both represent missing skills/knowledge blocking career goals
+
+  - Testimonials and references merged (2026-02-16):
+    * 3.6 testimonials + 3.7 references → 3.6 recommendations
+    * Rationale: Both are endorsements from others - written and verbal
+
+  - Networking grouped under common entity (2026-02-16):
+    * 3.7 networking_activities → 3.7.1 networking > networking_activities
+    * 3.8 networking_goals → 3.7.2 networking > networking_goals
+    * 3.9 networking_preferences → 3.7.3 networking > networking_preferences
+    * Rationale: All networking-related activities, goals, and preferences naturally belong together
+
+Level 0: ROOT (5 Contexts)
+│
+├─── 1. PROFESSIONAL
+│    ├─── 1.1 current_position
+│    │    ├─── role
+│    │    ├─── company
+│    │    ├─── compensation
+│    │    └─── start_date
+│    │
+│    ├─── 1.2 professional_experience
+│    │    ├─── past_roles
+│    │    ├─── past_companies
+│    │    ├─── responsibilities
+│    │    ├─── achievements
+│    │    └─── duration
+│    │
+│    ├─── 1.3 projects
+│    │    ├─── project_name
+│    │    ├─── project_description
+│    │    ├─── project_role
+│    │    └─── project_skills
+│    │
+│    ├─── 1.4 publications
+│    ├─── 1.5 awards
+│    │
+│    ├─── 1.6 languages
+│    │    ├─── language
+│    │    ├─── proficiency
+│    │    └─── certifications
+│    │
+│    ├─── 1.7 licenses_and_permits
+│    │    ├─── driving_licenses
+│    │    ├─── professional_licenses
+│    │    ├─── security_clearances
+│    │    └─── operating_permits
+│    │
+│    ├─── 1.8 professional_aspirations ⭐ [LARGE SUB-TREE]
+│    │    ├─── 1.8.1 dream_roles 🎯 [INCLUDES: target companies & industries]
+│    │    │    ├─── desired_roles
+│    │    │    ├─── target_companies
+│    │    │    ├─── target_industries
+│    │    │    ├─── priority
+│    │    │    ├─── timeframe
+│    │    │    ├─── readiness
+│    │    │    ├─── skill_gaps
+│    │    │    ├─── connections
+│    │    │    └─── networking_actions
+│    │    │
+│    │    ├─── 1.8.2 compensation_expectations 💰 [EXAMPLE: "My goal is to earn 120k$"]
+│    │    │    ├─── target_salary
+│    │    │    ├─── minimum_acceptable
+│    │    │    ├─── stretch_goal
+│    │    │    ├─── total_comp
+│    │    │    ├─── flexibility
+│    │    │    └─── priorities
+│    │    │
+│    │    ├─── 1.8.3 desired_work_environment
+│    │    │    ├─── work_mode
+│    │    │    ├─── company_size
+│    │    │    ├─── company_stage
+│    │    │    ├─── management
+│    │    │    ├─── culture_priorities
+│    │    │    └─── deal_breakers
+│    │    │
+│    │    ├─── 1.8.4 career_change_considerations
+│    │    │    ├─── considering_change
+│    │    │    ├─── change_type
+│    │    │    ├─── risk_tolerance
+│    │    │    ├─── pay_cut
+│    │    │    ├─── obstacles
+│    │    │    └─── support_needed
+│    │    │
+│    │    └─── 1.8.5 job_search_status
+│    │         ├─── currently_searching
+│    │         ├─── urgency
+│    │         ├─── applications
+│    │         ├─── interviews
+│    │         ├─── offers
+│    │         └─── start_date
+│    │
+│    ├─── 1.9 volunteer_experience
+│    └─── 1.10 recommendations
+│
+├─── 2. LEARNING
+│    ├─── 2.1 current_skills
+│    │    ├─── skills
+│    │    ├─── proficiency
+│    │    ├─── experience
+│    │    └─── verification
+│    │
+│    ├─── 2.2 education_history
+│    │    ├─── degrees
+│    │    ├─── institutions
+│    │    ├─── field_of_study
+│    │    ├─── gpa
+│    │    └─── graduation_date
+│    │
+│    ├─── 2.3 learning_gaps ⭐ [GROUPED: skills & knowledge gaps]
+│    │    ├─── 2.3.1 skill_gaps
+│    │    │    ├─── missing_skills
+│    │    │    ├─── impact
+│    │    │    ├─── blocking_aspiration
+│    │    │    └─── aspiration_type
+│    │    │
+│    │    └─── 2.3.2 knowledge_gaps
+│    │         ├─── missing_knowledge
+│    │         ├─── blocking_aspiration
+│    │         └─── aspiration_type
+│    │
+│    ├─── 2.4 learning_aspirations ⭐ [GROUPED: skills, education & certifications]
+│    │    ├─── 2.4.1 skill_aspirations
+│    │    │    ├─── target_skills
+│    │    │    ├─── learning_plan
+│    │    │    ├─── timeline
+│    │    │    └─── progress
+│    │    │
+│    │    ├─── 2.4.2 education_aspirations
+│    │    │    ├─── desired_degrees
+│    │    │    ├─── institutions
+│    │    │    ├─── timeline
+│    │    │    └─── funding
+│    │    │
+│    │    └─── 2.4.3 certification_aspirations
+│    │         ├─── target_certs
+│    │         ├─── study_plan
+│    │         └─── exam_date
+│    │
+│    ├─── 2.5 certifications
+│    │    ├─── earned_certs
+│    │    ├─── issue_date
+│    │    ├─── expiry_date
+│    │    └─── status
+│    │
+│    ├─── 2.6 knowledge_areas
+│    │
+│    ├─── 2.7 learning_preferences
+│    │    ├─── preferred_formats
+│    │    ├─── pace
+│    │    ├─── budget
+│    │    └─── time_available
+│    │
+│    └─── 2.8 learning_history
+│         ├─── past_courses
+│         ├─── books
+│         └─── outcomes
+│
+├─── 3. SOCIAL
+│    ├─── 3.1 mentors
+│    │    ├─── mentor_name
+│    │    ├─── mentor_role
+│    │    ├─── relationship
+│    │    ├─── frequency
+│    │    ├─── guidance_areas
+│    │    └─── impact
+│    │
+│    ├─── 3.2 mentees
+│    │    ├─── mentee_name
+│    │    ├─── mentee_background
+│    │    ├─── guidance_provided
+│    │    └─── progress
+│    │
+│    ├─── 3.3 professional_network (includes peers & communities)
+│    │    ├─── connections
+│    │    ├─── relationship_strength
+│    │    ├─── interaction_frequency
+│    │    ├─── collaboration_type
+│    │    ├─── last_interaction
+│    │    ├─── communities
+│    │    ├─── community_type
+│    │    ├─── membership_status
+│    │    ├─── engagement_level
+│    │    └─── community_value
+│    │
+│    ├─── 3.4 recommendations
+│    │    ├─── testimonial_from
+│    │    ├─── testimonial_text
+│    │    ├─── permission_to_share
+│    │    ├─── reference_name
+│    │    ├─── reference_role
+│    │    └─── relationship
+│    │
+│    └─── 3.5 networking ⭐ [GROUPED: activities, goals & preferences]
+│         ├─── 3.5.1 networking_activities
+│         │    ├─── activity_type
+│         │    ├─── date
+│         │    ├─── people_met
+│         │    └─── follow_up
+│         │
+│         ├─── 3.5.2 networking_goals
+│         │    ├─── target_connections
+│         │    ├─── target_events
+│         │    └─── networking_strategy
+│         │
+│         └─── 3.5.3 networking_preferences
+│              ├─── preferred_formats
+│              ├─── energy_impact
+│              └─── style
+│
+├─── 4. PSYCHOLOGICAL
+│    ├─── 4.1 personality_profile
+│    │    ├─── personality_type
+│    │    ├─── traits
+│    │    └─── self_description
+│    │
+│    ├─── 4.2 values
+│    │    ├─── professional_values
+│    │    └─── priorities
+│    │
+│    ├─── 4.3 motivations
+│    │    ├─── intrinsic_motivations
+│    │    ├─── extrinsic_motivations
+│    │    └─── demotivators
+│    │
+│    ├─── 4.4 working_style_preferences
+│    │    ├─── work_style
+│    │    ├─── collaboration_style
+│    │    ├─── decision_making
+│    │    └─── communication_style
+│    │
+│    ├─── 4.5 confidence_and_self_perception ⭐ [LARGE SUB-TREE]
+│    │    ├─── 4.5.1 general_confidence
+│    │    │    ├─── confidence_score
+│    │    │    ├─── recent_changes
+│    │    │    └─── factors
+│    │    │
+│    │    ├─── 4.5.2 domain_specific_confidence
+│    │    │    ├─── technical_confidence
+│    │    │    ├─── social_confidence
+│    │    │    ├─── leadership_confidence
+│    │    │    ├─── public_speaking_confidence
+│    │    │    └─── career_confidence
+│    │    │
+│    │    ├─── 4.5.3 imposter_syndrome
+│    │    │    ├─── level
+│    │    │    ├─── frequency
+│    │    │    ├─── triggers
+│    │    │    ├─── manifestations
+│    │    │    ├─── coping_strategies
+│    │    │    └─── impact
+│    │    │
+│    │    ├─── 4.5.4 self_doubt_patterns
+│    │    │    ├─── frequency
+│    │    │    ├─── intensity
+│    │    │    ├─── situations
+│    │    │    └─── themes
+│    │    │
+│    │    ├─── 4.5.5 self_efficacy
+│    │    │    ├─── belief_in_abilities
+│    │    │    ├─── belief_in_growth
+│    │    │    └─── resilience
+│    │    │
+│    │    ├─── 4.5.6 comparison_to_others
+│    │    │    ├─── comparison_frequency
+│    │    │    ├─── comparison_direction
+│    │    │    └─── impact
+│    │    │
+│    │    ├─── 4.5.7 self_talk_patterns
+│    │    │    ├─── inner_critic_strength
+│    │    │    ├─── self_compassion
+│    │    │    └─── negative_thoughts
+│    │    │
+│    │    ├─── 4.5.8 validation_needs
+│    │    │    ├─── external_validation
+│    │    │    ├─── internal_validation
+│    │    │    ├─── reaction_to_criticism
+│    │    │    └─── reaction_to_praise
+│    │    │
+│    │    └─── 4.5.9 confidence_building
+│    │         ├─── strategies_that_help
+│    │         ├─── strategies_that_hurt
+│    │         ├─── currently_working_on
+│    │         └─── goals
+│    │
+│    ├─── 4.6 career_decision_making_style
+│    │    ├─── decision_style
+│    │    ├─── decision_factors
+│    │    └─── decision_confidence
+│    │
+│    ├─── 4.7 work_environment_preferences
+│    │    ├─── ideal_environment
+│    │    ├─── stressors
+│    │    └─── energizers
+│    │
+│    ├─── 4.8 stress_and_coping
+│    │    ├─── stress_level
+│    │    ├─── stress_triggers
+│    │    ├─── coping_strategies
+│    │    └─── effectiveness
+│    │
+│    ├─── 4.9 emotional_intelligence
+│    │    ├─── self_awareness
+│    │    ├─── empathy
+│    │    └─── emotional_regulation
+│    │
+│    └─── 4.10 growth_mindset
+│         ├─── mindset_level
+│         ├─── beliefs_about_talent
+│         └─── approach_to_challenges
+│
+└─── 5. PERSONAL
+     ├─── 5.1 life_stage
+     │    ├─── current_stage
+     │    ├─── age_range
+     │    ├─── transitions
+     │    └─── priorities
+     │
+     ├─── 5.2 family_situation
+     │    ├─── relationship_status
+     │    ├─── partner
+     │    ├─── children
+     │    ├─── dependents
+     │    ├─── childcare
+     │    └─── family_support
+     │
+     ├─── 5.3 health_and_wellbeing ⭐ [LARGE SUB-TREE]
+     │    ├─── 5.3.1 physical_health
+     │    │    ├─── overall_health
+     │    │    ├─── chronic_conditions
+     │    │    ├─── energy_levels
+     │    │    └─── limitations
+     │    │
+     │    ├─── 5.3.2 mental_health
+     │    │    ├─── conditions
+     │    │    ├─── severity
+     │    │    ├─── treatment
+     │    │    └─── impact_on_work
+     │    │
+     │    ├─── 5.3.3 addictions_or_recovery 🔑 [EXAMPLE: "I'm 9 months sober"]
+     │    │    ├─── addiction_type
+     │    │    ├─── status
+     │    │    ├─── clean_since
+     │    │    ├─── recovery_program
+     │    │    ├─── support_system
+     │    │    ├─── triggers
+     │    │    └─── impact_on_career
+     │    │
+     │    └─── 5.3.4 overall_wellbeing
+     │         ├─── stress_level
+     │         └─── wellbeing_score
+     │
+     ├─── 5.4 living_situation
+     │    ├─── housing_type
+     │    ├─── location
+     │    ├─── living_with
+     │    ├─── relocation_openness
+     │    ├─── constraints
+     │    └─── home_office
+     │
+     ├─── 5.5 financial_situation
+     │    ├─── stability
+     │    ├─── debt
+     │    ├─── emergency_fund
+     │    ├─── dependents
+     │    ├─── income_dependency
+     │    ├─── risk_tolerance
+     │    └─── stress_level
+     │
+     ├─── 5.6 personal_goals
+     │    ├─── non_career_goals
+     │    ├─── category
+     │    ├─── priority
+     │    ├─── timeframe
+     │    └─── progress
+     │
+     ├─── 5.7 personal_projects
+     │    ├─── project_name
+     │    ├─── project_type
+     │    ├─── time_commitment
+     │    └─── motivation
+     │
+     ├─── 5.8 lifestyle_preferences
+     │    ├─── work_life_balance
+     │    ├─── ideal_schedule
+     │    ├─── flexibility_needs
+     │    └─── non_negotiables
+     │
+     ├─── 5.9 life_constraints
+     │    ├─── constraint_type
+     │    ├─── description
+     │    ├─── impact_on_career
+     │    ├─── severity
+     │    └─── timeframe
+     │
+     ├─── 5.10 life_enablers
+     │    ├─── enabler_type
+     │    ├─── description
+     │    ├─── benefit_to_career
+     │    └─── strength
+     │
+     ├─── 5.11 major_life_events
+     │    ├─── event_type
+     │    ├─── date
+     │    ├─── description
+     │    └─── impact
+     │
+     ├─── 5.12 personal_values
+     │    ├─── life_values
+     │    └─── importance
+     │
+     └─── 5.13 life_satisfaction
+          ├─── overall_satisfaction
+          ├─── satisfaction_by_area
+          └─── areas_to_improve
+
+
+LEGEND:
+=======
+⭐ = Large sub-tree with many nested categories
+💰 = Example: "My goal is to earn 120k$ next year" → professional > professional_aspirations > compensation_expectations
+🔑 = Example: "I'm 9 months sober from alcohol" → personal > health_and_wellbeing > addictions_or_recovery
+
+
+CLASSIFICATION LEVELS:
+======================
+Level 1: Context (5 categories)
+  - professional, learning, social, psychological, personal
+  - (aspirational removed: absorbed into professional_aspirations and personal_goals)
+
+Level 2: Entity (varies by context, 10-13 per context)
+  - e.g., professional_aspirations, current_skills, family_situation
+
+Level 3: Sub-entity (varies by entity, 2-9 per entity)
+  - e.g., compensation_expectations, dream_roles, addictions_or_recovery
+
+
+USAGE:
+======
+1. Classify message at Level 1 (context)
+2. Classify at Level 2 (entity) based on context
+3. Classify at Level 3 (sub-entity) based on entity
+4. Route to appropriate extraction prompt
+5. Store in corresponding Harmonia API endpoint
+
+
+TOTAL CLASSIFICATION PATHS:
+============================
+- 5 contexts (aspirational removed)
+- ~55 entities across all contexts
+- ~200+ sub-entities across all entities
+- Allows for highly granular classification and routing
+
+NOTES:
+======
+- Aspirational context has been absorbed:
+  * Career aspirations → professional > professional_aspirations
+  * Life aspirations → personal > personal_goals
+- This reduces redundancy and simplifies the taxonomy

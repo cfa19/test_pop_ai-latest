@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://popskills.ai/schemas/shared/role.json",
+  "title": "Role",
+  "type": "object",
+  "description": "Shared schema for professional role information (used by professional experience, dreamed roles, etc.)",
+  "required": ["title"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Job title or role name",
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": ["Senior Product Manager", "Software Engineer", "VP of Engineering"]
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "entry",
+        "junior",
+        "mid",
+        "senior",
+        "staff",
+        "principal",
+        "lead",
+        "manager",
+        "senior_manager",
+        "director",
+        "senior_director",
+        "vp",
+        "svp",
+        "c_level",
+        "founder",
+        "board_member",
+        "other"
+      ],
+      "description": "Career level or seniority"
+    },
+    "function": {
+      "type": "string",
+      "description": "Primary function or department",
+      "examples": ["Engineering", "Product", "Design", "Marketing", "Sales", "Operations", "Finance", "HR"]
+    },
+    "specialty": {
+      "type": "string",
+      "description": "Specialized area within the function",
+      "maxLength": 200,
+      "examples": ["Backend Engineering", "Growth Product Management", "Brand Marketing"]
+    },
+    "employment_type": {
+      "type": "string",
+      "enum": [
+        "full_time",
+        "part_time",
+        "contract",
+        "freelance",
+        "internship",
+        "apprenticeship",
+        "founder",
+        "board_member",
+        "advisor",
+        "volunteer",
+        "other"
+      ],
+      "description": "Type of employment"
+    },
+    "work_arrangement": {
+      "type": "string",
+      "enum": ["remote", "hybrid", "on_site", "flexible"],
+      "description": "Work location arrangement"
+    }
+  }
+}

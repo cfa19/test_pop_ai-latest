@@ -111,9 +111,8 @@ CLAUDE.md
 .ruff_cache/
 pyproject.toml
 
-# Training - exclude all model files (ONNX models hosted on HuggingFace Hub)
-training/models/
-training/scripts/models/
+# Training (models, scripts, datasets — all managed separately)
+training/
 
 # SSH keys
 keys/
@@ -126,3 +125,6 @@ test_deploy/
 
 # FastText language model (131MB, hosted on HuggingFace Hub)
 fasttext/
+
+# Planning
+planning/

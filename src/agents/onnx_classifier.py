@@ -1,384 +1,250 @@
 """
-Hierarchical ONNX-based Intent Classifier.
+ONNX Token Classifier for Hierarchical Intent Classification.
 
-2-level classification pipeline using ONNX Runtime:
-  1. Unified (sigmoid 8 classes, multi-label) → detects active contexts + non-context types
-  2. Entities (softmax N classes per context) → which entities within each active context
+Replaces the PyTorch SpanClassifier + DistilBertIntentClassifier with
+ONNX Runtime inference. Each token gets a label; consecutive tokens
+with the same label are merged into spans.
 
-Sub-entities are resolved by LLM extraction using CONTEXT_REGISTRY taxonomy lookup.
-
-All models loaded from disk as quantized ONNX. No PyTorch required.
+Primary classifier: assigns context labels (professional, learning, etc.)
+Secondary classifiers: assign entity labels per context (work_history, etc.)
 
 Directory structure expected:
-    {model_path}/
-    ├── hierarchy_metadata.json
-    ├── unified/          (model_quantized.onnx, config.json, label_mappings.json, tokenizer)
-    ├── professional/
-    │   ├── entities/     (model_quantized.onnx, ...)
-    ├── learning/
-    │   ├── entities/
-    │   └── ...
-    └── ...
+    {models_dir}/
+    ├── primary/            (model_quantized.onnx, tokenizer.json, label_maps.json)
+    └── secondary/
+        ├── professional/   (model_quantized.onnx, tokenizer.json, label_maps.json)
+        ├── learning/
+        ├── personal/
+        ├── psychological/
+        └── social/
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 
-# =============================================================================
-# Data types
-# =============================================================================
+logger = logging.getLogger(__name__)
 
-@dataclass
-class SubEntityResult:
-    """Result of sub-entity multi-label classification."""
-    entity: str
-    sub_entities: list[str]
-    probabilities: dict[str, float]
+SECONDARY_CONTEXTS = ["professional", "learning", "personal", "psychological", "social"]
 
 
 @dataclass
-class ContextResult:
-    """Result for a single detected context path."""
-    context: str                         # e.g. "professional"
-    context_confidence: float
-    entities: list[SubEntityResult] = field(default_factory=list)  # detected entities + their sub-entities
-    entity_probabilities: dict[str, float] = field(default_factory=dict)  # all entity probs from model
+class Span:
+    text: str
+    label: str
+    start: int
+    end: int
 
 
 @dataclass
-class HierarchicalClassification:
-    """Full hierarchical classification result."""
-    # Level 0: Routing
-    route: str                           # e.g. "professional", "rag_query", "chitchat"
-    route_confidence: float
-    is_context: bool                     # True if route is one of 5 contexts
-
-    # All detected context paths (multiple contexts possible)
-    contexts: list[ContextResult] = field(default_factory=list)
-
-    # All route probabilities for secondary analysis
-    route_probabilities: dict[str, float] = field(default_factory=dict)
-
-    # Reasoning string
-    reasoning: str = ""
+class HierarchicalResult:
+    """Result from hierarchical token classification."""
+    # Primary spans (context-level)
+    primary_spans: list[Span] = field(default_factory=list)
+    # Active contexts found
+    active_contexts: list[str] = field(default_factory=list)
+    # Entity spans per context: {"professional": [Span(label="work_history", ...), ...]}
+    entity_spans: dict[str, list[Span]] = field(default_factory=dict)
 
 
-# =============================================================================
-# Single ONNX model wrapper
-# =============================================================================
+class ONNXTokenClassifier:
+    """Single ONNX token classifier (primary or secondary)."""
 
-class ONNXModel:
-    """Wrapper for a single ONNX classification model."""
+    def __init__(self, model_dir: str | Path):
+        model_dir = Path(model_dir)
 
-    def __init__(self, model_dir: Path, name: str = ""):
-        self.name = name
-        self.model_dir = model_dir
-
-        # Find ONNX model file (prefer quantized)
-        onnx_file = model_dir / "model_quantized.onnx"
-        if not onnx_file.exists():
-            onnx_file = model_dir / "model.onnx"
-        if not onnx_file.exists():
+        # Load ONNX session
+        onnx_path = model_dir / "model_quantized.onnx"
+        if not onnx_path.exists():
+            onnx_path = model_dir / "model.onnx"
+        if not onnx_path.exists():
             raise FileNotFoundError(f"No ONNX model found in {model_dir}")
 
-        self.session = ort.InferenceSession(
-            str(onnx_file), providers=["CPUExecutionProvider"]
-        )
-        self.input_names = [i.name for i in self.session.get_inputs()]
+        opts = ort.SessionOptions()
+        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.intra_op_num_threads = 2
+        self.session = ort.InferenceSession(str(onnx_path), opts, providers=["CPUExecutionProvider"])
 
         # Load tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
 
-        # Load label mappings: prefer label_mappings.json (explicit export) over config.json
-        # config.json often has default LABEL_0/LABEL_1 from HuggingFace
-        config_file = model_dir / "config.json"
-        with open(config_file) as f:
-            config = json.load(f)
-        self.problem_type = config.get("problem_type", "single_label_classification")
+        # Load label maps
+        label_maps_path = model_dir / "label_maps.json"
+        with open(label_maps_path) as f:
+            maps = json.load(f)
+        self.id2label = {int(k): v for k, v in maps["id2label"].items()}
 
-        # Start with config.json id2label as fallback
-        self.id2label = config.get("id2label", {})
+        logger.info(f"Loaded ONNX model from {model_dir}: labels={list(self.id2label.values())}")
 
-        # label_mappings.json always takes priority when it exists
-        label_mappings_file = model_dir / "label_mappings.json"
-        # Default threshold slightly above 0.5 so sigmoid "no signal" (~0.50) is rejected
-        self.threshold = 0.55
-        if label_mappings_file.exists():
-            with open(label_mappings_file) as f:
-                label_config = json.load(f)
-            if label_config.get("problem_type") == "multi_label_classification":
-                self.problem_type = "multi_label_classification"
-            self.threshold = label_config.get("threshold", 0.5)
-            # Check for nested "label_mappings" key or flat {0: "name"} format
-            if "label_mappings" in label_config:
-                self.id2label = label_config["label_mappings"]
-            elif all(k.isdigit() for k in label_config if k not in ("problem_type", "threshold")):
-                # Flat format: {"0": "professional", "1": "learning", ...}
-                self.id2label = {k: v for k, v in label_config.items()
-                                 if k not in ("problem_type", "threshold")}
+    def classify_spans(self, text: str) -> list[Span]:
+        """
+        Run token classification and return labeled text spans.
 
-        self.num_labels = len(self.id2label)
-
-        self.is_multilabel = self.problem_type == "multi_label_classification"
-
-    def _tokenize(self, message: str) -> dict:
-        """Tokenize and build feed dict."""
-        inputs = self.tokenizer(
-            message, return_tensors="np", padding=True, truncation=True, max_length=128
+        Tokenizes text, runs ONNX inference, takes argmax per token,
+        then merges consecutive tokens with the same non-O label into spans.
+        """
+        encoding = self.tokenizer(
+            text,
+            return_tensors="np",
+            truncation=True,
+            max_length=512,
+            return_offsets_mapping=True,
         )
-        feed = {
-            "input_ids": inputs["input_ids"].astype(np.int64),
-            "attention_mask": inputs["attention_mask"].astype(np.int64),
-        }
-        if "token_type_ids" in self.input_names:
-            tid = inputs.get("token_type_ids", np.zeros_like(inputs["input_ids"]))
-            feed["token_type_ids"] = tid.astype(np.int64)
-        return feed
+        offset_mapping = encoding.pop("offset_mapping")[0].tolist()
+        input_ids = encoding["input_ids"].astype(np.int64)
+        attention_mask = encoding["attention_mask"].astype(np.int64)
 
-    def predict_single_label(self, message: str) -> tuple[str, float, dict[str, float]]:
-        """
-        Single-label prediction (softmax).
+        logits = self.session.run(None, {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+        })[0]
 
-        Returns:
-            (best_label, confidence, all_probabilities)
-        """
-        feed = self._tokenize(message)
-        outputs = self.session.run(None, feed)
-        logits = outputs[0][0]
+        pred_ids = np.argmax(logits[0], axis=-1).tolist()
 
-        # Softmax
-        exp_logits = np.exp(logits - np.max(logits))
-        probs = exp_logits / exp_logits.sum()
+        spans: list[Span] = []
+        current: Span | None = None
 
-        best_idx = int(np.argmax(probs))
-        best_label = self.id2label.get(str(best_idx), f"label_{best_idx}")
-        confidence = float(probs[best_idx])
+        for pred_id, (char_start, char_end) in zip(pred_ids, offset_mapping):
+            if char_start == char_end == 0:  # special token
+                continue
 
-        all_probs = {
-            self.id2label.get(str(i), f"label_{i}"): float(probs[i])
-            for i in range(len(probs))
-        }
+            label = self.id2label[pred_id]
+            parsed = self._parse_label(label)
 
-        return best_label, confidence, all_probs
+            if parsed is None:
+                if current is not None:
+                    spans.append(current)
+                    current = None
+            else:
+                if current is None or current.label != parsed:
+                    if current is not None:
+                        spans.append(current)
+                    current = Span(
+                        text=text[char_start:char_end],
+                        label=parsed,
+                        start=char_start,
+                        end=char_end,
+                    )
+                else:
+                    current.end = char_end
+                    current.text = text[current.start:char_end]
 
-    def predict_multi_label(self, message: str, threshold: float = None) -> tuple[list[str], dict[str, float]]:
-        """
-        Multi-label prediction (sigmoid).
+        if current is not None:
+            spans.append(current)
 
-        Returns:
-            (active_labels, all_probabilities)
-        """
-        if threshold is None:
-            threshold = self.threshold
+        return spans
 
-        feed = self._tokenize(message)
-        outputs = self.session.run(None, feed)
-        logits = outputs[0][0]
-
-        # Sigmoid
-        probs = 1.0 / (1.0 + np.exp(-logits))
-
-        all_probs = {
-            self.id2label.get(str(i), f"label_{i}"): float(probs[i])
-            for i in range(len(probs))
-        }
-
-        active = [label for label, prob in all_probs.items() if prob >= threshold]
-
-        return active, all_probs
-
-
-# =============================================================================
-# Hierarchical classifier
-# =============================================================================
-
-CONTEXT_TYPES = {"professional", "learning", "social", "psychological", "personal"}
-
-
-class HierarchicalONNXClassifier:
-    """
-    Hierarchical 2-level ONNX classifier with multi-path detection.
-
-    For each message, detects MULTIPLE contexts and entities
-    using probability thresholds at every level (not just argmax).
-
-    Pipeline:
-      unified (sigmoid multi-label, 8 classes → active contexts)
-        → for each context: entities (softmax, top-N above threshold)
-    Sub-entities are resolved by LLM extraction using CONTEXT_REGISTRY.
-    """
-
-    # Entity model threshold: each context has ~4-6 entities (softmax).
-    # Random uniform = ~17-25%. A real signal gives the top entity >50%.
-    # 30% filters noise while keeping legitimate detections.
-    # This is the ONLY filter — unified model doesn't limit which contexts to explore.
-    ENTITY_THRESHOLD = 0.30
-
-    def __init__(self, model_path: str):
-        model_dir = Path(model_path)
-        if not model_dir.exists():
-            raise FileNotFoundError(f"Model directory not found: {model_dir}")
-
-        print(f"[HIERARCHICAL ONNX] Loading models from {model_dir}...")
-
-        # Load hierarchy metadata
-        metadata_file = model_dir / "hierarchy_metadata.json"
-        self.metadata = {}
-        if metadata_file.exists():
-            with open(metadata_file) as f:
-                self.metadata = json.load(f)
-
-        # Level 0: Unified (8 classes, multi-label sigmoid)
-        self.unified_model = self._load_model(model_dir / "unified", "unified")
-
-        # Level 1: Entity models (one per context, softmax)
-        self.entity_models: dict[str, ONNXModel] = {}
-        for ctx in CONTEXT_TYPES:
-            entity_dir = model_dir / ctx / "entities"
-            if entity_dir.exists():
-                model = self._load_model(entity_dir, f"{ctx}/entities")
-                if model:
-                    self.entity_models[ctx] = model
-
-        # Summary
-        n_entity = len(self.entity_models)
-        print(f"[HIERARCHICAL ONNX] Loaded: unified (multi-label) + {n_entity} entity models (sub-entities handled by LLM)")
-
-    def _load_model(self, model_dir: Path, name: str) -> Optional[ONNXModel]:
-        """Load a single ONNX model, returning None if not found."""
-        try:
-            model = ONNXModel(model_dir, name)
-            print(f"  [{name}] {model.num_labels} labels ({'multi-label' if model.is_multilabel else 'single-label'})")
-            return model
-        except FileNotFoundError:
-            print(f"  [{name}] not found, skipping")
+    @staticmethod
+    def _parse_label(label: str) -> str | None:
+        """Parse label, stripping BIO prefix. Returns None for 'O'."""
+        if label in ("O", "o"):
             return None
+        if label.startswith(("B-", "I-")):
+            return label[2:]
+        return label
 
-    def _get_entities_above_threshold(self, entity_probs: dict[str, float]) -> list[tuple[str, float]]:
-        """
-        Get all entities with probability above threshold.
 
-        Returns list of (entity, probability) sorted by probability descending.
-        """
-        entities = []
-        for label, prob in entity_probs.items():
-            if prob >= self.ENTITY_THRESHOLD:
-                entities.append((label, prob))
-        entities.sort(key=lambda x: x[1], reverse=True)
-        return entities
+class HierarchicalONNXTokenClassifier:
+    """
+    Hierarchical token classifier using ONNX models.
 
-    async def classify(self, message: str) -> HierarchicalClassification:
-        """
-        Run full hierarchical classification with multi-path detection.
+    Level 1 (primary): classifies tokens into contexts (professional, learning, etc.)
+    Level 2 (secondary): classifies tokens into entities per context (work_history, etc.)
+    """
 
-        Flow:
-            1. Unified (sigmoid multi-label) → detect active classes
-            2. For each active context → entities (softmax, top-N above threshold)
+    def __init__(self, models_dir: str | Path):
+        models_dir = Path(models_dir)
 
-        Example result for "Quiero ser CEO de Apple, gano 100k y sé Python":
-            contexts:
-              - professional:
-                  - professional_aspirations
-                  - current_position
-              - learning:
-                  - current_skills
-        """
-        # =====================================================================
-        # STEP 1: Unified (8 classes, multi-label sigmoid)
-        # =====================================================================
-        if not self.unified_model:
-            return HierarchicalClassification(
-                route="chitchat", route_confidence=0.0, is_context=False,
-                reasoning="No unified model loaded",
-            )
+        # Load primary
+        primary_dir = models_dir / "primary"
+        if not primary_dir.exists():
+            raise FileNotFoundError(f"Primary model not found at {primary_dir}")
+        self.primary = ONNXTokenClassifier(primary_dir)
 
-        active_labels, all_probs = self.unified_model.predict_multi_label(message)
+        # Load secondary classifiers
+        self.secondary: dict[str, ONNXTokenClassifier] = {}
+        secondary_dir = models_dir / "secondary"
+        if secondary_dir.exists():
+            for ctx in SECONDARY_CONTEXTS:
+                ctx_dir = secondary_dir / ctx
+                if ctx_dir.exists():
+                    self.secondary[ctx] = ONNXTokenClassifier(ctx_dir)
+                    logger.info(f"Loaded secondary classifier: {ctx}")
 
-        # Primary route = highest probability class
-        route = max(all_probs.items(), key=lambda x: x[1])[0]
-        route_conf = all_probs[route]
-        is_context = route in CONTEXT_TYPES
-
-        probs_str = ", ".join(f"{k}={v:.1%}" for k, v in sorted(all_probs.items(), key=lambda x: x[1], reverse=True))
-        print(f"[HIERARCHICAL ONNX] Unified: route={route} ({route_conf:.1%}), active={active_labels}")
-        print(f"[HIERARCHICAL ONNX]   All probs: {probs_str}")
-
-        if not is_context:
-            # Non-context route (rag_query, chitchat, off_topic) → no extraction
-            return HierarchicalClassification(
-                route=route,
-                route_confidence=route_conf,
-                is_context=False,
-                route_probabilities=all_probs,
-                reasoning=f"Unified: {route} ({route_conf:.1%})",
-            )
-
-        # =================================================================
-        # Route IS a context → run ALL entity models (ONNX, free).
-        # Each entity model decides if its context is relevant based on
-        # ENTITY_THRESHOLD. Only contexts with entities above threshold
-        # trigger LLM calls downstream.
-        # =================================================================
-        print(f"[HIERARCHICAL ONNX] Running all {len(self.entity_models)} entity models")
-
-        # =====================================================================
-        # STEP 2: For each context → entities
-        # =====================================================================
-        context_results = []
-        reasoning_parts = [f"Unified: {route} ({route_conf:.1%})"]
-
-        for ctx in self.entity_models:
-            _, _, entity_probs = self.entity_models[ctx].predict_single_label(message)
-            top_entity = max(entity_probs.items(), key=lambda x: x[1])
-            print(f"[HIERARCHICAL ONNX]   {ctx}: top={top_entity[0]} ({top_entity[1]:.1%})")
-            detected_entities = self._get_entities_above_threshold(entity_probs)
-
-            entity_results = []
-            for entity, entity_conf in detected_entities:
-                entity_results.append(SubEntityResult(
-                    entity=entity,
-                    sub_entities=[],
-                    probabilities={},
-                ))
-                reasoning_parts.append(f"{ctx}.{entity} ({entity_conf:.0%})")
-
-            if entity_results:
-                context_results.append(ContextResult(
-                    context=ctx,
-                    context_confidence=all_probs.get(ctx, 0.0),
-                    entities=entity_results,
-                    entity_probabilities=entity_probs,
-                ))
-
-        return HierarchicalClassification(
-            route=route,
-            route_confidence=route_conf,
-            is_context=bool(context_results),
-            contexts=context_results,
-            route_probabilities=all_probs,
-            reasoning=" | ".join(reasoning_parts),
+        logger.info(
+            f"HierarchicalONNXTokenClassifier ready: "
+            f"primary + {len(self.secondary)} secondary classifiers"
         )
 
+    def classify(self, message: str) -> HierarchicalResult:
+        """
+        Run hierarchical classification on a message.
 
-# =============================================================================
-# Singleton
-# =============================================================================
+        1. Primary: label each token with a context (professional, learning, etc.)
+        2. For each context found, run the secondary classifier on the span text
+           to get entity-level labels.
+        """
+        result = HierarchicalResult()
 
-_classifier_instance: Optional[HierarchicalONNXClassifier] = None
+        # Step 1: Primary classification
+        result.primary_spans = self.primary.classify_spans(message)
+
+        # Deduplicate active contexts preserving order
+        seen = set()
+        for span in result.primary_spans:
+            if span.label not in seen:
+                result.active_contexts.append(span.label)
+                seen.add(span.label)
+
+        # Step 2: Secondary classification per context
+        for ctx in result.active_contexts:
+            if ctx not in self.secondary:
+                continue
+
+            secondary_clf = self.secondary[ctx]
+            ctx_entity_spans: list[Span] = []
+
+            # Get all primary spans for this context
+            for primary_span in result.primary_spans:
+                if primary_span.label != ctx:
+                    continue
+
+                # Run secondary on the span text
+                sub_spans = secondary_clf.classify_spans(primary_span.text)
+
+                # Remap offsets to original message coordinates
+                for sub_span in sub_spans:
+                    sub_span.start += primary_span.start
+                    sub_span.end += primary_span.start
+                    sub_span.text = message[sub_span.start:sub_span.end]
+                    ctx_entity_spans.append(sub_span)
+
+            if ctx_entity_spans:
+                result.entity_spans[ctx] = ctx_entity_spans
+
+        return result
 
 
-def get_hierarchical_classifier(model_path: str = "") -> HierarchicalONNXClassifier:
-    """Get or create the hierarchical ONNX classifier singleton."""
+# Module-level singleton
+_classifier_instance: HierarchicalONNXTokenClassifier | None = None
+
+
+def get_hierarchical_classifier(models_dir: str | Path | None = None) -> HierarchicalONNXTokenClassifier:
+    """Get or create the singleton HierarchicalONNXTokenClassifier."""
     global _classifier_instance
     if _classifier_instance is None:
-        if not model_path:
-            from src.config import HIERARCHICAL_MODEL_PATH
-            model_path = HIERARCHICAL_MODEL_PATH
-        _classifier_instance = HierarchicalONNXClassifier(model_path)
+        if models_dir is None:
+            raise ValueError("models_dir required on first call")
+        _classifier_instance = HierarchicalONNXTokenClassifier(models_dir)
     return _classifier_instance
+
+
+def set_hierarchical_classifier(clf: HierarchicalONNXTokenClassifier):
+    """Set the singleton classifier (used by main.py preload)."""
+    global _classifier_instance
+    _classifier_instance = clf

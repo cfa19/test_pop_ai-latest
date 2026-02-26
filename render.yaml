@@ -24,6 +24,10 @@ services:
       - key: EMBED_DIMENSIONS
         value: "1024"
 
+      # Groq (optional fast chat)
+      - key: GROQ_API_KEY
+        sync: false
+
       # Chat
       - key: CHAT_MODEL
         value: gpt-4o-mini
@@ -32,15 +36,11 @@ services:
       - key: EMBED_PROVIDER
         value: voyage
 
-      # Intent Classifier (ONNX from HuggingFace Hub)
-      - key: PRIMARY_INTENT_CLASSIFIER_TYPE
-        value: onnx
+      # ONNX Token Classifier (downloaded from HuggingFace Hub at startup)
+      - key: ONNX_MODELS_PATH
+        value: training/models_onnx
       - key: HF_REPO_ID
         value: cfa0819/pop-skills-onnx
-
-      # Semantic Gate (ONNX-based, no PyTorch required)
-      - key: SEMANTIC_GATE_ENABLED
-        value: "true"
 
       # JWT
       - key: JWT_ALGORITHM

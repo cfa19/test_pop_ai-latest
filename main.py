@@ -3,7 +3,6 @@ Backend FastAPI for the Chatbot with RAG
 """
 
 import argparse
-import asyncio
 import logging
 import os
 
@@ -15,108 +14,70 @@ from src.api.chat import router as chat_router
 from src.utils.message_queue import start_message_queue, stop_message_queue
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
-
 
 # ===============================
 # FASTAPI APP
 # ===============================
-app = FastAPI(title="Pop Skills Chatbot API", description="API for the chatbot with RAG", version="1.0.0")
+app = FastAPI(
+    title="Pop Skills Chatbot API",
+    description="API for the chatbot with RAG",
+    version="1.0.0"
+)
 
 
-def download_models():
-    """Download ONNX models from HuggingFace Hub if not available locally."""
+def download_models_from_hf(local_dir: str):
+    """Download ONNX models from HuggingFace Hub if not present locally."""
     from pathlib import Path
 
-    from src.config import HF_REPO_ID, HIERARCHICAL_MODEL_PATH
-
-    # Check if hierarchical models already exist locally (e.g., dev environment)
-    hierarchical_exists = (Path(HIERARCHICAL_MODEL_PATH) / "unified").exists()
-
-    if hierarchical_exists:
-        logger.info("Hierarchical ONNX models found locally, skipping HF Hub download")
+    hf_repo = os.getenv("HF_REPO_ID")
+    if not hf_repo:
+        logger.info("HF_REPO_ID not set, skipping HuggingFace download")
         return
 
-    logger.info(f"Downloading ONNX models from HuggingFace Hub: {HF_REPO_ID}")
-    from huggingface_hub import snapshot_download
+    local_path = Path(local_dir)
+    # Skip if models already exist locally
+    if local_path.exists() and any(local_path.rglob("*.onnx")):
+        logger.info(f"ONNX models already present at {local_dir}, skipping download")
+        return
 
-    local_path = snapshot_download(repo_id=HF_REPO_ID)
-
-    # Update config paths to point to downloaded models
-    config.HIERARCHICAL_MODEL_PATH = str(Path(local_path) / "hierarchical")
-    config.SEMANTIC_GATE_ONNX_MODEL_PATH = str(Path(local_path) / "semantic_gate")
-    config.SEMANTIC_GATE_CENTROIDS_DIR = str(Path(local_path) / "semantic_gate")
-    config.SEMANTIC_GATE_TUNING_PATH = str(Path(local_path) / "semantic_gate" / "semantic_gate_hierarchical_tuning.json")
-
-    logger.info(f"Models downloaded to {local_path}")
-    logger.info(f"  Hierarchical models: {config.HIERARCHICAL_MODEL_PATH}")
-    logger.info(f"  Semantic gate ONNX: {config.SEMANTIC_GATE_ONNX_MODEL_PATH}")
+    logger.info(f"Downloading ONNX models from huggingface.co/{hf_repo} → {local_dir}...")
+    try:
+        from huggingface_hub import snapshot_download
+        snapshot_download(
+            repo_id=hf_repo,
+            local_dir=local_dir,
+            repo_type="model",
+        )
+        logger.info(f"Downloaded ONNX models to {local_dir}")
+    except Exception as e:
+        logger.warning(f"Failed to download models from HF Hub: {e}")
 
 
 async def preload_models():
-    """Preload ML models on startup."""
-    from src.config import (
-        HIERARCHICAL_MODEL_PATH,
-        PRIMARY_INTENT_CLASSIFIER_TYPE,
-        SEMANTIC_GATE_ENABLED,
-        SEMANTIC_GATE_MODEL,
-        set_intent_classifier,
-        set_semantic_gate,
-    )
+    """Preload ONNX token classifiers on startup."""
+    from src.config import ONNX_MODELS_PATH, set_hierarchical_classifier
 
-    # Preload intent classifier
-    if PRIMARY_INTENT_CLASSIFIER_TYPE == "onnx":
-        try:
-            logger.info("Preloading hierarchical ONNX classifier...")
-            from src.agents.onnx_classifier import get_hierarchical_classifier
+    # Download from HuggingFace Hub if needed (deploy scenario)
+    download_models_from_hf(ONNX_MODELS_PATH)
 
-            classifier = get_hierarchical_classifier(HIERARCHICAL_MODEL_PATH)
-            set_intent_classifier(classifier)
-
-            logger.info("Hierarchical ONNX classifier loaded successfully")
-        except Exception as e:
-            logger.warning(f"Failed to preload hierarchical ONNX classifier: {e}")
-            logger.warning("Will fall back to lazy loading on first request")
-    else:
-        logger.info(f"Intent classifier type: {PRIMARY_INTENT_CLASSIFIER_TYPE} (no preloading needed)")
-
-    # Preload semantic gate if enabled
-    if SEMANTIC_GATE_ENABLED:
-        try:
-            logger.info("Preloading semantic gate (ONNX)...")
-            from src.agents.semantic_gate_onnx import get_semantic_gate_onnx
-
-            gate = get_semantic_gate_onnx()
-            set_semantic_gate(gate)
-
-            logger.info("Semantic gate (ONNX) loaded successfully")
-        except Exception as e:
-            logger.warning(f"Failed to preload ONNX semantic gate: {e}")
-            try:
-                logger.info("Trying PyTorch semantic gate as fallback...")
-                from src.agents.semantic_gate import get_semantic_gate
-
-                gate = get_semantic_gate(model_name=SEMANTIC_GATE_MODEL)
-                set_semantic_gate(gate)
-                logger.info("PyTorch semantic gate loaded successfully")
-            except Exception as e2:
-                logger.warning(f"Failed to preload semantic gate: {e2}")
-                logger.warning("Will fall back to lazy loading on first request")
-    else:
-        logger.info("Semantic gate disabled (no preloading needed)")
-
-
-async def _background_model_setup():
-    """Download and preload models in background so the server port opens immediately."""
     try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, download_models)
-        await preload_models()
-        config.MODELS_READY = True
-        logger.info("Background model setup complete - ready to serve requests")
+        from src.agents.onnx_classifier import HierarchicalONNXTokenClassifier
+
+        logger.info(f"Preloading ONNX token classifiers from {ONNX_MODELS_PATH}...")
+        clf = HierarchicalONNXTokenClassifier(ONNX_MODELS_PATH)
+        set_hierarchical_classifier(clf)
+        logger.info(
+            f"Loaded: primary + {len(clf.secondary)} secondary classifiers "
+            f"({', '.join(clf.secondary.keys())})"
+        )
     except Exception as e:
-        logger.error(f"Background model setup failed: {e}")
+        logger.warning(f"Failed to preload ONNX classifiers: {e}")
+        logger.warning("Will fall back to lazy loading on first request")
 
 
 @app.on_event("startup")
@@ -124,13 +85,13 @@ async def startup_event():
     """Initialize resources on application startup."""
     logger.info("Starting Pop Skills AI API...")
 
-    # Start message queue for sequential processing (fast, non-blocking)
+    # Start message queue for sequential processing
     await start_message_queue()
     logger.info("Message queue initialized")
 
-    # Download and preload models in background (don't block port binding)
-    asyncio.create_task(_background_model_setup())
-    logger.info("Model download/preload scheduled in background")
+    # Preload ML models (intent classifier, semantic gate)
+    await preload_models()
+    logger.info("Model preloading complete")
 
 
 @app.on_event("shutdown")
@@ -141,7 +102,6 @@ async def shutdown_event():
     # Stop message queue
     await stop_message_queue()
     logger.info("Message queue stopped")
-
 
 # Allow CORS (for the frontend to call the backend)
 app.add_middleware(
@@ -154,6 +114,11 @@ app.add_middleware(
 
 # Include routes
 app.include_router(chat_router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

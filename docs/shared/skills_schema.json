@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://popskills.ai/schemas/shared/skills.json",
+  "title": "Skills",
+  "type": "object",
+  "description": "Shared schema for skills and competencies",
+  "definitions": {
+    "skill": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Skill name",
+          "minLength": 1,
+          "maxLength": 200,
+          "examples": ["Python", "Project Management", "Data Analysis", "Public Speaking"]
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "technical",
+            "leadership",
+            "communication",
+            "analytical",
+            "creative",
+            "strategic",
+            "operational",
+            "interpersonal",
+            "domain_knowledge",
+            "tools",
+            "languages",
+            "certifications",
+            "other"
+          ],
+          "description": "Skill category"
+        },
+        "proficiency_level": {
+          "type": "string",
+          "enum": [
+            "beginner",
+            "intermediate",
+            "advanced",
+            "expert",
+            "not_specified"
+          ],
+          "description": "Self-assessed proficiency level"
+        },
+        "proficiency_score": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Numeric proficiency (1=beginner, 10=expert)"
+        },
+        "years_of_experience": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Years of experience with this skill"
+        },
+        "last_used": {
+          "type": "string",
+          "format": "date",
+          "description": "When this skill was last used"
+        },
+        "importance": {
+          "type": "string",
+          "enum": ["critical", "important", "nice_to_have", "not_important"],
+          "description": "Importance of this skill (context-dependent)"
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether this skill has been verified (e.g., through tests, certifications, endorsements)"
+        },
+        "verification_source": {
+          "type": "string",
+          "description": "How skill was verified",
+          "examples": ["Certification", "Peer endorsement", "Project work", "Assessment"]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional tags or keywords"
+        }
+      }
+    },
+    "skill_list": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/skill"
+      },
+      "description": "List of skills"
+    },
+    "skill_gap": {
+      "type": "object",
+      "required": ["skill_name", "gap_level"],
+      "properties": {
+        "skill_name": {
+          "type": "string",
+          "description": "Name of the skill with a gap"
+        },
+        "current_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Current proficiency level"
+        },
+        "required_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Required proficiency level"
+        },
+        "gap_level": {
+          "type": "string",
+          "enum": ["small", "moderate", "large", "critical"],
+          "description": "Size of the gap"
+        },
+        "development_plan": {
+          "type": "string",
+          "description": "How to address this gap",
+          "maxLength": 500
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "description": "Priority for developing this skill"
+        }
+      }
+    }
+  }
+}
