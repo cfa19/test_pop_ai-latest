@@ -76,13 +76,15 @@ def store_extracted_information(
         )
         return {"success": False, "error": "Missing content or type"}
 
-    # Wrap content with subcategory name so the tree view in the UI
-    # shows e.g. "work_history { role: ..., company: ... }"
+    # Parse raw content and build display content wrapped with subcategory
+    # so the tree view in the UI shows e.g. "work_history { role: ..., company: ... }"
+    raw_data = None
     try:
         fields = json.loads(raw_content)
         # Remove meta fields that aren't user data
         fields.pop("content", None)
         fields.pop("type", None)
+        raw_data = fields  # raw_data keeps the flat extracted fields
         content = json.dumps({subcategory: fields})
     except (json.JSONDecodeError, TypeError):
         content = raw_content
@@ -107,9 +109,10 @@ def store_extracted_information(
         },
         "status": "proposed",
         "tags": [category, subcategory],
-        "linked_contexts": [category, subcategory],
-        "created_at": now,
-        "updated_at": now,
+        "linked_contexts": [],
+        "raw_data": raw_data,
+        "applied_field_paths": [],
+        "mapping_attempts": 0,
     }
 
     try:
