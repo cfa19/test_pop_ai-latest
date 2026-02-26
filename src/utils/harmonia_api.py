@@ -99,7 +99,7 @@ def _make_request(
         Response JSON or None if error
     """
     if not NEXT_PUBLIC_BASE_URL:
-        logger.error("Harmonia API configuration missing (SUPABASE_URL or SUPABASE_KEY)")
+        logger.debug("NEXT_PUBLIC_BASE_URL not configured, skipping Harmonia API call")
         return None
 
     url = f"{NEXT_PUBLIC_BASE_URL}{endpoint}"
@@ -586,6 +586,10 @@ def store_extracted_information(
     Returns:
         Dict with "success", "context", "resource", and "created_ids"
     """
+    if not NEXT_PUBLIC_BASE_URL:
+        logger.debug("NEXT_PUBLIC_BASE_URL not configured, skipping memory card storage")
+        return {"success": False, "error": "Harmonia API not configured"}
+
     logger.info(f"Storing extracted information: subcategory={subcategory}")
 
     # Ensure user profile exists before storing data
