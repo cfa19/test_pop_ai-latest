@@ -1,8 +1,21 @@
 """
 Information Extraction Schemas and Prompts
 
-Defines extraction schemas for different subcategories and prompt templates
-for extracting structured information from user messages.
+Defines extraction schemas for each entity in the canonical taxonomy
+(entity_prompts.py).  One schema per entity that carries structured,
+storable information.
+
+Contexts / entities covered:
+  professional  — work_history, professional_aspirations, professional_achievements,
+                  workplace_challenges, job_search_status
+  learning      — knowledge_and_credentials, languages, learning_agenda
+  social        — mentorship, recommendations, network_and_networking
+  psychological — mindset_and_values, working_style_preferences, emotional_state
+  personal      — life_situation, health_and_wellbeing, personal_projects,
+                  personal_priorities
+
+No schemas for chitchat, meta, rag_query, or off_topic — those categories
+carry no structured user-profile data to extract.
 """
 
 # =============================================================================
@@ -10,452 +23,290 @@ for extracting structured information from user messages.
 # =============================================================================
 
 EXTRACTION_SCHEMAS = {
-    # =========================================================================
-    # Professional context
-    # =========================================================================
-    "dream_roles": {
+
+    # ==========================================================================
+    # PROFESSIONAL CONTEXT
+    # ==========================================================================
+
+    "work_history": {
         "task": (
-            "Extract all desired jobs or roles mentioned in the message, including target companies, "
-            "industries, priority, readiness, feasibility assessment, skill gaps, connections, and networking actions."
+            "Extract all current and past work roles mentioned. "
+            "For each role capture: job title, company, whether it is the current role, "
+            "start and end dates, department, compensation (salary / total comp), "
+            "key responsibilities, and notable achievements or impact."
         ),
         "fields": [
-            "desiredRoles", "targetCompanies", "targetIndustries", "priority",
-            "timeframe", "readiness", "feasibility", "skillGaps", "connections", "networkingActions",
+            "role", "company", "isCurrent", "startDate", "endDate",
+            "department", "compensation", "responsibilities", "achievements",
         ],
-        "type": "fact",
+        "type": "experience",
     },
-    "compensation_expectations": {
+
+    "professional_aspirations": {
         "task": (
-            "Extract salary and compensation expectations: target salary, minimum acceptable, "
-            "stretch goal, total comp (including equity/bonus), flexibility, and priorities."
+            "Extract career aspirations and future plans: desired next roles, target companies "
+            "and industries, target timeframe, skill gaps to address, salary expectations "
+            "(target, minimum, currency), preferred work environment (remote/hybrid, company size, "
+            "IC vs management), and any career change considerations (type, risk tolerance, "
+            "willingness to take a pay cut)."
         ),
         "fields": [
-            "targetSalary", "minimumAcceptable", "stretchGoal",
-            "totalComp", "flexibility", "priorities",
+            "dreamRole", "targetCompany", "targetIndustry", "targetTimeframe",
+            "skillGapsToAddress", "targetSalary", "minimumSalary", "currency",
+            "workEnvironment", "careerChangeType", "riskTolerance",
         ],
-        "type": "fact",
+        "type": "aspiration",
     },
-    "desired_work_environment": {
+
+    "professional_achievements": {
         "task": (
-            "Extract preferences about work environment: remote/hybrid/in-office, company size, "
-            "company stage, IC vs manager preference, culture priorities, and deal-breakers."
+            "Extract professional accomplishments beyond core job duties: "
+            "awards and recognitions (title, awarding organization, date), "
+            "volunteer or community roles (organization, role, description), "
+            "publications (title, type: article/paper/blog/book, date), "
+            "and regulatory or professional licenses (name, issuing body, expiry)."
         ),
-        "fields": [
-            "workMode", "companySize", "companyStage",
-            "management", "culturePriorities", "dealBreakers",
-        ],
-        "type": "fact",
+        "fields": ["type", "title", "organization", "date", "description"],
+        "type": "experience",
     },
-    "career_change_considerations": {
-        "task": (
-            "Extract EXPLICIT career change intentions ONLY if the user directly says they want "
-            "to change careers, industries, or roles. Wanting a specific role (e.g. 'I want to be "
-            "a CEO') is a dream role, NOT a career change. Only extract if the user explicitly "
-            "mentions changing, switching, transitioning, or leaving their current career."
-        ),
-        "fields": [
-            "consideringChange", "changeType", "riskTolerance",
-            "payCut", "obstacles", "supportNeeded",
-        ],
-        "type": "fact",
-    },
-    "job_search_status": {
-        "task": (
-            "Extract job search status ONLY if the user explicitly says they are searching, "
-            "applying, interviewing, or have received offers. Expressing a career aspiration "
-            "(e.g. 'I want to be a CEO') does NOT mean they are actively searching. Only extract "
-            "if the user directly mentions job searching activities."
-        ),
-        "fields": [
-            "currentlySearching", "urgency", "applications",
-            "interviews", "offers", "startDate",
-        ],
-        "type": "fact",
-    },
-    "skills": {
-        "task": "Extract all skills, competencies, and abilities mentioned, including years of experience if stated.",
-        "fields": ["name", "level", "yearsExperience", "validationDate", "validationSource"],
-        "type": "fact",
-    },
-    "experiences": {
-        "task": "Extract past job experiences including roles, companies, responsibilities, achievements, duration, and skills used.",
-        "fields": ["role", "company", "description", "startDate", "endDate", "achievements", "skills"],
-        "type": "fact",
-    },
-    "certifications": {
-        "task": "Extract certifications, licenses, degrees, and formal qualifications mentioned, including credential URLs if provided.",
-        "fields": ["name", "issuer", "date", "expiryDate", "credentialUrl"],
-        "type": "fact",
-    },
-    "current_position": {
-        "task": "Extract current job title, employer, compensation, tenure, and department.",
-        "fields": ["title", "company", "compensation", "startDate", "department"],
-        "type": "fact",
-    },
-    "awards": {
-        "task": "Extract professional awards and recognitions: name, issuer, date, and significance.",
-        "fields": ["name", "issuer", "date", "significance"],
-        "type": "fact",
-    },
-    "portfolio_items": {
-        "task": (
-            "Extract portfolio items, projects, or work samples mentioned: title, "
-            "type (project/article/app/design), URL, description, and skills demonstrated."
-        ),
-        "fields": ["title", "type", "url", "description", "skills"],
-        "type": "fact",
-    },
+
     "workplace_challenges": {
         "task": (
-            "Extract workplace challenges: issue type (toxic culture, "
-            "bad management, conflicts, dead-end role, overwork, "
-            "discrimination), description, severity, duration, "
-            "and impact on career decisions."
+            "Extract current workplace difficulties: type of challenge "
+            "(e.g. micromanagement, toxic culture, conflict with manager, lack of growth, "
+            "unfair treatment, organizational dysfunction), severity, how long the issue "
+            "has existed, impact on performance and wellbeing, and any actions already taken."
         ),
         "fields": [
-            "issueType", "description", "severity",
-            "duration", "careerImpact",
+            "challengeType", "severity", "duration",
+            "impactOnPerformance", "actionsTaken",
         ],
-        "type": "fact",
+        "type": "trait",
     },
 
-    # =========================================================================
-    # Learning context
-    # =========================================================================
-    "education": {
-        "task": "Extract educational background: degrees, institutions, field of study, GPA, graduation dates.",
-        "fields": ["degree", "institution", "fieldOfStudy", "gpa", "graduationDate"],
-        "type": "fact",
-    },
-    "past_courses": {
-        "task": "Extract courses, bootcamps, and training programs completed.",
-        "fields": ["name", "provider", "completionDate", "outcome"],
-        "type": "fact",
-    },
-    "books_and_resources": {
-        "task": "Extract books and resources read for professional development.",
-        "fields": ["title", "author", "keyTakeaway"],
-        "type": "fact",
-    },
-    "knowledge": {
-        "task": "Extract knowledge areas, domains of expertise, and educational background.",
-        "fields": ["name", "level", "lastPracticed"],
-        "type": "fact",
-    },
-    "learning_velocity": {
-        "task": "Estimate the learning velocity of the person based on the message as a number between 0 and 100.",
-        "fields": ["velocity"],
-        "type": "fact",
-    },
-    "preferred_format": {
+    "job_search_status": {
         "task": (
-            "Infer the preferred learning format of the person as a string from the "
-            "following list: 'video', 'text', 'interactive', 'mentoring', 'practice', 'workshop'."
+            "Extract current job search activity: search status (actively searching, "
+            "casually browsing, not looking), urgency level, number of applications sent, "
+            "active interview processes, offers received, and desired start date."
         ),
-        "fields": ["format"],
-        "type": "fact",
-    },
-    "skill_aspirations": {
-        "task": "Extract skills the person wants to learn or develop, including their learning plan, timeline, and current progress.",
-        "fields": ["targetSkills", "learningPlan", "timeline", "progress"],
-        "type": "fact",
-    },
-    "education_aspirations": {
-        "task": "Extract educational goals: desired degrees, target institutions, timeline, and funding plans.",
-        "fields": ["desiredDegrees", "institutions", "timeline", "funding"],
-        "type": "fact",
-    },
-    "certification_aspirations": {
-        "task": "Extract certification goals: target certifications, study plan, and planned exam date.",
-        "fields": ["targetCerts", "studyPlan", "examDate"],
-        "type": "fact",
-    },
-    "skill_gaps": {
-        "task": (
-            "Extract missing skills that are blocking career goals, including "
-            "current level, target level, gap size, and what aspiration they block."
-        ),
-        "fields": ["missingSkills", "currentLevel", "targetLevel", "gapSize", "impact", "blockingAspiration", "aspirationType"],
-        "type": "fact",
-    },
-    "knowledge_gaps": {
-        "task": "Extract missing knowledge areas that are blocking career goals, including what aspiration they block.",
-        "fields": ["missingKnowledge", "blockingAspiration", "aspirationType"],
-        "type": "fact",
+        "fields": [
+            "searchStatus", "urgencyLevel", "applicationsSent",
+            "interviewsInProgress", "offersReceived", "desiredStartDate",
+        ],
+        "type": "preference",
     },
 
-    # =========================================================================
-    # Social context
-    # =========================================================================
-    "mentors": {
+    # ==========================================================================
+    # LEARNING CONTEXT
+    # ==========================================================================
+
+    "knowledge_and_credentials": {
         "task": (
-            "Extract information about mentors, coaches, and advisors: name, role, "
-            "organization, relationship type, meeting frequency, guidance areas, and impact."
+            "Extract what they currently know and have earned. For each item capture its type "
+            "(skill, expertise_domain, course, book, degree, certification) and relevant details: "
+            "name, proficiency level, years of experience, institution or issuer, "
+            "field of study, date earned, and expiry date if applicable."
         ),
-        "fields": ["name", "role", "organization", "relationshipType", "frequency", "guidanceAreas", "impact"],
-        "type": "fact",
-    },
-    "mentees": {
-        "task": "Extract information about people they mentor: name, background, guidance areas, and progress.",
-        "fields": ["name", "background", "guidanceAreas", "progress"],
-        "type": "fact",
-    },
-    "connections": {
-        "task": "Extract professional connections: name, role, company, relationship strength, interaction frequency.",
-        "fields": ["name", "role", "company", "relationshipStrength", "interactionFrequency"],
-        "type": "fact",
-    },
-    "communities": {
-        "task": "Extract professional communities and groups: name, type, engagement level, and value.",
-        "fields": ["name", "type", "engagementLevel", "value"],
-        "type": "fact",
-    },
-    "journey_peers": {
-        "task": (
-            "Extract information about peers, colleagues at similar level, and peer "
-            "connections: name, journey stage, connection type, and shared goals."
-        ),
-        "fields": ["name", "journeyStage", "connectionType", "sharedGoals"],
-        "type": "fact",
-    },
-    "people_helped": {
-        "task": "Extract the number of people mentored, coached, or helped.",
-        "fields": ["number"],
-        "type": "fact",
-    },
-    "testimonials": {
-        "task": "Extract feedback, recognition, and what others have said about them, including any rating or score.",
-        "fields": ["from", "text", "rating", "date"],
-        "type": "fact",
-    },
-    "networking_activities": {
-        "task": "Extract networking activities: conferences attended, coffee chats, events, people met, and follow-up actions.",
-        "fields": ["activityType", "date", "peopleMet", "followUp"],
-        "type": "fact",
-    },
-    "networking_goals": {
-        "task": "Extract networking goals: people they want to meet, events they want to attend, networking strategy.",
-        "fields": ["targetConnections", "targetEvents", "networkingStrategy"],
-        "type": "fact",
-    },
-    "networking_preferences": {
-        "task": "Extract networking preferences: preferred formats (1-on-1, groups, conferences), energy impact, networking style.",
-        "fields": ["preferredFormats", "energyImpact", "style"],
-        "type": "fact",
+        "fields": [
+            "type", "name", "level", "yearsExperience",
+            "institution", "field", "date", "expiryDate",
+        ],
+        "type": "competence",
     },
 
-    # =========================================================================
-    # Psychological context
-    # =========================================================================
-    "personality_profile": {
-        "task": "Extract personality type (MBTI, Big Five, Enneagram), key traits, dimensions/scores, behavioral insights, and self-description.",
-        "fields": ["type", "traits", "dimensions", "insights", "selfDescription", "assessmentDate"],
-        "type": "fact",
-    },
-    "strengths": {
-        "task": "Extract mentioned strengths and positive attributes.",
-        "fields": ["name", "description"],
-        "type": "fact",
-    },
-    "weaknesses": {
-        "task": "Extract mentioned weaknesses, challenges, or areas for improvement.",
-        "fields": ["name", "description"],
-        "type": "fact",
-    },
-    "motivations": {
-        "task": "Extract what motivates or drives the person, including intrinsic and extrinsic motivators and demotivators.",
-        "fields": ["intrinsic", "extrinsic", "demotivators"],
-        "type": "fact",
-    },
-    "work_style": {
+    "languages": {
         "task": (
-            "Extract work style preferences: how they work, collaborate, make decisions, "
-            "communicate, preferred environments, and autonomy level."
+            "Extract languages spoken, their proficiency level "
+            "(A1-C2 scale or basic / intermediate / fluent / native), "
+            "and any language certifications or test scores mentioned "
+            "(e.g. TOEFL, IELTS, DELF, TCF)."
         ),
-        "fields": ["workStyle", "collaborationStyle", "decisionMaking", "communicationStyle", "preferredEnvironments", "autonomyLevel"],
-        "type": "fact",
-    },
-    "values": {
-        "task": """Infer which of the following values are mentioned in the message and assign a value between 0 and 100 to each
-        depending on the strength of the importance given by the user to it:
-        work-life balance, social impact, financial security, personal growth, creativity, autonomy.""",
-        "fields": ["workLifeBalance", "socialImpact", "financialSecurity", "personalGrowth", "creativity", "autonomy"],
-        "type": "fact",
-    },
-    "confidence_levels": {
-        "task": (
-            "Extract confidence level indicators: overall confidence, domain-specific confidence "
-            "(technical, social, leadership), and what affects confidence."
-        ),
-        "fields": [
-            "overallConfidence", "confidenceChanges",
-            "domainConfidence", "confidenceFactors",
-        ],
-        "type": "fact",
-    },
-    "imposter_syndrome_and_doubt": {
-        "task": (
-            "Extract indicators of imposter syndrome, self-doubt, comparison patterns, "
-            "self-efficacy, and resilience."
-        ),
-        "fields": [
-            "imposterLevel", "imposterFrequency", "imposterTriggers",
-            "selfDoubtFrequency", "doubtSituations", "comparisonPatterns",
-            "selfEfficacy", "resilience",
-        ],
-        "type": "fact",
-    },
-    "self_talk_and_validation": {
-        "task": (
-            "Extract inner critic patterns, self-compassion level, negative thought patterns, "
-            "need for external/internal validation, and reaction to criticism and praise."
-        ),
-        "fields": [
-            "innerCriticStrength", "selfCompassion", "negativeThoughtPatterns",
-            "externalValidationNeed", "internalValidationAbility",
-            "reactionToCriticism", "reactionToPraise",
-        ],
-        "type": "fact",
-    },
-    "confidence_building_strategies": {
-        "task": (
-            "Extract strategies for building confidence: what helps, what hurts, "
-            "what they're currently working on, confidence goals, and coping strategies."
-        ),
-        "fields": [
-            "strategiesThatHelp", "strategiesThatHurt", "currentlyWorkingOn",
-            "confidenceGoals", "copingStrategies",
-        ],
-        "type": "fact",
-    },
-    "stress": {
-        "task": "Extract stress factors, sources of pressure, or burnout indicators.",
-        "fields": ["name", "intensity", "frequency", "copingStrategy"],
-        "type": "fact",
-    },
-    "confidence": {
-        "task": "Extract indicators of confidence level, self-doubt, or imposter syndrome.",
-        "fields": ["value", "context"],
-        "type": "fact",
-    },
-    "energy_patterns": {
-        "task": (
-            "Extract energy patterns, burnout, motivation cycles: daily/weekly patterns, "
-            "peak hours, and when feeling most productive or drained."
-        ),
-        "fields": ["dailyPattern", "weeklyPattern", "peakHours", "type", "value", "timeOfDay", "notes"],
-        "type": "fact",
-    },
-    "celebration_moments": {
-        "task": "Extract celebration moments, recent wins, accomplishments, proud moments, things going well.",
-        "fields": ["date", "description", "impact", "relatedContext"],
-        "type": "fact",
+        "fields": ["language", "proficiency", "certification", "score"],
+        "type": "competence",
     },
 
-    # =========================================================================
-    # Personal context
-    # =========================================================================
-    "physical_health": {
-        "task": "Extract physical health information: overall health, chronic conditions, energy levels, and physical limitations.",
-        "fields": ["overallHealth", "chronicConditions", "energyLevels", "limitations"],
-        "type": "fact",
-    },
-    "mental_health": {
-        "task": "Extract mental health information: conditions, severity, treatment status, and impact on work.",
-        "fields": ["conditions", "severity", "treatment", "impactOnWork"],
-        "type": "fact",
-    },
-    "addictions_or_recovery": {
+    "learning_agenda": {
         "task": (
-            "Extract addiction/recovery information: type, status (active/recovery), clean time, "
-            "recovery program, support system, triggers, and career impact."
+            "Extract what they want to learn or develop next: skill gaps blocking career goals, "
+            "knowledge gaps, target skills or certifications to acquire "
+            "(with target date and study plan), "
+            "desired degrees or programs, preferred learning formats "
+            "(video, text, hands-on, cohort-based, mentoring, workshop), "
+            "available time per week, and learning budget."
         ),
         "fields": [
-            "addictionType", "status", "cleanSince", "recoveryProgram",
-            "supportSystem", "triggers", "impactOnCareer",
+            "gapOrGoal", "description", "targetDate",
+            "preferredFormat", "hoursPerWeek", "budget",
         ],
-        "type": "fact",
+        "type": "aspiration",
     },
-    "overall_wellbeing": {
-        "task": "Extract overall wellbeing indicators: stress level, wellbeing score, general state.",
-        "fields": ["stressLevel", "wellbeingScore"],
-        "type": "fact",
-    },
-    "demographics": {
-        "task": "Extract age range and life stage (early career, mid-career, settling down, etc.).",
-        "fields": ["ageRange", "lifeStage"],
-        "type": "fact",
-    },
-    "family_situation": {
-        "task": "Extract family situation: relationship status, partner info, children, dependents, support system, transitions, priorities.",
-        "fields": [
-            "relationshipStatus", "partnerInfo", "children",
-            "dependents", "supportSystem", "transitions", "priorities",
-        ],
-        "type": "fact",
-    },
-    "financial_situation": {
-        "task": "Extract financial situation: stability, debt, savings, income dependency, risk tolerance, financial stress.",
-        "fields": [
-            "stability", "debt", "savings", "incomeDependency",
-            "riskTolerance", "financialStress",
-        ],
-        "type": "fact",
-    },
-    "lifestyle_preferences": {
-        "task": "Extract lifestyle preferences: work-life balance importance, ideal schedule, flexibility needs, non-negotiables.",
-        "fields": ["workLifeBalance", "idealSchedule", "flexibilityNeeds", "nonNegotiables"],
-        "type": "fact",
-    },
-    "life_constraints": {
-        "task": "Extract life constraints that limit career options: type, description, career impact, severity, duration.",
-        "fields": ["constraintType", "description", "careerImpact", "severity", "duration"],
-        "type": "fact",
-    },
-    "life_goals": {
-        "task": "Extract personal life goals, lifestyle aspirations, and non-career ambitions mentioned.",
-        "fields": ["title", "description", "targetDate", "progress"],
-        "type": "fact",
-    },
-    "values_alignment": {
+
+    # ==========================================================================
+    # SOCIAL CONTEXT
+    # ==========================================================================
+
+    "mentorship": {
         "task": (
-            "Extract how aligned the person's values are with their career or desired "
-            "roles: alignment score, which roles align, and what aspects are misaligned."
+            "Extract mentorship relationships in both directions. "
+            "For each relationship record: direction (mentor or mentee), "
+            "the other person's name, role and organization, meeting frequency, "
+            "areas of guidance, and impact or progress."
         ),
-        "fields": ["alignmentScore", "alignedRoles", "misalignedAspects"],
-        "type": "fact",
+        "fields": [
+            "direction", "name", "role", "organization",
+            "frequency", "guidanceAreas", "impact",
+        ],
+        "type": "connection",
     },
-    "impact_legacy": {
-        "task": "Extract statements about desired impact, legacy, helping others, or making a difference.",
-        "fields": ["impact", "legacy", "whoToHelp"],
-        "type": "fact",
+
+    "recommendations": {
+        "task": (
+            "Extract testimonials and professional references. "
+            "For testimonials: author name, author role, recommendation text, platform "
+            "(e.g. LinkedIn), and permission to share. "
+            "For references: name, role, relationship, and availability."
+        ),
+        "fields": [
+            "type", "authorName", "authorRole", "text",
+            "platform", "relationship", "available",
+        ],
+        "type": "connection",
     },
-    "skill_expertise": {
-        "task": "Extract statements about desired skill expertise, mastery, or development.",
-        "fields": ["skill", "expertise", "development"],
-        "type": "fact",
+
+    "network_and_networking": {
+        "task": (
+            "Extract professional network information: specific connections mentioned "
+            "(name, role, organization, relationship strength), communities or groups "
+            "(name, type: online/in-person, engagement level), networking events attended "
+            "or planned, networking goals, and personal networking preferences "
+            "(1-on-1 vs large events, energizing or draining)."
+        ),
+        "fields": [
+            "type", "name", "role", "organization",
+            "engagementLevel", "networkingGoal", "preference",
+        ],
+        "type": "connection",
+    },
+
+    # ==========================================================================
+    # PSYCHOLOGICAL CONTEXT
+    # ==========================================================================
+
+    "mindset_and_values": {
+        "task": (
+            "Extract personality traits, motivations, demotivators, and mindset indicators - "
+            "internal character attributes, not decisions or goals. For each item record the "
+            "category (personality_trait, intrinsic_motivation, extrinsic_motivation, "
+            "demotivator, or mindset_indicator), the value or label, its strength or importance "
+            "(0-100 if quantifiable), and a brief description from the message. "
+            "Do NOT extract personal rules, non-negotiables, work-life balance preferences, "
+            "or personal life goals - those belong to personal_priorities."
+        ),
+        "fields": ["category", "value", "strength", "description"],
+        "type": "emotion",
+    },
+
+    "working_style_preferences": {
+        "task": (
+            "Extract work and collaboration style preferences. For each preference record the "
+            "dimension (work_style, collaboration_style, decision_making, communication_style, "
+            "ideal_environment, energizer, or stressor) and the specific preference or description."
+        ),
+        "fields": ["dimension", "preference", "description"],
+        "type": "preference",
+    },
+
+    "emotional_state": {
+        "task": (
+            "Extract current psychological wellbeing signals. For each signal record the "
+            "dimension (confidence, imposter_syndrome, self_doubt, self_talk, stress, "
+            "emotional_awareness, or coping_strategy), a numeric value if mentioned "
+            "(e.g. 7/10), the context or trigger, and any coping strategy referenced."
+        ),
+        "fields": ["dimension", "value", "context", "copingStrategy"],
+        "type": "emotion",
+    },
+
+    # ==========================================================================
+    # PERSONAL CONTEXT
+    # ==========================================================================
+
+    "life_situation": {
+        "task": (
+            "Extract personal life context - both factual circumstances and how they constrain "
+            "or enable career options. Factual: life stage, approximate age or age range, "
+            "relationship status, partner's situation, children (number and ages), "
+            "other dependents, childcare arrangements, housing type (own/rent/with family), "
+            "city and region, who they live with, relocation openness. "
+            "Career impact: constraints (financial stress, debt, childcare costs, health "
+            "restrictions, location ties, recovery schedule), enablers (family support, "
+            "financial security, partner support), risk tolerance, income dependency, "
+            "severity, and expected timeframe of the circumstance."
+        ),
+        "fields": [
+            "attribute", "value", "detail", "type",
+            "severity", "timeframe", "impactOnCareer",
+        ],
+        "type": "trait",
+    },
+
+    "health_and_wellbeing": {
+        "task": (
+            "Extract diagnosed medical conditions, physical impediments, and addiction or "
+            "recovery facts - strictly objective health information. Include: diagnosed physical "
+            "conditions (chronic illness, injury, disability, surgery recovery), diagnosed mental "
+            "health conditions being treated (ADHD, clinical depression, bipolar, anxiety disorder, "
+            "autism spectrum, OCD, PTSD), and addiction or recovery (substance or behaviour, "
+            "current status, time sober, program participation, known triggers, schedule impact). "
+            "Do NOT extract general stress, burnout, low confidence, or emotional states - "
+            "those belong to emotional_state."
+        ),
+        "fields": [
+            "condition", "type", "status",
+            "duration", "treatment", "impactOnWork",
+        ],
+        "type": "trait",
+    },
+
+    "personal_projects": {
+        "task": (
+            "Extract personal and side projects: project name, description, type "
+            "(career_related, hobby, creative, volunteer), their role in the project, "
+            "skills being used or developed, weekly time commitment, and motivation."
+        ),
+        "fields": [
+            "name", "description", "type", "role",
+            "skills", "hoursPerWeek", "motivation",
+        ],
+        "type": "experience",
+    },
+
+    "personal_priorities": {
+        "task": (
+            "Extract concrete personal commitments, hard rules, and personal life goals - "
+            "things the person actively protects or works toward outside of work. Include: "
+            "non-negotiables stated as firm decisions (e.g. won't work weekends, must be home "
+            "for dinner, remote work only), personal life goals with a target outcome "
+            "(e.g. lose weight, buy a house, travel, spend more time with family), life "
+            "priorities ranked explicitly (e.g. family comes first), and schedule flexibility "
+            "needs driven by personal life (school runs, medical appointments, recovery meetings). "
+            "Do NOT extract personality traits, motivations, or how they approach challenges - "
+            "those belong to mindset_and_values."
+        ),
+        "fields": ["category", "priority", "description", "timeframe"],
+        "type": "preference",
     },
 }
-
-# Aliases: model outputs these names but the schema lives under a different key
-_SCHEMA_ALIASES = {
-    "salary_expectations": "compensation_expectations",
-}
-for _alias, _target in _SCHEMA_ALIASES.items():
-    if _target in EXTRACTION_SCHEMAS and _alias not in EXTRACTION_SCHEMAS:
-        EXTRACTION_SCHEMAS[_alias] = EXTRACTION_SCHEMAS[_target]
 
 # =============================================================================
 # Prompt Templates
 # =============================================================================
 
 EXTRACTION_SYSTEM_MESSAGE = (
-    "You are a strict information extraction assistant. "
-    "Extract ONLY facts that are EXPLICITLY and DIRECTLY stated in the user's message. "
-    "DO NOT infer, assume, or deduce information that is not clearly written. "
-    "If the user says 'I want to be a CEO', that is a dream role — it does NOT mean they are "
-    "actively searching for jobs, considering a career change, or have any job search status. "
-    "When in doubt, return null. Return valid JSON only."
+    "You are a precise information extraction assistant. "
+    "Extract only the information explicitly mentioned in the message. "
+    "Return valid JSON only."
 )
 
 
@@ -465,153 +316,32 @@ def build_extraction_prompt(schema: dict, message: str) -> str:
 
     Args:
         message: User message to extract information from
-        schema: Extraction schema with 'prompt' and 'fields' keys
+        schema: Extraction schema with 'task' and 'fields' keys
 
     Returns:
         Formatted extraction prompt
     """
     import json
 
-    return f"""Task: {schema['task']}
+    return f"""
+Task: {schema['task']}
 Message: "{message}"
-
-Return a JSON array of objects with these fields:
+Return a JSON array of objects with the following fields:
 {json.dumps(schema['fields'], indent=2)}
 
-STRICT RULES:
-- Extract ONLY information that is EXPLICITLY written in the message.
-- DO NOT infer, assume, or deduce anything beyond what is directly stated.
-- If the message does not contain clear information for a field, set it to null.
-- If no relevant information exists for this task at all, return an empty array: []
+For each field, extract relevant information from the message. \
+If a field has no relevant information, set it to null or an empty array.
 
 Return ONLY the JSON array, no additional text."""
 
 
-def build_entity_extraction_prompt(entity_name: str, entity_info: dict, message: str) -> str:
-    """
-    Build a single extraction prompt for an entire entity using its taxonomy.
-
-    Instead of one LLM call per sub-entity, this sends the full entity taxonomy
-    in one call and lets the LLM decide which sub-entities have explicit data.
-
-    Args:
-        entity_name: Entity key (e.g. "professional_aspirations")
-        entity_info: Dict from CONTEXT_REGISTRY with 'description' and 'sub_entities'
-        message: User message to extract from
-
-    Returns:
-        Formatted extraction prompt
-    """
-    description = entity_info.get("description", entity_name)
-    sub_entities = entity_info.get("sub_entities", {})
-
-    # Build sub-entity list with descriptions AND expected fields from EXTRACTION_SCHEMAS
-    sub_entity_lines = []
-    for sub_key, sub_desc in sub_entities.items():
-        schema = EXTRACTION_SCHEMAS.get(sub_key)
-        if schema and schema.get("fields"):
-            fields_str = ", ".join(f'"{f}"' for f in schema["fields"])
-            sub_entity_lines.append(f'  - "{sub_key}": {sub_desc}')
-            sub_entity_lines.append(f'    Expected fields: {{{fields_str}}}')
-            if schema.get("task"):
-                sub_entity_lines.append(f'    Task: {schema["task"]}')
-        else:
-            sub_entity_lines.append(f'  - "{sub_key}": {sub_desc}')
-    sub_entity_block = "\n".join(sub_entity_lines)
-
-    return f"""Extract information about "{entity_name}" from this message.
-Description: {description}
-
-Message: "{message}"
-
-Sub-entities to check (only include those with EXPLICIT information from the message):
-{sub_entity_block}
-
-STRICT RULES:
-- Extract ONLY information that is EXPLICITLY written in the message.
-- DO NOT infer, assume, or deduce anything beyond what is directly stated.
-- If the message does not mention anything about a sub-entity, OMIT it entirely.
-- For each sub-entity you include, return an OBJECT with the expected fields listed above.
-- Set fields to null if the message does not provide information for that specific field.
-- If no relevant information exists at all, return an empty object: {{}}
-
-Example format for a sub-entity with fields {{"title", "company", "industry"}}:
-  "dream_roles": {{"title": "CEO", "company": null, "industry": "AI"}}
-
-Return ONLY the JSON object, no additional text."""
-
-
-def build_combined_extraction_prompt(
-    entity_paths: list[tuple[str, str, dict]], message: str
-) -> str:
-    """
-    Build a SINGLE extraction prompt for ALL entities at once.
-
-    Instead of 1 LLM call per entity, this sends all entities in one call.
-    The LLM returns a nested JSON: {"context/entity": {sub_entity: data, ...}, ...}
-    """
-    sections = []
-    for context, entity, entity_info in entity_paths:
-        description = entity_info.get("description", entity)
-        sub_entities = entity_info.get("sub_entities", {})
-        if not sub_entities:
-            continue
-
-        sub_lines = []
-        for sub_key, sub_desc in sub_entities.items():
-            schema = EXTRACTION_SCHEMAS.get(sub_key)
-            if schema and schema.get("fields"):
-                fields_str = ", ".join(f'"{f}"' for f in schema["fields"])
-                sub_lines.append(f'    - "{sub_key}": {sub_desc}')
-                sub_lines.append(f'      Expected fields: {{{fields_str}}}')
-            else:
-                sub_lines.append(f'    - "{sub_key}": {sub_desc}')
-        sub_block = "\n".join(sub_lines)
-
-        sections.append(f"""  "{context}/{entity}": {description}
-{sub_block}""")
-
-    all_sections = "\n\n".join(sections)
-
-    return f"""Extract information from this message for MULTIPLE entities at once.
-
-Message: "{message}"
-
-Entities to check:
-
-{all_sections}
-
-STRICT RULES:
-- Extract ONLY information that is EXPLICITLY written in the message.
-- DO NOT infer, assume, or deduce anything beyond what is directly stated.
-- NO DUPLICATION: Each piece of information must appear in exactly ONE entity — the MOST SPECIFIC one.
-  For example, "I value autonomy" goes ONLY in values, NOT also in motivations or lifestyle_preferences.
-- For each entity, only include sub-entities that have EXPLICIT information.
-- For each sub-entity, return an OBJECT with the expected fields listed above.
-- Set fields to null if the message does not provide info for that specific field.
-- If an entity has NO relevant information at all, set it to an empty object: {{}}
-
-Return a JSON object keyed by "context/entity":
-{{
-  "professional/professional_aspirations": {{
-    "dream_roles": {{"title": "CEO", "company": null}},
-    "compensation_expectations": {{"target": 200000, "currency": "USD"}}
-  }},
-  "learning/current_skills": {{
-    "skills": [{{"name": "Python"}}]
-  }},
-  "social/networking": {{}}
-}}
-
-Return ONLY the JSON object, no additional text."""
-
-
 def format_extracted_data(subcategory: str, items: list[dict]) -> str:
     """
-    Format an array of extracted objects into a formatted string using the schema's format template.
+    Format an array of extracted objects into a formatted string
+    using the schema's format template.
 
     Args:
-        subcategory: Subcategory name (e.g., "experiences", "skills", etc.)
+        subcategory: Subcategory name (e.g., "work_history", "languages", etc.)
         items: Array of objects with fields matching the schema's format placeholders
 
     Returns:
@@ -620,68 +350,46 @@ def format_extracted_data(subcategory: str, items: list[dict]) -> str:
     Raises:
         KeyError: If subcategory is not found in EXTRACTION_SCHEMAS
         KeyError: If schema does not have a "format" field
-
-    Example:
-        experiences = [
-            {
-                "role": "Software Engineer",
-                "company": "Tech Corp",
-                "startDate": "2020-01",
-                "endDate": "2022-06",
-                "description": "Developed web applications"
-            }
-        ]
-        result = format_extracted_data("experiences", experiences)
-        # Returns: "Work Experience: Software Engineer at Tech Corp from 2020-01 to 2022-06: Developed web applications"
     """
-    # Get schema for subcategory
     schema = EXTRACTION_SCHEMAS.get(subcategory)
     if schema is None:
-        raise KeyError(f"Subcategory '{subcategory}' not found in EXTRACTION_SCHEMAS")
+        raise KeyError(
+            f"Subcategory '{subcategory}' not found in EXTRACTION_SCHEMAS"
+        )
 
-    # Check if format template exists
     format_spec = schema.get("format")
     if format_spec is None:
-        raise KeyError(f"Schema for '{subcategory}' does not have a 'format' field")
+        raise KeyError(
+            f"Schema for '{subcategory}' does not have a 'format' field"
+        )
 
-    # Get expected fields from schema
     schema_fields = schema.get("fields", [])
     if not schema_fields:
-        raise KeyError(f"Schema for '{subcategory}' does not have a 'fields' field")
+        raise KeyError(
+            f"Schema for '{subcategory}' does not have a 'fields' field"
+        )
 
     import re
     placeholder_pattern = r'\{(\w+)\}'
 
-    # Collect all possible fields from all formats (for format selection)
     all_format_fields = set()
     all_format_fields.update(re.findall(placeholder_pattern, format_spec))
 
-    # Add missing fields to each item before formatting
     items_with_fields = []
     for item in items:
-        # Create a copy of the item and add missing schema fields with empty string
         item_complete = dict(item)
         for field in schema_fields:
             if field not in item_complete:
                 item_complete[field] = ""
-
-        # Also add any format fields that aren't in schema fields (for format compatibility)
         for field in all_format_fields:
             if field not in item_complete:
                 item_complete[field] = ""
-
         items_with_fields.append(item_complete)
 
     formatted_items = []
-
     for item in items_with_fields:
-        # Extract placeholders from chosen format
         required_fields = set(re.findall(placeholder_pattern, format_spec))
-
-        # Build kwargs with all required fields (now guaranteed to exist in item)
         kwargs = {field: item.get(field, "") for field in required_fields}
-
-        # Format using the chosen template
         formatted = format_spec.format(**kwargs)
         formatted_items.append(formatted)
 

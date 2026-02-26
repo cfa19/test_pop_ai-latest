@@ -273,24 +273,65 @@ class WorkflowState(TypedDict):
 # =============================================================================
 
 
+def _texts_similar(a: str, b: str) -> bool:
+    """Check if two texts are essentially the same (ignoring case/whitespace)."""
+    if not a or not b:
+        return False
+    a_clean = " ".join(a.lower().split())
+    b_clean = " ".join(b.lower().split())
+    if a_clean == b_clean:
+        return True
+    shorter = min(len(a_clean), len(b_clean))
+    if shorter < 5:
+        return a_clean == b_clean
+    matches = sum(1 for x, y in zip(a_clean, b_clean) if x == y)
+    return matches / shorter > 0.85
+
+
 def _detect_language_redundant(message: str) -> str:
     """
-    Run FastText and/or langdetect; return a language code. Only codes in
-    LANG_DETECT_ALLOWED_LANGUAGES are returned; any other detection is mapped to "en".
+    Detect message language using Google Translate (via deep-translator).
+    Compares the original text against translations to identify the source language.
+    Only codes in LANG_DETECT_ALLOWED_LANGUAGES are returned; others map to "en".
     """
     allowed = LANG_DETECT_ALLOWED_LANGUAGES
     if not allowed:
-        allowed = frozenset({"en", "fr"})
+        allowed = frozenset({"en", "es", "fr"})
 
-    def _normalize(code: str) -> str:
-        if not code or len(code) < 2:
+    sample = message[:500].strip()
+    if not sample:
+        return "en"
+
+    try:
+        from deep_translator import GoogleTranslator
+
+        # Translate to English with auto-detect
+        en_text = GoogleTranslator(source="auto", target="en").translate(sample)
+
+        # If translation is nearly identical to original, it's English
+        if not en_text or _texts_similar(sample, en_text):
+            return "en"
+
+        # Not English — identify which language by checking if translating
+        # to that language returns the original text
+        if "es" in allowed:
+            try:
+                es_text = GoogleTranslator(
+                    source="auto", target="es"
+                ).translate(sample)
+                if es_text and _texts_similar(sample, es_text):
+                    return "es"
+            except Exception:
+                pass
+
+        if "fr" in allowed:
             return "fr"
-        c = code.split("-")[0].lower()[:2]
-        return c if c in allowed else "fr"
 
-    code = "fr"
+        return "en"
+    except Exception:
+        pass
 
-    # 1. Try FastText first (optional; output restricted to allowed languages only)
+    # Fallback: try FastText if configured
     if LANG_DETECT_FASTTEXT_MODEL_PATH and Path(LANG_DETECT_FASTTEXT_MODEL_PATH).exists():
         try:
             import fasttext  # type: ignore[import-untyped]
@@ -300,32 +341,13 @@ def _detect_language_redundant(message: str) -> str:
                 label = pred[0][0]
                 if label.startswith("__label__"):
                     raw = label.replace("__label__", "").lower()[:2]
-                    code = _normalize(raw)  # only allowed codes; never return raw
-        except Exception as e:
-            print(f"[WORKFLOW] Language Detection: FastText failed ({str(e)}), using langdetect instead")
-            try:
-                from langdetect import DetectorFactory, detect
-                DetectorFactory.seed = 0
-                raw = detect(message).lower()
-                if raw and len(raw) >= 2:
-                    raw = raw.split("-")[0] if "-" in raw else raw[:2]
-                code = _normalize(raw)
-            except Exception:
-                print("[WORKFLOW] Language Detection: Langdetect failed, using default language: French (fr)")
-                code = "fr"
-    else:
-        # FastText not configured: use langdetect only (output restricted to allowed)
-        try:
-            from langdetect import DetectorFactory, detect
-            DetectorFactory.seed = 0
-            raw = detect(message).lower()
-            if raw and len(raw) >= 2:
-                raw = raw.split("-")[0] if "-" in raw else raw[:2]
-            code = _normalize(raw)
+                    c = raw.split("-")[0][:2]
+                    if c in allowed:
+                        return c
         except Exception:
-            code = "fr"
+            pass
 
-    return _normalize(code)
+    return "en"
 
 
 # =============================================================================
@@ -374,18 +396,18 @@ async def language_detection_and_translation_node(state: WorkflowState, chat_cli
             print(f"[WORKFLOW] Translation: Translating from {language_name} to English...")
             state["workflow_process"].append(f"  🔄 Translating from {language_name} to English")
 
-            # Try Google Translate first (fast, free)
+            # Try deep-translator (Google Translate, no API key needed)
             translated_message = None
             translation_method = None
 
             try:
-                from googletrans import Translator
+                from deep_translator import GoogleTranslator
 
-                translator = Translator()
-                result = await translator.translate(message, src=language_code, dest="en")
-                translated_message = result.text
+                translated_message = GoogleTranslator(
+                    source=language_code, target="en"
+                ).translate(message)
                 translation_method = "Google Translate"
-                print("[WORKFLOW] Translation: Using Google Translate (fast, free)")
+                print("[WORKFLOW] Translation: Using Google Translate (deep-translator)")
             except Exception as e:
                 print(f"[WORKFLOW] Translation: Google Translate failed ({str(e)}), falling back to LLM")
                 state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")
@@ -1156,7 +1178,6 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
                                 if field not in merged_ner_fields:
                                     merged_ner_fields[field] = value
                                 else:
-                                    # Multiple spans for the same field: coerce to list and extend
                                     existing = merged_ner_fields[field]
                                     if not isinstance(existing, list):
                                         existing = [existing]
@@ -1166,7 +1187,6 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
                     except Exception:
                         pass
             else:
-                # No spans for this pair — fall back to full message NER
                 try:
                     all_ner_spans = _ner_extract_spans(message, subcategory)
                     if all_ner_spans and _ner_spans_to_fields is not None:
@@ -1179,7 +1199,6 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
         remaining_fields = [f for f in all_fields if f not in merged_ner_fields]
         extracted: dict = dict(merged_ner_fields)
 
-        # LLM receives the focused span texts; fall back to full message
         llm_text = " ".join(sp["text"] for sp in pair_spans) if pair_spans else message
 
         if remaining_fields:
@@ -1196,7 +1215,6 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
                     response_format={"type": "json_object"},
                 )
                 llm_result = json.loads(response.choices[0].message.content)
-                # Unwrap {"some_key": [...]} wrapper that the LLM sometimes returns
                 if (
                     isinstance(llm_result, dict)
                     and len(llm_result) == 1
@@ -1232,7 +1250,10 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
             else:
                 s = str(v)
                 parts.append(f"{k}={s[:80] + '…' if len(s) > 80 else s}")
-        src_tag = f"[NER:{len(all_ner_spans)}sp + LLM:{len(remaining_fields)}f]" if all_ner_spans else "[LLM]"
+        src_tag = (
+            f"[NER:{len(all_ner_spans)}sp + LLM:{len(remaining_fields)}f]"
+            if all_ner_spans else "[LLM]"
+        )
         prefix = f"  ✅ {category}.{subcategory} {src_tag}"
         if parts:
             state["workflow_process"].append(f"{prefix}: {', '.join(parts)}")
@@ -1721,15 +1742,15 @@ async def response_translation_node(state: WorkflowState, chat_client: OpenAI) -
         translated_response = None
         translation_method = None
 
-        # Try Google Translate first (fast, free)
+        # Try deep-translator (Google Translate, no API key needed)
         try:
-            from googletrans import Translator
+            from deep_translator import GoogleTranslator
 
-            translator = Translator()
-            result = await translator.translate(state["response"], src="en", dest=language_code)
-            translated_response = result.text
+            translated_response = GoogleTranslator(
+                source="en", target=language_code
+            ).translate(state["response"])
             translation_method = "Google Translate"
-            print("[WORKFLOW] Response Translation: Using Google Translate (fast, free)")
+            print("[WORKFLOW] Response Translation: Using Google Translate (deep-translator)")
         except Exception as e:
             print(f"[WORKFLOW] Response Translation: Google Translate failed ({str(e)}), falling back to LLM")
             state["workflow_process"].append("  ⚠️ Google Translate failed, using LLM fallback")

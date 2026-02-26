@@ -34,5 +34,5 @@ python-dotenv>=1.0.0
 # HTTP client (for Harmonia API calls)
 requests>=2.31.0
 
-# Language detection & translation (Google Translate via deep-translator, no API key needed)
+# Language detection & translation (Google Translate, no API key needed)
 deep-translator>=1.11.0
