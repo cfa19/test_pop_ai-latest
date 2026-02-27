@@ -6,7 +6,7 @@ Use these to verify tokens manually without FastAPI dependencies
 
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import jwt
 from dotenv import load_dotenv
@@ -35,7 +35,7 @@ class AuthenticationError(Exception):
         super().__init__(self.message)
 
 
-def verify_token(token: str) -> Dict[str, Any]:
+def verify_token(token: str) -> dict[str, Any]:
     """
     Verify Supabase JWT token and return user information
 
@@ -97,17 +97,17 @@ def verify_token(token: str) -> Dict[str, Any]:
             "iat": datetime.fromtimestamp(payload.get("iat")) if payload.get("iat") else None,
         }
 
-    except jwt.ExpiredSignatureError:
-        raise AuthenticationError("Token has expired", status_code=401)
-    except jwt.InvalidAudienceError:
-        raise AuthenticationError("Invalid token audience", status_code=401)
+    except jwt.ExpiredSignatureError as e:
+        raise AuthenticationError("Token has expired", status_code=401) from e
+    except jwt.InvalidAudienceError as e:
+        raise AuthenticationError("Invalid token audience", status_code=401) from e
     except jwt.InvalidTokenError as e:
-        raise AuthenticationError(f"Invalid token: {str(e)}", status_code=401)
+        raise AuthenticationError(f"Invalid token: {str(e)}", status_code=401) from e
     except Exception as e:
-        raise AuthenticationError(f"Token verification failed: {str(e)}", status_code=401)
+        raise AuthenticationError(f"Token verification failed: {str(e)}", status_code=401) from e
 
 
-def extract_token_from_header(authorization_header: Optional[str]) -> str:
+def extract_token_from_header(authorization_header: str | None) -> str:
     """
     Extract JWT token from Authorization header
 
@@ -138,7 +138,7 @@ def extract_token_from_header(authorization_header: Optional[str]) -> str:
     return parts[1]
 
 
-def authenticate_request(authorization_header: Optional[str]) -> Dict[str, Any]:
+def authenticate_request(authorization_header: str | None) -> dict[str, Any]:
     """
     Complete authentication flow: extract token from header and verify it
 

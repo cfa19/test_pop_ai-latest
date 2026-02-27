@@ -7,13 +7,19 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 
 import src.config as config
-from src.agents.langgraph_workflow import MessageCategory, run_workflow
+from src.agents.langgraph_workflow import (
+    MessageCategory,
+    run_extraction_background,
+    run_workflow_fast,
+)
 from src.config import (
     CHAT_MODEL,
     CHAT_PROVIDER,
     EMBED_DIMENSIONS,
     EMBED_MODEL,
     EMBED_PROVIDER,
+    EXTRACTION_MODEL,
+    EXTRACTION_PROVIDER,
     get_client_by_provider,
     get_supabase,
 )
@@ -65,7 +71,7 @@ async def chat(request_body: ChatRequest, request: Request):
         user_info = authenticate_request(auth_header)
         user_id = user_info["user_id"]
     except AuthenticationError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
     # Step 2: Process chat message with conversation memory
     try:
@@ -75,9 +81,10 @@ async def chat(request_body: ChatRequest, request: Request):
         chat_provider = request_body.chat_provider or CHAT_PROVIDER
         chat_model = request_body.chat_model or CHAT_MODEL
 
-        # Get the appropriate embedding and chat clients based on provider
+        # Get the appropriate embedding, chat, and extraction clients based on provider
         embed_client = get_client_by_provider(embed_provider)
         chat_client = get_client_by_provider(chat_provider)
+        extraction_client = get_client_by_provider(EXTRACTION_PROVIDER)
 
         # Generate conversation_id if not provided
         conversation_id = request_body.conversation_id or generate_conversation_id()
@@ -88,8 +95,9 @@ async def chat(request_body: ChatRequest, request: Request):
 
         logger.info(f"[CHAT] Submitting message to queue (queue size: {message_queue.get_queue_size()})")
 
+        # Fast workflow: classify + respond (no extraction)
         workflow_state = await message_queue.process_message(
-            workflow_func=run_workflow,
+            workflow_func=run_workflow_fast,
             message=request_body.message,
             user_id=user_id,
             conversation_id=conversation_id,
@@ -100,12 +108,21 @@ async def chat(request_body: ChatRequest, request: Request):
             embed_model=embed_model,
             embed_dimensions=EMBED_DIMENSIONS,
             chat_model=chat_model,
-            # --- Disabled (token classifier handles off-topic via O label) ---
-            # intent_classifier_type=request_body.intent_classifier_type,
-            # semantic_gate_enabled=request_body.semantic_gate_enabled,
+            extraction_client=extraction_client,
+            extraction_model=EXTRACTION_MODEL,
         )
 
-        logger.info(f"[CHAT] Message processed (queue size: {message_queue.get_queue_size()})")
+        logger.info(f"[CHAT] Response ready (queue size: {message_queue.get_queue_size()})")
+
+        # Fire extraction + storage in background (non-blocking)
+        message_queue.fire_background_task(
+            run_extraction_background(
+                state=workflow_state,
+                chat_client=chat_client,
+                extraction_client=extraction_client,
+                extraction_model=EXTRACTION_MODEL,
+            )
+        )
 
         # Extract workflow results
         response_text = workflow_state["response"]
@@ -191,4 +208,4 @@ async def chat(request_body: ChatRequest, request: Request):
 
     except Exception as e:
         logger.exception("Chat processing failed")
-        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}") from e

@@ -13,8 +13,8 @@ from openai import OpenAI
 from supabase import Client, create_client
 from voyageai.client import Client as VoyageAI
 
-# Load .env once at import time
-load_dotenv()
+# Load .envlocal for local development
+load_dotenv(".envlocal")
 
 # =============================================================================
 # Environment Variables
@@ -52,21 +52,18 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "voyage-3-large")
 EMBED_DIMENSIONS = int(os.getenv("EMBED_DIMENSIONS", "1024"))
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 
+# Extraction provider (OpenAI gpt-4o-mini for structured JSON)
+EXTRACTION_PROVIDER = os.getenv("EXTRACTION_PROVIDER", "openai")
+EXTRACTION_MODEL = os.getenv("EXTRACTION_MODEL", "gpt-4o-mini")
+
 # ONNX token classifier path
 ONNX_MODELS_PATH = os.getenv("ONNX_MODELS_PATH", "training/models_onnx")
 
-# --- Semantic gate (disabled — token classifier handles off-topic via O label) ---
-# SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "false").lower() in ("true", "1", "yes")
-# SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
-# SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_tuning.json")
-# SEMANTIC_GATE_LOCAL_FILES_ONLY = os.getenv("SEMANTIC_GATE_LOCAL_FILES_ONLY", "false").lower() in ("true", "1", "yes")
-# SEMANTIC_GATE_MODEL_PATH = os.getenv("SEMANTIC_GATE_MODEL_PATH", "training/models/sentence_transformers")
-
-# --- Legacy PyTorch classifier paths (replaced by ONNX_MODELS_PATH) ---
-# PRIMARY_INTENT_CLASSIFIER_TYPE = os.getenv("PRIMARY_INTENT_CLASSIFIER_TYPE", "openai")
-# SECONDARY_INTENT_CLASSIFIER_TYPE = os.getenv("SECONDARY_INTENT_CLASSIFIER_TYPE", "openai")
-# INTENT_CLASSIFIER_MODEL_PATH = os.getenv("INTENT_CLASSIFIER_MODEL_PATH", "training/models/latest")
-# SPAN_CLASSIFIER_MODEL_PATH = os.getenv("SPAN_CLASSIFIER_MODEL_PATH", "")
+# Semantic gate (ONNX MiniLM embeddings + cosine similarity with tuned centroids)
+SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("true", "1", "yes")
+SEMANTIC_GATE_ONNX_MODEL_PATH = os.getenv("SEMANTIC_GATE_ONNX_MODEL_PATH", "training/models/sentence_transformers/all-MiniLM-L6-v2")
+SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_hierarchical_tuning.json")
+SEMANTIC_GATE_CENTROIDS_DIR = os.getenv("SEMANTIC_GATE_CENTROIDS_DIR", "training/models_new/models/onnx/semantic_gate")
 
 # Language detection (optional FastText model for redundancy)
 LANG_DETECT_FASTTEXT_MODEL_PATH = os.getenv("LANG_DETECT_FASTTEXT_MODEL_PATH", "")  # e.g. "data/lid.176.bin"
@@ -102,6 +99,12 @@ LANGUAGE_NAMES = {
     "et": "Estonian",
 }
 
+# Runner extraction (memory cards from activity completions)
+RUNNER_EXTRACTION_ENABLED = os.getenv("RUNNER_EXTRACTION_ENABLED", "true").lower() in ("true", "1", "yes")
+QUEUE_POLL_INTERVAL = float(os.getenv("QUEUE_POLL_INTERVAL", "5.0"))
+QUEUE_BATCH_SIZE = int(os.getenv("QUEUE_BATCH_SIZE", "10"))
+QUEUE_MAX_RETRIES = int(os.getenv("QUEUE_MAX_RETRIES", "3"))
+
 # Verbose mode (set by CLI flag -v)
 VERBOSE_MODE = False
 
@@ -111,6 +114,11 @@ VERBOSE_MODE = False
 
 RRF_K = 60
 
+VALID_CARD_TYPES = frozenset({
+    "competence", "experience", "preference", "aspiration",
+    "trait", "emotion", "connection",
+})
+
 
 class Tables:
     """Database table names."""
@@ -119,6 +127,10 @@ class Tables:
     RETRIEVAL_CHUNKS = "retrieval_chunks"
     GENERAL_EMBEDDINGS_1024 = "general_embeddings_1024"
     USER_EMBEDDINGS_1024 = "user_embeddings_1024"
+    USER_CONSENTS = "user_consents"
+    MEMORY_EXTRACTION_QUEUE = "memory_extraction_queue"
+    MEMORY_CARDS = "memory_cards"
+    ACTIVITY_COMPLETIONS = "activity_completions"
 
 
 class RPCFunctions:
@@ -129,6 +141,8 @@ class RPCFunctions:
     RAG_HYBRID_SEARCH = "rag_hybrid_search_user_context"
     SEARCH_CONVERSATION_HISTORY = "search_conversation_history"
     SEARCH_USER_CONTEXT_CHUNKS = "search_user_context_chunks"
+    CLAIM_EXTRACTION_BATCH = "claim_extraction_batch"
+    CREATE_MEMORY_PROPOSAL = "create_memory_proposal"
 
 
 class SourceTypes:
@@ -154,25 +168,24 @@ def get_openai() -> OpenAI:
     return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
 
 
-@lru_cache(maxsize=2)
-def get_client_by_provider(provider: str) -> OpenAI:
+@lru_cache(maxsize=3)
+def get_client_by_provider(provider: str) -> OpenAI | VoyageAI:
     """
-    Get embedding client based on provider name. Cached to avoid recreating clients.
+    Get client based on provider name. Cached to avoid recreating clients.
 
     Args:
-        provider: Provider name ('openai' or 'voyage')
+        provider: Provider name ('openai', 'groq', or 'voyage')
 
     Returns:
-        OpenAI or VoyageAI client for the specified provider
+        Client for the specified provider
     """
     if provider == "openai":
         return OpenAI(api_key=OPENAI_API_KEY, timeout=30.0)
-    elif provider == "groq":
+    if provider == "groq":
         return OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=30.0)
-    elif provider == "voyage":
+    if provider == "voyage":
         return VoyageAI(api_key=VOYAGE_API_KEY, timeout=30.0)
-    else:
-        raise ValueError(f"Unsupported provider: {provider}. Must be 'openai', 'groq', or 'voyage'.")
+    raise ValueError(f"Unsupported provider: {provider}. Must be 'openai', 'groq', or 'voyage'.")
 
 
 # =============================================================================
@@ -195,40 +208,3 @@ def get_hierarchical_classifier():
     Returns None if not preloaded (will fall back to lazy loading in workflow).
     """
     return _hierarchical_classifier_instance
-
-
-# --- Semantic gate singleton (disabled) ---
-# _semantic_gate_instance = None
-#
-# def set_semantic_gate(gate):
-#     global _semantic_gate_instance
-#     _semantic_gate_instance = gate
-#
-# def get_semantic_gate_instance():
-#     return _semantic_gate_instance
-
-# --- Legacy PyTorch span classifier singletons (replaced by ONNX) ---
-# _intent_classifier_instance = None
-# _primary_span_classifier_instance = None
-# _secondary_span_classifier_instances: dict = {}
-#
-# def set_intent_classifier(classifier):
-#     global _intent_classifier_instance
-#     _intent_classifier_instance = classifier
-#
-# def get_intent_classifier():
-#     return _intent_classifier_instance
-#
-# def set_primary_span_classifier(classifier):
-#     global _primary_span_classifier_instance
-#     _primary_span_classifier_instance = classifier
-#
-# def get_primary_span_classifier():
-#     return _primary_span_classifier_instance
-#
-# def set_secondary_span_classifier(category, classifier):
-#     global _secondary_span_classifier_instances
-#     _secondary_span_classifier_instances[category] = classifier
-#
-# def get_secondary_span_classifier(category):
-#     return _secondary_span_classifier_instances.get(category)

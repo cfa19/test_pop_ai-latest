@@ -3,6 +3,7 @@ Backend FastAPI for the Chatbot with RAG
 """
 
 import argparse
+import asyncio
 import logging
 import os
 
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import src.config as config
 from src.api.chat import router as chat_router
+from src.services.queue_consumer import QueueConsumer
 from src.utils.message_queue import start_message_queue, stop_message_queue
 
 # Setup logging
@@ -19,6 +21,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Queue consumer instance (set during startup)
+_queue_consumer: QueueConsumer | None = None
 
 # ===============================
 # FASTAPI APP
@@ -93,11 +98,27 @@ async def startup_event():
     await preload_models()
     logger.info("Model preloading complete")
 
+    # Start runner extraction queue consumer
+    if config.RUNNER_EXTRACTION_ENABLED:
+        global _queue_consumer
+        _queue_consumer = QueueConsumer(
+            poll_interval=config.QUEUE_POLL_INTERVAL,
+            batch_size=config.QUEUE_BATCH_SIZE,
+            max_retries=config.QUEUE_MAX_RETRIES,
+        )
+        asyncio.create_task(_queue_consumer.start())
+        logger.info("Runner extraction queue consumer started")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup resources on application shutdown."""
     logger.info("Shutting down Pop Skills AI API...")
+
+    # Stop runner extraction queue consumer
+    if _queue_consumer:
+        await _queue_consumer.stop()
+        logger.info("Runner extraction queue consumer stopped")
 
     # Stop message queue
     await stop_message_queue()

@@ -13,7 +13,6 @@ Output: info/user_manual_chunks.md
 Run: python rag/chunk_user_manual.py
 """
 
-import os
 import re
 from pathlib import Path
 
@@ -250,7 +249,7 @@ def main():
 
     # Show stats
     sizes = [len(c["content"]) for c in all_chunks]
-    print(f"\nChunk stats:")
+    print("\nChunk stats:")
     print(f"  Min size: {min(sizes)} chars")
     print(f"  Max size: {max(sizes)} chars")
     print(f"  Avg size: {sum(sizes) // len(sizes)} chars")

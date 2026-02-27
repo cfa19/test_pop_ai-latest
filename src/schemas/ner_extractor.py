@@ -12,10 +12,9 @@ Usage:
 """
 
 import re
-from typing import Dict, List, Optional
 
 # Mapping from entity types to span labels (inlined from entity_prompts.py)
-SPAN_LABELS: Dict[str, List[str]] = {
+SPAN_LABELS: dict[str, list[str]] = {
     # Professional context
     "work_history": ["ROLE", "ORG", "DURATION", "ACHIEVEMENT"],
     "professional_achievements": ["ACHIEVEMENT", "ORG", "ROLE"],
@@ -46,7 +45,7 @@ SPAN_LABELS: Dict[str, List[str]] = {
 # PHRASE DICTIONARY  (curated for runtime; no ESCO dataset required)
 # =============================================================================
 
-PHRASE_DICT: Dict[str, List[str]] = {
+PHRASE_DICT: dict[str, list[str]] = {
     "ROLE": [
         # C-suite
         "chief executive officer", "chief technology officer", "chief operating officer",
@@ -277,7 +276,7 @@ PHRASE_DICT: Dict[str, List[str]] = {
 # REGEX PATTERNS  (mirrors extract_ner.py for consistency)
 # =============================================================================
 
-_REGEX_PATTERNS: Dict[str, List[re.Pattern]] = {
+_REGEX_PATTERNS: dict[str, list[re.Pattern]] = {
     "DURATION": [
         re.compile(r"\b\d+\+?\s*(?:year|month|week|day)s?\b", re.I),
         re.compile(r"\bsince\s+\d{4}\b", re.I),
@@ -326,7 +325,7 @@ _REGEX_PATTERNS: Dict[str, List[re.Pattern]] = {
 # absent so they remain in the "remaining fields" set for OpenAI.
 # =============================================================================
 
-_SUBCATEGORY_LABEL_TO_FIELDS: Dict[str, Dict[str, str]] = {
+_SUBCATEGORY_LABEL_TO_FIELDS: dict[str, dict[str, str]] = {
     "work_history": {
         "ROLE": "role",
         "ORG": "company",
@@ -419,7 +418,7 @@ _SUBCATEGORY_LABEL_TO_FIELDS: Dict[str, Dict[str, str]] = {
 }
 
 
-def spans_to_fields(spans: List[Dict], subcategory: str, message: str) -> Dict:
+def spans_to_fields(spans: list[dict], subcategory: str, message: str) -> dict:
     """
     Convert NER spans to a partial schema-field dict for a given subcategory.
 
@@ -440,7 +439,7 @@ def spans_to_fields(spans: List[Dict], subcategory: str, message: str) -> Dict:
     if not spans or not label_map:
         return {}
 
-    field_values: Dict[str, List[str]] = {}
+    field_values: dict[str, list[str]] = {}
     for sp in spans:
         field = label_map.get(sp["label"])
         if field is None:
@@ -458,7 +457,7 @@ def spans_to_fields(spans: List[Dict], subcategory: str, message: str) -> Dict:
 # OVERLAP RESOLUTION
 # =============================================================================
 
-def _remove_overlaps(spans: List[Dict]) -> List[Dict]:
+def _remove_overlaps(spans: list[dict]) -> list[dict]:
     """
     Resolve overlapping spans:
     - Same label overlap → keep whichever was added first (longer wins because
@@ -467,7 +466,7 @@ def _remove_overlaps(spans: List[Dict]) -> List[Dict]:
     - Different label, partial overlap → keep both.
     """
     sorted_spans = sorted(spans, key=lambda s: (s["start"], s["start"] - s["end"]))
-    accepted: List[Dict] = []
+    accepted: list[dict] = []
     for sp in sorted_spans:
         dominated = False
         for acc in accepted:
@@ -499,11 +498,11 @@ class NERExtractor:
     """
 
     def __init__(self) -> None:
-        self._phrase_patterns: Optional[Dict[str, re.Pattern]] = None
+        self._phrase_patterns: dict[str, re.Pattern] | None = None
 
-    def _compile_phrase_patterns(self) -> Dict[str, re.Pattern]:
+    def _compile_phrase_patterns(self) -> dict[str, re.Pattern]:
         """Compile one regex per label from PHRASE_DICT (longest phrases first)."""
-        patterns: Dict[str, re.Pattern] = {}
+        patterns: dict[str, re.Pattern] = {}
         for label, phrases in PHRASE_DICT.items():
             if not phrases:
                 continue
@@ -513,12 +512,12 @@ class NERExtractor:
         return patterns
 
     @property
-    def phrase_patterns(self) -> Dict[str, re.Pattern]:
+    def phrase_patterns(self) -> dict[str, re.Pattern]:
         if self._phrase_patterns is None:
             self._phrase_patterns = self._compile_phrase_patterns()
         return self._phrase_patterns
 
-    def _extract_regex(self, text: str, relevant_labels: set) -> List[Dict]:
+    def _extract_regex(self, text: str, relevant_labels: set) -> list[dict]:
         spans = []
         for label, patterns in _REGEX_PATTERNS.items():
             if label not in relevant_labels:
@@ -528,7 +527,7 @@ class NERExtractor:
                     spans.append({"start": m.start(), "end": m.end(), "label": label})
         return spans
 
-    def _extract_phrases(self, text: str, relevant_labels: set) -> List[Dict]:
+    def _extract_phrases(self, text: str, relevant_labels: set) -> list[dict]:
         spans = []
         for label, pattern in self.phrase_patterns.items():
             if label not in relevant_labels:
@@ -537,7 +536,7 @@ class NERExtractor:
                 spans.append({"start": m.start(), "end": m.end(), "label": label})
         return spans
 
-    def extract(self, text: str, entity: str) -> List[Dict]:
+    def extract(self, text: str, entity: str) -> list[dict]:
         """
         Extract spans for a given entity/subcategory name.
 
@@ -563,7 +562,7 @@ class NERExtractor:
 # MODULE SINGLETON
 # =============================================================================
 
-_extractor_instance: Optional[NERExtractor] = None
+_extractor_instance: NERExtractor | None = None
 
 
 def get_ner_extractor() -> NERExtractor:
@@ -574,7 +573,7 @@ def get_ner_extractor() -> NERExtractor:
     return _extractor_instance
 
 
-def extract_entity_spans(text: str, entity: str) -> List[Dict]:
+def extract_entity_spans(text: str, entity: str) -> list[dict]:
     """
     Convenience function: extract NER spans for a given entity/subcategory.
 

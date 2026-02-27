@@ -1,6 +1,5 @@
 import random
 import time
-from typing import List, Union
 
 from openai import APIError, OpenAI, RateLimitError
 from voyageai.client import Client as VoyageAI
@@ -12,7 +11,7 @@ from src.models import DocumentChunk, Embedding
 # ===============================
 # CHUNK PARSING FUNCTIONS
 # ===============================
-def parse_chunks_file(file_path: str) -> List[DocumentChunk]:
+def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
     """
     Parse a pre-chunked markdown file and extract chunks with metadata.
 
@@ -34,7 +33,7 @@ def parse_chunks_file(file_path: str) -> List[DocumentChunk]:
         List of DocumentChunk objects with content and metadata
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
         print(f"ERROR: File not found: {file_path}")
@@ -69,7 +68,7 @@ def parse_chunks_file(file_path: str) -> List[DocumentChunk]:
         content_lines = []
         metadata_done = False
 
-        for i, line in enumerate(lines[1:], 1):
+        for _i, line in enumerate(lines[1:], 1):
             line_stripped = line.strip()
 
             if not metadata_done:
@@ -102,8 +101,7 @@ def parse_chunks_file(file_path: str) -> List[DocumentChunk]:
                 if line_stripped == "---":
                     # End of chunk
                     break
-                else:
-                    content_lines.append(line.rstrip("\n"))
+                content_lines.append(line.rstrip("\n"))
 
         # Create DocumentChunk object
         content = "\n".join(content_lines).strip()
@@ -119,7 +117,7 @@ def parse_chunks_file(file_path: str) -> List[DocumentChunk]:
 # ===============================
 # EMBEDDING FUNCTIONS
 # ===============================
-def create_embedding(text: str, embed_client: Union[OpenAI, VoyageAI], embed_model: str) -> Embedding:
+def create_embedding(text: str, embed_client: OpenAI | VoyageAI, embed_model: str) -> Embedding:
     """Generate embedding with Voyage AI. Returns an Embedding with text and vector."""
     if isinstance(embed_client, OpenAI):
         response = embed_client.embeddings.create(
@@ -146,14 +144,14 @@ def create_embedding(text: str, embed_client: Union[OpenAI, VoyageAI], embed_mod
 
 
 def create_embeddings_batch(
-    chunks: List[DocumentChunk],
+    chunks: list[DocumentChunk],
     embed_client: OpenAI,
     embed_model: str,
     embed_dimensions: int,
     max_retries: int,
     initial_backoff: float,
     max_backoff: float,
-) -> List[Embedding]:
+) -> list[Embedding]:
     """
     Generate embeddings in batch with retries.
     Voyage AI allows up to 128 texts per request.
@@ -186,7 +184,7 @@ def create_embeddings_batch(
             if attempt == max_retries - 1:
                 raise e
 
-            sleep_time = min(backoff * (2**attempt) + random.uniform(0, 1), max_backoff)
+            sleep_time = min(backoff * (2**attempt) + random.uniform(0, 1), max_backoff)  # noqa: S311 — backoff jitter, not crypto
             print(f"      Rate limit in batch, waiting {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})...")
             time.sleep(sleep_time)
 

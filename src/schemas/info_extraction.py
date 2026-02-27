@@ -38,6 +38,7 @@ EXTRACTION_SCHEMAS = {
         "fields": [
             "role", "company", "isCurrent", "startDate", "endDate",
             "department", "compensation", "responsibilities", "achievements",
+            "location",
         ],
         "type": "experience",
     },
@@ -117,10 +118,18 @@ EXTRACTION_SCHEMAS = {
 
     "languages": {
         "task": (
-            "Extract languages spoken, their proficiency level "
-            "(A1-C2 scale or basic / intermediate / fluent / native), "
+            "Extract EACH language separately as its own object. "
+            "For each language extract: name, proficiency level "
+            "(A1-C2 scale: learning / basic / intermediate / fluent / native), "
             "and any language certifications or test scores mentioned "
-            "(e.g. TOEFL, IELTS, DELF, TCF)."
+            "(e.g. TOEFL, IELTS, DELF, TCF). "
+            "Use 'learning' when someone says they are currently learning a language. "
+            "IMPORTANT: If multiple languages are mentioned, return an array "
+            "with one object per language, each with its OWN correct proficiency. "
+            "Do NOT group languages into a single object. "
+            "Example: 'I speak French fluently and I'm learning Mandarin' → "
+            '[{"language": "French", "proficiency": "fluent"}, '
+            '{"language": "Mandarin", "proficiency": "learning"}]'
         ),
         "fields": ["language", "proficiency", "certification", "score"],
         "type": "competence",
@@ -300,14 +309,84 @@ EXTRACTION_SCHEMAS = {
 }
 
 # =============================================================================
+# Subcategory → Category mapping (single source of truth)
+# =============================================================================
+
+SUBCATEGORY_TO_CATEGORY: dict[str, str] = {
+    "work_history": "professional",
+    "professional_aspirations": "professional",
+    "professional_achievements": "professional",
+    "workplace_challenges": "professional",
+    "job_search_status": "professional",
+    "knowledge_and_credentials": "learning",
+    "languages": "learning",
+    "learning_agenda": "learning",
+    "mentorship": "social",
+    "recommendations": "social",
+    "network_and_networking": "social",
+    "mindset_and_values": "psychological",
+    "working_style_preferences": "psychological",
+    "emotional_state": "psychological",
+    "life_situation": "personal",
+    "health_and_wellbeing": "personal",
+    "personal_projects": "personal",
+    "personal_priorities": "personal",
+}
+
+# Valid "category.subcategory" labels for classification (derived from mapping)
+VALID_EXTRACTION_LABELS: list[str] = [
+    f"{cat}.{sub}" for sub, cat in SUBCATEGORY_TO_CATEGORY.items()
+]
+
+# =============================================================================
 # Prompt Templates
 # =============================================================================
 
 EXTRACTION_SYSTEM_MESSAGE = (
-    "You are a precise information extraction assistant. "
-    "Extract only the information explicitly mentioned in the message. "
+    "You are a precise information extraction assistant for a career coaching app. "
+    "You extract personal information ABOUT THE USER from their message. "
+    "Rules: "
+    "1. Extract ONLY information that the user states about THEMSELVES. "
+    "2. Do NOT extract information about other people, organizations, or activities "
+    "unless it directly describes the user's own situation. "
+    "For example, 'teaching kids to code' means the user teaches — it does NOT mean "
+    "the user has children. "
+    "3. If a field is not explicitly stated about the user, set it to null. "
+    "4. NEVER infer or guess values. If unsure, use null. "
+    "5. If MULTIPLE distinct items are mentioned (e.g. two jobs, two languages), "
+    "return a SEPARATE object for each in the array. "
     "Return valid JSON only."
 )
+
+
+def build_json_schema(fields: list[str]) -> dict:
+    """
+    Build a JSON Schema object from extraction field names.
+
+    Used for Groq/OpenAI structured output enforcement — the model is
+    constrained to return ONLY the defined fields.
+
+    Returns:
+        JSON Schema dict for ``{"items": [{field: str|null, ...}]}``
+    """
+    return {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        f: {"type": ["string", "null"]} for f in fields
+                    },
+                    "required": fields,
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["items"],
+        "additionalProperties": False,
+    }
 
 
 def build_extraction_prompt(schema: dict, message: str) -> str:
@@ -323,16 +402,22 @@ def build_extraction_prompt(schema: dict, message: str) -> str:
     """
     import json
 
+    json_schema = build_json_schema(schema["fields"])
+
     return f"""
 Task: {schema['task']}
 Message: "{message}"
-Return a JSON array of objects with the following fields:
-{json.dumps(schema['fields'], indent=2)}
 
-For each field, extract relevant information from the message. \
-If a field has no relevant information, set it to null or an empty array.
+Return a JSON object matching this exact schema:
+{json.dumps(json_schema, indent=2)}
 
-Return ONLY the JSON array, no additional text."""
+Rules:
+- If multiple distinct items are mentioned, return ONE object per item.
+- Each field should be a single string value, NOT an array.
+- If a field has no relevant information, set it to null.
+- Example: {{"items": [{{{", ".join(f'"{f}": "..."' for f in schema["fields"])}}}]}}
+
+Return ONLY valid JSON, no additional text."""
 
 
 def format_extracted_data(subcategory: str, items: list[dict]) -> str:

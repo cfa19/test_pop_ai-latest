@@ -109,7 +109,7 @@ class ONNXTokenClassifier:
         spans: list[Span] = []
         current: Span | None = None
 
-        for pred_id, (char_start, char_end) in zip(pred_ids, offset_mapping):
+        for pred_id, (char_start, char_end) in zip(pred_ids, offset_mapping, strict=False):
             if char_start == char_end == 0:  # special token
                 continue
 

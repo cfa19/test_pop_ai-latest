@@ -18,7 +18,6 @@ Data Sources:
 import json
 import pickle
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import onnxruntime as ort
@@ -59,11 +58,13 @@ class SemanticGateONNX:
         """
         project_root = Path(__file__).parent.parent.parent
 
-        # Resolve model path
+        # Resolve model path (make absolute if relative)
         if model_path is None:
             from src.config import SEMANTIC_GATE_ONNX_MODEL_PATH
             model_path = SEMANTIC_GATE_ONNX_MODEL_PATH
         model_dir = Path(model_path)
+        if not model_dir.is_absolute():
+            model_dir = project_root / model_dir
 
         # Resolve tuning results path
         if tuning_results_path is None:
@@ -77,11 +78,13 @@ class SemanticGateONNX:
         self.tuning_results = self._load_tuning_results(tuning_path)
         self.is_hierarchical = self.tuning_results.get("hierarchical", self.tuning_results.get("approach") == "hierarchical_thresholds")
 
-        # Resolve centroids directory
+        # Resolve centroids directory (make absolute if relative)
         if centroids_dir is None:
             from src.config import SEMANTIC_GATE_CENTROIDS_DIR
             centroids_dir = SEMANTIC_GATE_CENTROIDS_DIR
         self.centroids_dir = Path(centroids_dir)
+        if not self.centroids_dir.is_absolute():
+            self.centroids_dir = project_root / self.centroids_dir
 
         # Load thresholds
         if self.is_hierarchical:
@@ -94,8 +97,12 @@ class SemanticGateONNX:
             self.entity_thresholds = {}
             print("[SEMANTIC GATE ONNX] Non-hierarchical thresholds (legacy)")
 
-        # Load ONNX embedding model
-        onnx_file = model_dir / "model_quantized.onnx"
+        # Load ONNX embedding model (check onnx/ subdir and root)
+        onnx_file = model_dir / "onnx" / "model_quantized.onnx"
+        if not onnx_file.exists():
+            onnx_file = model_dir / "onnx" / "model.onnx"
+        if not onnx_file.exists():
+            onnx_file = model_dir / "model_quantized.onnx"
         if not onnx_file.exists():
             onnx_file = model_dir / "model.onnx"
         if not onnx_file.exists():
@@ -123,7 +130,7 @@ class SemanticGateONNX:
         """Load tuning results from JSON file."""
         if not path.exists():
             raise FileNotFoundError(f"Tuning results not found at {path}")
-        with open(path, "r") as f:
+        with open(path) as f:
             results = json.load(f)
         print(f"[SEMANTIC GATE ONNX] Tuning: {results['model_name']}, "
               f"acceptance: {results['global_metrics']['primary']['mean_domain_acceptance'] * 100:.1f}%, "
@@ -144,12 +151,12 @@ class SemanticGateONNX:
             return {}
         try:
             with open(centroid_file, "rb") as f:
-                centroids = pickle.load(f)
+                centroids = pickle.load(f)  # noqa: S301 — trusted internal centroid data
             if not centroids or not isinstance(centroids, dict):
                 return {}
             if level == "primary":
                 return {cat: _normalize(arr) for cat, arr in centroids.items()}
-            elif level == "secondary":
+            if level == "secondary":
                 return {cat: {subcat: _normalize(arr) for subcat, arr in subcats.items()} for cat, subcats in centroids.items()}
         except Exception as e:
             print(f"[SEMANTIC GATE ONNX] Error loading {level} centroids: {e}")
@@ -199,7 +206,7 @@ class SemanticGateONNX:
 
     def check_message(
         self, message: str, predicted_category: str, predicted_entity: str = None
-    ) -> Tuple[bool, float, str, str | None, float | None]:
+    ) -> tuple[bool, float, str, str | None, float | None]:
         """
         Check if message should pass the semantic gate.
 
@@ -272,10 +279,8 @@ class SemanticGateONNX:
         """Get threshold for a specific category or entity."""
         category_key = self.CATEGORY_MAPPING.get(category, category)
 
-        if entity and self.is_hierarchical:
-            if category_key in self.entity_thresholds:
-                if entity in self.entity_thresholds[category_key]:
-                    return self.entity_thresholds[category_key][entity]
+        if entity and self.is_hierarchical and category_key in self.entity_thresholds and entity in self.entity_thresholds[category_key]:
+            return self.entity_thresholds[category_key][entity]
 
         return self.routing_thresholds.get(category_key, 0.4)
 

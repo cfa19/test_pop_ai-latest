@@ -11,9 +11,10 @@ This is especially important for:
 """
 
 import asyncio
+import contextlib
 import logging
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class MessageQueue:
     def __init__(self):
         """Initialize the message queue."""
         self.queue: asyncio.Queue = asyncio.Queue()
-        self.pending_requests: Dict[str, asyncio.Future] = {}
+        self.pending_requests: dict[str, asyncio.Future] = {}
         self.worker_task: asyncio.Task | None = None
         self.is_running = False
 
@@ -56,13 +57,11 @@ class MessageQueue:
         # Cancel the worker task
         if self.worker_task:
             self.worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.worker_task
-            except asyncio.CancelledError:
-                pass
 
         # Reject all pending requests
-        for request_id, future in self.pending_requests.items():
+        for _request_id, future in self.pending_requests.items():
             if not future.done():
                 future.set_exception(
                     RuntimeError("Message queue stopped before processing completed")
@@ -110,8 +109,7 @@ class MessageQueue:
 
         # Wait for the result
         try:
-            result = await result_future
-            return result
+            return await result_future
         finally:
             # Clean up
             self.pending_requests.pop(request_id, None)
@@ -133,7 +131,7 @@ class MessageQueue:
                         self.queue.get(),
                         timeout=1.0
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # No message in queue, continue loop
                     continue
 
@@ -179,6 +177,29 @@ class MessageQueue:
     def get_pending_count(self) -> int:
         """Get the number of pending requests."""
         return len(self.pending_requests)
+
+    def fire_background_task(self, coro) -> asyncio.Task:
+        """
+        Launch a coroutine in the background (fire-and-forget).
+
+        Used for non-blocking work like information extraction + storage
+        that should not delay the API response.
+
+        Args:
+            coro: An awaitable coroutine to run in background
+
+        Returns:
+            asyncio.Task that can be monitored (but doesn't need to be awaited)
+        """
+        async def _wrapped():
+            try:
+                await coro
+            except Exception:
+                logger.exception("[MESSAGE QUEUE] Background task failed")
+
+        task = asyncio.create_task(_wrapped())
+        logger.info("[MESSAGE QUEUE] Launched background task")
+        return task
 
 
 # Global message queue instance

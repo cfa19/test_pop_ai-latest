@@ -12,53 +12,26 @@ Memory card types (from EXTRACTION_SCHEMAS):
   competence, experience, preference, aspiration, trait, emotion, connection
 """
 
+import contextlib
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import requests
 
-from src.config import NEXT_PUBLIC_BASE_URL
+from src.config import NEXT_PUBLIC_BASE_URL, VALID_CARD_TYPES, RPCFunctions, get_supabase
 
 logger = logging.getLogger(__name__)
-
-# =============================================================================
-# Direct Supabase fallback (uncomment if trajectoire is not deployed)
-# =============================================================================
-# from src.config import get_supabase
-#
-# def _store_via_supabase(category, subcategory, content, card_type, raw_data, user_id):
-#     """Insert memory card directly into Supabase (bypasses RLS)."""
-#     supabase = get_supabase()
-#     now = datetime.now(timezone.utc).isoformat()
-#     row = {
-#         "user_id": user_id,
-#         "content": content,
-#         "type": card_type,
-#         "confidence": 0.9,
-#         "source": {"type": "coach", "sourceId": "pop-ai", "extractedAt": now},
-#         "status": "proposed",
-#         "tags": [category, subcategory],
-#         "linked_contexts": [],
-#         "raw_data": raw_data,
-#         "applied_field_paths": [],
-#         "mapping_attempts": 0,
-#     }
-#     result = supabase.table("memory_cards").insert(row).execute()
-#     if result.data:
-#         return {"success": True, "created_ids": [result.data[0].get("id")]}
-#     return {"success": False, "error": "Insert returned no data"}
-# =============================================================================
 
 
 def store_extracted_information(
     category: str,
     subcategory: str,
-    extracted_data: Dict[str, Any],
+    extracted_data: dict[str, Any],
     user_id: str,
-    user_token: Optional[str] = None,
-) -> Dict[str, Any]:
+    user_token: str | None = None,
+) -> dict[str, Any]:
     """
     Store extracted information as a memory card via the Harmonia Next.js API.
 
@@ -108,7 +81,7 @@ def store_extracted_information(
     except (json.JSONDecodeError, TypeError):
         content = raw_content
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # Payload matching trajectoire's createMemoryProposalSchema (Zod)
     payload = {
@@ -156,10 +129,8 @@ def store_extracted_information(
 
         # Handle error responses
         error_body = {}
-        try:
+        with contextlib.suppress(Exception):
             error_body = response.json()
-        except Exception:
-            pass
 
         error_msg = error_body.get("error", f"HTTP {response.status_code}")
         details = error_body.get("details", "")
@@ -189,3 +160,47 @@ def store_extracted_information(
             f"{category}.{subcategory}: {e}"
         )
         return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# Runner-based memory card creation via Supabase RPC
+# =============================================================================
+
+def create_memory_proposal_rpc(user_id: str, proposal: dict) -> str | None:
+    """
+    Write a memory card via the create_memory_proposal RPC function.
+    Uses Supabase service client (no user JWT needed).
+
+    Args:
+        user_id: User UUID
+        proposal: Dict with content, type, confidence, source, rawData, tags
+
+    Returns:
+        Card UUID string or None on failure
+    """
+    card_type = proposal.get("type")
+
+    # Layer 2: application-level type validation
+    if card_type not in VALID_CARD_TYPES:
+        logger.error(f"Invalid card type: {card_type}")
+        return None
+
+    try:
+        supabase = get_supabase()
+        result = supabase.rpc(RPCFunctions.CREATE_MEMORY_PROPOSAL, {
+            "p_user_id": user_id,
+            "p_content": proposal["content"],
+            "p_type": card_type,
+            "p_confidence": proposal["confidence"],
+            "p_source": proposal["source"],
+            "p_raw_data": proposal.get("rawData"),
+            "p_tags": proposal.get("tags", []),
+        }).execute()
+        logger.info(f"Created memory card for user {user_id}: type={card_type}")
+        return result.data
+    except Exception as e:
+        if "No ai_training consent" in str(e):
+            logger.warning(f"DB consent check blocked card for user {user_id}")
+        else:
+            logger.error(f"RPC create_memory_proposal failed: {e}")
+        return None
