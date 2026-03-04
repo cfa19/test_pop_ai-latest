@@ -349,16 +349,18 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
             card_type = item.get("type")
             if card_type not in VALID_CARD_TYPES:
                 continue
-            content_text = str(item.get("content", ""))[:200]
+            raw_content = str(item.get("content", ""))[:200]
+            # Wrap in tree-view JSON format (same as chat flow)
+            content_tree = json.dumps({card_type: raw_content}, ensure_ascii=False)
             proposals.append({
-                "content": content_text,
+                "content": content_tree,
                 "type": card_type,
                 "confidence": min(max(float(item.get("confidence", 0.75)), 0.0), 1.0),
                 "source": source,
                 "rawData": {"llm_extracted": True, "original_keys": list(remaining.keys())},
                 "tags": item.get("tags", [])[:3],
                 "linkedContexts": item.get("linkedContexts", []),
-                "title": content_text[:80],
+                "title": raw_content[:80],
                 "status": "proposed",
             })
 
