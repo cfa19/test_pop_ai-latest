@@ -226,6 +226,9 @@ def _extract_tier1(responses: dict, source: dict) -> list[dict]:
             "source": source,
             "rawData": skill,
             "tags": ["rncp", code],
+            "linkedContexts": ["learning", "knowledge_and_credentials"],
+            "title": f"Compétence RNCP {code}",
+            "status": "proposed",
         })
 
     if proposals:
@@ -249,13 +252,20 @@ def _extract_tier2(responses: dict, source: dict) -> list[dict]:
         if value is None or value == {} or value == []:
             continue
         content = _generate_content(path, value)
+        parts = path.split(".", 1)
+        category = parts[0]
+        subcategory = parts[1] if len(parts) > 1 else category
+        title = CONTENT_TEMPLATES.get(path, subcategory.replace("_", " ").title())
         proposals.append({
             "content": content,
             "type": card_type,
             "confidence": confidence,
             "source": source,
             "rawData": {"path": path, "value": value},
-            "tags": [path.split(".")[0]],
+            "tags": [category],
+            "linkedContexts": [category, subcategory],
+            "title": title,
+            "status": "proposed",
         })
 
     if proposals:
@@ -334,13 +344,17 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
             card_type = item.get("type")
             if card_type not in VALID_CARD_TYPES:
                 continue
+            content_text = str(item.get("content", ""))[:200]
             proposals.append({
-                "content": str(item.get("content", ""))[:200],
+                "content": content_text,
                 "type": card_type,
                 "confidence": min(max(float(item.get("confidence", 0.75)), 0.0), 1.0),
                 "source": source,
                 "rawData": {"llm_extracted": True, "original_keys": list(remaining.keys())},
                 "tags": item.get("tags", [])[:3],
+                "linkedContexts": item.get("linkedContexts", []),
+                "title": content_text[:80],
+                "status": "proposed",
             })
 
         if proposals:

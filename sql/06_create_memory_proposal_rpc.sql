@@ -2,6 +2,7 @@
 -- RPC: create_memory_proposal
 -- Inserts a memory card with DB-level consent check + type validation.
 -- Third layer of defense (after orchestrator + Python validation).
+-- Used by BOTH chat flow and runner flow for consistent memory card format.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION create_memory_proposal(
@@ -11,7 +12,10 @@ CREATE OR REPLACE FUNCTION create_memory_proposal(
   p_confidence NUMERIC,
   p_source JSONB,
   p_raw_data JSONB DEFAULT NULL,
-  p_tags TEXT[] DEFAULT '{}'
+  p_tags TEXT[] DEFAULT '{}',
+  p_linked_contexts TEXT[] DEFAULT '{}',
+  p_title TEXT DEFAULT NULL,
+  p_status TEXT DEFAULT 'proposed'
 ) RETURNS UUID AS $$
 DECLARE
   v_consent BOOLEAN;
@@ -32,10 +36,14 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  -- Type validation is enforced by CHECK constraint on memory_cards.type column
-  -- Status set to 'validated' — cards are automatically active
-  INSERT INTO memory_cards (user_id, content, type, confidence, source, raw_data, tags, status)
-  VALUES (p_user_id, p_content, p_type, p_confidence, p_source, p_raw_data, p_tags, 'validated')
+  INSERT INTO memory_cards (
+    user_id, content, type, confidence, source,
+    raw_data, tags, linked_contexts, title, status
+  )
+  VALUES (
+    p_user_id, p_content, p_type, p_confidence, p_source,
+    p_raw_data, p_tags, p_linked_contexts, p_title, p_status
+  )
   RETURNING id INTO v_card_id;
 
   RETURN v_card_id;

@@ -936,10 +936,23 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
 
     extractions: list[dict] = []
 
+    # Map ONNX classifier labels → extraction schema keys
+    _SUBCATEGORY_ALIASES = {
+        "experience": "work_history",
+        "achievements": "professional_achievements",
+        "aspirations": "professional_aspirations",
+        "skills": "knowledge_and_credentials",
+        "credential_goals": "learning_agenda",
+        "skill_goals": "learning_agenda",
+        "credentials": "knowledge_and_credentials",
+        "network": "network_and_networking",
+    }
+
     for category, subcategory in pairs:
-        schema = EXTRACTION_SCHEMAS.get(subcategory)
+        schema_key = _SUBCATEGORY_ALIASES.get(subcategory, subcategory)
+        schema = EXTRACTION_SCHEMAS.get(schema_key)
         if not schema:
-            logger.info(f"Information Extraction: No schema for {subcategory}, skipping")
+            logger.info(f"Information Extraction: No schema for {subcategory} (tried {schema_key}), skipping")
             continue
 
         pair_spans = spans_by_pair.get((category, subcategory), [])
@@ -965,11 +978,11 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
                 # Unwrap {"some_key": [...]} wrapper that the LLM sometimes returns
                 if isinstance(llm_result, dict) and len(llm_result) == 1:
                     sole_value = next(iter(llm_result.values()))
-                    if isinstance(sole_value, list):
+                    if isinstance(sole_value, list) and sole_value:
                         llm_result = sole_value[0]
-                elif isinstance(llm_result, list) and len(llm_result) == 1:
+                elif isinstance(llm_result, list) and llm_result:
                     llm_result = llm_result[0]
-                extracted = llm_result
+                extracted = llm_result if isinstance(llm_result, dict) else {}
             except Exception as e:
                 logger.info(f"Information Extraction: LLM error for {category}.{subcategory} - {e}")
                 state["workflow_process"].append(
@@ -982,6 +995,11 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
             and not (isinstance(v, str) and not v.strip())
             and not (isinstance(v, (list, dict)) and not v)
         }
+
+        if not extracted:
+            logger.info(f"Information Extraction: No data extracted for {category}.{subcategory}, skipping")
+            continue
+
         extracted["content"] = json.dumps(extracted)
         extracted["type"] = schema["type"]
 
