@@ -50,10 +50,14 @@ CREATE TRIGGER trg_enqueue_memory_extraction
 
 -- Webhook trigger: notify Python API when a new item is enqueued
 -- pg_net calls POST /api/extract so the QueueConsumer wakes immediately
+-- NOTE: Change URL to production API URL when deploying to Supabase Cloud
+-- Requires: CREATE EXTENSION IF NOT EXISTS pg_net;
 CREATE OR REPLACE FUNCTION notify_extraction_webhook()
 RETURNS TRIGGER AS $$
 BEGIN
   PERFORM net.http_post(
+    -- LOCAL: http://127.0.0.1:8000/api/extract
+    -- PRODUCCIÓN: reemplazar con la URL del backend desplegado (ej: https://api.pop-ai.com/api/extract)
     url := 'http://127.0.0.1:8000/api/extract',
     body := '{}'::jsonb,
     headers := '{"Content-Type": "application/json"}'::jsonb
