@@ -52,8 +52,10 @@ from src.config import (
 from src.utils.conversation_memory import format_conversation_context, search_conversation_history
 from src.utils.harmonia_api import store_extracted_information
 from src.utils.rag import hybrid_search, search_runner_chunks
-from training.constants.entity_prompts import ENTITIES
-from training.constants.info_extraction import EXTRACTION_SCHEMAS, EXTRACTION_SYSTEM_MESSAGE, build_extraction_prompt
+from src.schemas import EXTRACTION_SCHEMAS, EXTRACTION_SYSTEM_MESSAGE, build_extraction_prompt
+
+# Context categories used by the span pipeline (same as ENTITIES["context"].keys())
+CONTEXT_CATEGORIES = frozenset({"professional", "learning", "social", "psychological", "personal"})
 
 logger = logging.getLogger(__name__)
 
@@ -1202,7 +1204,7 @@ async def context_rag_retrieval_node(state: WorkflowState, chat_client: OpenAI) 
     step_start_index = len(state["workflow_process"])
     state["workflow_process"].append("🔎 Span RAG Retrieval: Searching knowledge base via context spans")
 
-    context_keys = set(ENTITIES["context"].keys())
+    context_keys = CONTEXT_CATEGORIES
     context_spans = [sp for sp in (state.get("all_spans") or state.get("spans", [])) if sp["category"] in context_keys]
     query = " ".join(sp["text"] for sp in context_spans).strip() or state["message"]
 
@@ -1589,7 +1591,7 @@ def _build_span_workflow(chat_client: OpenAI):
     """Build (not cached) span processing workflow graph."""
     workflow = StateGraph(WorkflowState)
 
-    context_keys = set(ENTITIES["context"].keys())
+    context_keys = CONTEXT_CATEGORIES
 
     def route_single_span(state: WorkflowState) -> str:
         spans = state.get("spans", [])
@@ -1772,7 +1774,7 @@ async def run_span_pipeline_background(
         return stop_event is not None and stop_event.is_set()
 
     logger.info("[BG] Span pipeline background task started")
-    context_keys = set(ENTITIES["context"].keys())
+    context_keys = CONTEXT_CATEGORIES
 
     base_state: dict = _create_base_state(
         user_id=user_id or "",
@@ -2052,7 +2054,7 @@ async def run_workflow(
         logger.info(f"Pre-fetch: Profile recap response generated ({len(profile_recap_response)} chars)")
 
     # ── Phase 2: task / RAG spans only (context spans handled in background) ──
-    context_keys = set(ENTITIES["context"].keys())
+    context_keys = CONTEXT_CATEGORIES
 
     # Seed collected_responses with all pre-generated answers (order: RAG then profile)
     collected_responses: list[str] = [r for r in (rag_response, profile_recap_response) if r]
