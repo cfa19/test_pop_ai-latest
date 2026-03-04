@@ -5,8 +5,8 @@ Stores and retrieves conversation history using vector embeddings
 
 import logging
 import uuid
+from typing import Dict, List, Optional, Union
 
-from fastapi import HTTPException
 from openai import OpenAI
 from supabase import Client
 from voyageai.client import Client as VoyageAI
@@ -15,7 +15,11 @@ from src.config import RPCFunctions, Tables
 from src.utils.rag import create_embedding
 
 
-def store_message(supabase: Client, conversation_id: str, user_id: str, role: str, message: str, metadata: dict | None = None) -> str:
+class ConversationMemoryError(Exception):
+    """Raised when a conversation memory operation fails."""
+
+
+def store_message(supabase: Client, conversation_id: str, user_id: str, role: str, message: str, metadata: Optional[Dict] = None) -> str:
     """
     Store a message in conversation history WITHOUT an embedding
     Use this for messages that aren't worthy of indexing
@@ -51,18 +55,18 @@ def store_message(supabase: Client, conversation_id: str, user_id: str, role: st
         return result.data[0]["id"]
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail="An internal error occurred during message storage.") from e
+        raise ConversationMemoryError("An internal error occurred during message storage.") from e
 
 
 def store_message_with_embedding(
     supabase: Client,
-    embed_client: OpenAI | VoyageAI,
+    embed_client: Union[OpenAI, VoyageAI],
     embed_model: str,
     conversation_id: str,
     user_id: str,
     role: str,
     message: str,
-    metadata: dict | None = None,
+    metadata: Optional[Dict] = None,
 ) -> str:
     """
     Store a message in conversation history with its embedding for RAG search.
@@ -94,7 +98,7 @@ def store_message_with_embedding(
         )
 
         if not embedding_result.data:
-            raise HTTPException(status_code=500, detail="Embedding insert returned no data.")
+            raise ConversationMemoryError("Embedding insert returned no data.")
         embedding_id = embedding_result.data[0]["id"]
 
         result = (
@@ -113,26 +117,27 @@ def store_message_with_embedding(
         )
 
         if not result.data:
-            raise HTTPException(status_code=500, detail="Conversation history insert returned no data.")
+            raise ConversationMemoryError("Conversation history insert returned no data.")
         return result.data[0]["id"]
 
-    except HTTPException:
+    except ConversationMemoryError:
         raise
     except Exception as e:
         logging.getLogger(__name__).exception("store_message_with_embedding failed")
-        raise HTTPException(status_code=500, detail="An internal error occurred during message storage.") from e
+        raise ConversationMemoryError("An internal error occurred during message storage.") from e
 
 
 def search_conversation_history(
     supabase: Client,
-    embed_client: OpenAI | VoyageAI,
+    embed_client: Union[OpenAI, VoyageAI],
     conversation_id: str,
     user_id: str,
     query: str,
     embed_model: str,
     top_k: int = 5,
     similarity_threshold: float = 0.5,
-) -> list[dict]:
+    query_embedding: list | None = None,
+) -> List[Dict]:
     """
     Search conversation history using RAG (vector similarity)
 
@@ -145,17 +150,18 @@ def search_conversation_history(
         embed_model: Embedding model name
         top_k: Number of results to return
         similarity_threshold: Minimum similarity score (0-1)
+        query_embedding: Pre-computed embedding vector. If provided, skips embedding API call.
 
     Returns:
         List of relevant past messages with metadata
     """
-    # Generate embedding for the query
-    embedding = create_embedding(
-        text=query,
-        embed_client=embed_client,
-        embed_model=embed_model,
-    )
-    query_embedding = embedding.embedding
+    if query_embedding is None:
+        embedding = create_embedding(
+            text=query,
+            embed_client=embed_client,
+            embed_model=embed_model,
+        )
+        query_embedding = embedding.embedding
 
     # Search using the database function
     result = supabase.rpc(
@@ -164,52 +170,16 @@ def search_conversation_history(
     ).execute()
 
     # Filter by similarity threshold
-    return [
+    relevant_messages = [
         {"id": msg["id"], "role": msg["role"], "message": msg["message"], "similarity": msg["similarity"], "created_at": msg["created_at"]}
         for msg in result.data
         if msg["similarity"] >= similarity_threshold
     ]
 
-
-def check_duplicate_message(
-    supabase: Client,
-    user_id: str,
-    message: str,
-) -> bool:
-    """
-    Check if this exact message was already sent by this user.
-
-    Queries conversation_history for matching text. If count > 1,
-    the message was already processed (current + previous = duplicate).
-
-    Args:
-        supabase: Supabase client
-        user_id: User ID
-        message: Message text to check
-
-    Returns:
-        True if a duplicate was found, False otherwise
-    """
-    logger = logging.getLogger(__name__)
-    try:
-        result = (
-            supabase.table(Tables.CONVERSATION_HISTORY)
-            .select("id", count="exact")
-            .eq("user_id", user_id)
-            .eq("role", "user")
-            .eq("message", message)
-            .execute()
-        )
-        count = result.count or 0
-        if count > 1:
-            logger.info(f"[DEDUP] Found {count} copies for user {user_id[:8]}...")
-        return count > 1
-    except Exception:
-        logger.exception("[DEDUP] Check failed, proceeding with extraction")
-        return False
+    return relevant_messages
 
 
-def get_recent_messages(supabase: Client, conversation_id: str, user_id: str, limit: int = 5) -> list[dict]:
+def get_recent_messages(supabase: Client, conversation_id: str, user_id: str, limit: int = 5) -> List[Dict]:
     """
     Get the most recent messages from a conversation (for context window)
 
@@ -233,7 +203,9 @@ def get_recent_messages(supabase: Client, conversation_id: str, user_id: str, li
     )
 
     # Reverse to get chronological order (oldest to newest)
-    return list(reversed(result.data))
+    messages = list(reversed(result.data))
+
+    return messages
 
 
 def generate_conversation_id() -> str:
@@ -246,7 +218,7 @@ def generate_conversation_id() -> str:
     return str(uuid.uuid4())
 
 
-def format_conversation_context(relevant_messages: list[dict], include_recent: bool = True) -> str:
+def format_conversation_context(relevant_messages: List[Dict], include_recent: bool = True) -> str:
     """
     Format conversation history into a readable context string
 
@@ -268,7 +240,7 @@ def format_conversation_context(relevant_messages: list[dict], include_recent: b
         context_lines.append("## Relevant Past Conversation:")
 
     for msg in relevant_messages:
-        role_label = "Usuario" if msg["role"] == "user" else "Asistente"
+        role_label = "User" if msg["role"] == "user" else "Assistant"
         context_lines.append(f"{role_label}: {msg['message']}")
 
     return "\n".join(context_lines)

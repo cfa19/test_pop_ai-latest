@@ -465,3 +465,193 @@ Jury-side evaluation tool. The jury scores the candidate across 5 competencies (
 **Function:** Master closing techniques, build a follow-up plan, and set up a weekly commercial routine.
 
 Work through 3 stages: Closing (identify buying signals, master 5 closing techniques), Loyalty (build a 6-month follow-up plan, generate touchpoint ideas, create email templates), and Routine (set up a weekly routine and relationship dashboard). Produces a library of buying signals, closing technique scripts, a 6-month follow-up plan, 15 touchpoint ideas, email templates, and a weekly routine setup.
+
+---
+
+## Purpose & Values Discovery
+
+### Decouverte Ikigai
+
+**Function:** Formulate your professional purpose in 15 minutes by exploring 4 Ikigai dimensions.
+
+Explore 4 dimensions (what you love, what you're good at, what you can be paid for, what the world needs), obtain 3 distinct Ikigai formulations, and translate them into concrete jobs or activities with ROME codes and an aligned action plan.
+
+---
+
+### Values Alignment
+
+**Function:** Identify and prioritize your core professional values to align career decisions with what matters most.
+
+Explore your personal and professional values through guided reflection. Identify your top values, assess how well your current role aligns with them, and create an action plan to close any value-alignment gaps.
+
+---
+
+### Meaning Scanner
+
+**Function:** Discover what gives meaning to your professional life and identify sources of purpose and fulfillment.
+
+Analyze your experiences, motivations, and aspirations to uncover your deeper sources of professional meaning. Produces a meaning profile with key themes and actionable insights for career alignment.
+
+---
+
+### Ma Direction
+
+**Function:** Clarify your professional objective and preferences in 10 minutes.
+
+Define your professional direction by clarifying goals, preferences, and target environments. Produces a strategic direction profile with coherence validation, score, and consultant-ready dashboard metrics.
+
+---
+
+## Emotional Wellbeing & Stress
+
+### Stress Detective
+
+**Function:** Identify stress triggers, patterns, and coping strategies to improve workplace wellbeing.
+
+Analyze your stress sources, frequency, and intensity to identify patterns. Map your current coping strategies and discover new ones. Produces a stress profile with triggers, patterns, and a personalized coping action plan.
+
+---
+
+### Energy Check-in
+
+**Function:** Track and understand your energy levels to optimize performance and prevent burnout.
+
+Assess your current energy across physical, emotional, mental, and social dimensions. Identify energy drains and boosters in your daily routine. Produces an energy map with personalized recommendations for sustainable performance.
+
+---
+
+### Belief Buster
+
+**Function:** Identify and challenge limiting beliefs that block your professional development.
+
+Explore your inner dialogue, identify recurring limiting beliefs, and use cognitive restructuring techniques to transform them into empowering alternatives. Produces a belief transformation plan with evidence-based reframing strategies.
+
+---
+
+### Isolation Check
+
+**Function:** Assess your level of professional isolation and identify steps to reconnect.
+
+Evaluate your sense of professional connection, identify isolation risk factors, and discover opportunities to build meaningful workplace relationships. Produces an isolation assessment with a reconnection action plan.
+
+---
+
+### Support Mapper
+
+**Function:** Map your personal and professional support network to leverage it during career transitions.
+
+Identify and categorize the people who support you across different life domains. Assess the strength and gaps in your support network. Produces a support network map with recommendations for strengthening key relationships.
+
+---
+
+## Skills Discovery & Analysis
+
+### Mon Profil de Competences
+
+**Function:** Discover hidden skills, identify your top 10 transferable super-powers, and explore unexpected career matches in 12 minutes.
+
+Uncover your hidden competencies, map them into skill families, identify your top 10 transferable super-powers, and explore career matches you hadn't considered. Produces a Competency Card with ROME job matching, skill diversity analysis, and surprise career suggestions.
+
+---
+
+### Skills Spotter
+
+**Function:** Quickly identify and categorize your professional skills from your experience and activities.
+
+Scan your professional background to spot skills you may not realize you have. Categorize them by type (technical, soft, transferable) and level. Produces a structured skills inventory ready for career planning.
+
+---
+
+### Experience Translator
+
+**Function:** Translate your professional experiences into transferable competencies for new career paths.
+
+Take your past roles and achievements and reframe them as transferable skills applicable to different industries or positions. Produces a translation matrix showing how your experience maps to new opportunities.
+
+---
+
+### Gap Prioritizer
+
+**Function:** Identify and prioritize skill gaps between your current profile and your career goals.
+
+Compare your current skills against target role requirements. Rank gaps by impact and urgency. Produces a prioritized gap analysis with recommended learning paths and timelines.
+
+---
+
+### Learning Style
+
+**Function:** Discover your preferred learning style and get personalized recommendations for skill development.
+
+Assess how you learn best through a structured exploration of learning preferences, pace, and format. Produces a learning style profile with tailored recommendations for effective skill acquisition.
+
+---
+
+## Career Exploration
+
+### Dream Role Swipe
+
+**Function:** Explore potential career paths by swiping through curated role suggestions matched to your profile.
+
+Discover career possibilities by evaluating role suggestions based on your skills, values, and aspirations. Swipe to indicate interest and build a shortlist. Produces a curated list of dream roles with match scores and next steps.
+
+---
+
+### Origin Story
+
+**Function:** Craft your professional origin story to strengthen your personal brand and interview narrative.
+
+Reflect on the key moments, decisions, and turning points that shaped your career. Structure them into a compelling narrative. Produces a polished origin story ready for interviews, networking, and personal branding.
+
+---
+
+## Business Diagnostics
+
+### Mon Diagnostic Entreprise
+
+**Function:** Get an objective assessment of your business activity with 3 priority growth levers in 15 minutes.
+
+Obtain an objective photograph of your current business, an analysis of your top 3 priority growth levers, and a concrete action plan to share with your consultant. Produces a diagnostic dashboard with metrics, alerts, and strategic recommendations.
+
+---
+
+## Networking & Decision Support
+
+### Network Compass
+
+**Function:** Map your professional network and build a strategic 90-day networking plan for career transition.
+
+Cartograph your professional network, analyze contact relevance, and build a strategic networking plan with measurable KPIs. Produces a network map, personalized messages to contacts, matching scores, and a 90-day action plan.
+
+---
+
+### Personal Boardroom
+
+**Function:** Simulate a personal board of directors with AI advisors for complex career decisions in 12-20 minutes.
+
+Create a personal board of AI advisors to help you navigate complex career decisions. Get values alignment analysis, risk assessment, and blind spot identification. Produces a decision clarity score, advisor recommendations, and a 72-hour action plan.
+
+---
+
+## Certification (Additional)
+
+### Jury Consultant IA
+
+**Function:** Evaluate consultant competencies through interactive scenarios with AI virtual beneficiaries.
+
+Complete 8 interactive scenarios with AI virtual beneficiaries in a 60-minute evaluation. Covers competencies C1, C3, C6, and C8 with QCM and conversation scoring. Produces a score out of 100, per-competency breakdown, detailed logs, and HTML report.
+
+---
+
+### VAE Match
+
+**Function:** Assess eligibility and readiness for VAE (Validation des Acquis de l'Experience) certification.
+
+Evaluate your professional experience against VAE requirements. Identify which certifications match your profile and assess your readiness level. Produces a VAE eligibility report with certification matches and preparation recommendations.
+
+---
+
+### VAE Livret 2 Excellence
+
+**Function:** Guide the preparation of a high-quality VAE Livret 2 dossier with AI-assisted writing and structuring.
+
+Work through the Livret 2 structure with AI guidance: describe your activities, analyze competencies, and structure evidence. Produces a complete, well-structured Livret 2 draft ready for submission review.

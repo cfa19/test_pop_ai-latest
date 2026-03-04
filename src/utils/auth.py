@@ -4,14 +4,14 @@ Simple authentication functions to be called inside endpoints
 Use these to verify tokens manually without FastAPI dependencies
 """
 
+import logging
 import os
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Dict, Optional
 
 import jwt
-from dotenv import load_dotenv
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 # Supabase JWT configuration
 # Supports two modes:
@@ -35,7 +35,7 @@ class AuthenticationError(Exception):
         super().__init__(self.message)
 
 
-def verify_token(token: str) -> dict[str, Any]:
+def verify_token(token: str) -> Dict[str, Any]:
     """
     Verify Supabase JWT token and return user information
 
@@ -58,9 +58,9 @@ def verify_token(token: str) -> dict[str, Any]:
     Example:
         try:
             user_info = verify_token(token)
-            print(f"User ID: {user_info['user_id']}")
+            logger.debug(f"User ID: {user_info['user_id']}")
         except AuthenticationError as e:
-            print(f"Auth failed: {e.message}")
+            logger.warning(f"Auth failed: {e.message}")
     """
     if not token:
         raise AuthenticationError("No token provided", status_code=401)
@@ -93,8 +93,8 @@ def verify_token(token: str) -> dict[str, Any]:
             "user_id": payload.get("sub"),
             "email": payload.get("email"),
             "role": payload.get("role"),
-            "exp": datetime.fromtimestamp(payload.get("exp")) if payload.get("exp") else None,
-            "iat": datetime.fromtimestamp(payload.get("iat")) if payload.get("iat") else None,
+            "exp": datetime.fromtimestamp(payload.get("exp"), tz=UTC) if payload.get("exp") else None,
+            "iat": datetime.fromtimestamp(payload.get("iat"), tz=UTC) if payload.get("iat") else None,
         }
 
     except jwt.ExpiredSignatureError as e:
@@ -102,12 +102,12 @@ def verify_token(token: str) -> dict[str, Any]:
     except jwt.InvalidAudienceError as e:
         raise AuthenticationError("Invalid token audience", status_code=401) from e
     except jwt.InvalidTokenError as e:
-        raise AuthenticationError(f"Invalid token: {str(e)}", status_code=401) from e
+        raise AuthenticationError(f"Invalid token: {e!s}", status_code=401) from e
     except Exception as e:
-        raise AuthenticationError(f"Token verification failed: {str(e)}", status_code=401) from e
+        raise AuthenticationError(f"Token verification failed: {e!s}", status_code=401) from e
 
 
-def extract_token_from_header(authorization_header: str | None) -> str:
+def extract_token_from_header(authorization_header: Optional[str]) -> str:
     """
     Extract JWT token from Authorization header
 
@@ -138,7 +138,7 @@ def extract_token_from_header(authorization_header: str | None) -> str:
     return parts[1]
 
 
-def authenticate_request(authorization_header: str | None) -> dict[str, Any]:
+def authenticate_request(authorization_header: Optional[str]) -> Dict[str, Any]:
     """
     Complete authentication flow: extract token from header and verify it
 

@@ -3,17 +3,24 @@ Backend FastAPI for the Chatbot with RAG
 """
 
 import argparse
-import asyncio
 import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 import src.config as config
 from src.api.chat import router as chat_router
-from src.services.queue_consumer import QueueConsumer
+from src.utils.idle_worker import (
+    notify_request_end,
+    notify_request_start,
+    stop_idle_worker,
+)
 from src.utils.message_queue import start_message_queue, stop_message_queue
+
+# Runner extraction imports (not active yet)
+# from src.api.webhooks import router as webhooks_router
+# from src.services.queue_consumer import QueueConsumer
 
 # Setup logging
 logging.basicConfig(
@@ -21,9 +28,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Queue consumer instance (set during startup)
-_queue_consumer: QueueConsumer | None = None
 
 # ===============================
 # FASTAPI APP
@@ -64,25 +68,43 @@ def download_models_from_hf(local_dir: str):
 
 
 async def preload_models():
-    """Preload ONNX token classifiers on startup."""
-    from src.config import ONNX_MODELS_PATH, set_hierarchical_classifier
+    """Preload ML models on startup."""
+    from src.config import (
+        ONNX_MODELS_PATH,
+        SEMANTIC_GATE_ENABLED,
+        SEMANTIC_GATE_MODEL,
+    )
 
     # Download from HuggingFace Hub if needed (deploy scenario)
     download_models_from_hf(ONNX_MODELS_PATH)
 
-    try:
-        from src.agents.onnx_classifier import HierarchicalONNXTokenClassifier
+    # Preload semantic gate if enabled
+    if SEMANTIC_GATE_ENABLED:
+        try:
+            logger.info("Preloading semantic gate...")
+            from pathlib import Path
 
-        logger.info(f"Preloading ONNX token classifiers from {ONNX_MODELS_PATH}...")
-        clf = HierarchicalONNXTokenClassifier(ONNX_MODELS_PATH)
-        set_hierarchical_classifier(clf)
-        logger.info(
-            f"Loaded: primary + {len(clf.secondary)} secondary classifiers "
-            f"({', '.join(clf.secondary.keys())})"
-        )
-    except Exception as e:
-        logger.warning(f"Failed to preload ONNX classifiers: {e}")
-        logger.warning("Will fall back to lazy loading on first request")
+            from src.agents.semantic_gate import get_semantic_gate
+
+            centroids_dir = Path(ONNX_MODELS_PATH) / "semantic_gate"
+            gate = get_semantic_gate(
+                centroids_dir=str(centroids_dir),
+                model_name=SEMANTIC_GATE_MODEL,
+            )
+
+            if gate.is_hierarchical:
+                logger.info("Semantic gate loaded (HIERARCHICAL mode)")
+                logger.info(f"  Primary categories: {len(gate.primary_thresholds)}")
+                total_secondary = sum(len(subcats) for subcats in gate.secondary_thresholds.values())
+                logger.info(f"  Secondary categories: {total_secondary}")
+            else:
+                logger.info("Semantic gate loaded (legacy mode)")
+                logger.info(f"  Categories: {len(gate.primary_thresholds)}")
+        except Exception as e:
+            logger.warning(f"Failed to preload semantic gate: {e}")
+            logger.warning("Will fall back to lazy loading on first request")
+    else:
+        logger.info("Semantic gate disabled (no preloading needed)")
 
 
 @app.on_event("startup")
@@ -98,16 +120,20 @@ async def startup_event():
     await preload_models()
     logger.info("Model preloading complete")
 
-    # Start runner extraction queue consumer
-    if config.RUNNER_EXTRACTION_ENABLED:
-        global _queue_consumer
-        _queue_consumer = QueueConsumer(
-            poll_interval=config.QUEUE_POLL_INTERVAL,
-            batch_size=config.QUEUE_BATCH_SIZE,
-            max_retries=config.QUEUE_MAX_RETRIES,
-        )
-        asyncio.create_task(_queue_consumer.start())
-        logger.info("Runner extraction queue consumer started")
+    # # Start idle background worker (NER + Harmonia store for context spans)
+    # start_idle_worker()
+    # logger.info("Idle span-pipeline worker started")
+
+    # # Start runner extraction queue consumer (not active yet)
+    # if config.RUNNER_EXTRACTION_ENABLED:
+    #     import asyncio
+    #     from src.services.queue_consumer import QueueConsumer
+    #     _queue_consumer = QueueConsumer(
+    #         batch_size=config.QUEUE_BATCH_SIZE,
+    #         max_retries=config.QUEUE_MAX_RETRIES,
+    #     )
+    #     asyncio.create_task(_queue_consumer.start())
+    #     logger.info("Runner extraction queue consumer started")
 
 
 @app.on_event("shutdown")
@@ -115,14 +141,23 @@ async def shutdown_event():
     """Cleanup resources on application shutdown."""
     logger.info("Shutting down Pop Skills AI API...")
 
-    # Stop runner extraction queue consumer
-    if _queue_consumer:
-        await _queue_consumer.stop()
-        logger.info("Runner extraction queue consumer stopped")
+    # Stop idle background worker
+    await stop_idle_worker()
+    logger.info("Idle span-pipeline worker stopped")
 
     # Stop message queue
     await stop_message_queue()
     logger.info("Message queue stopped")
+
+
+@app.middleware("http")
+async def track_active_requests(request: Request, call_next):
+    """Pause the idle span-pipeline worker while a request is being served."""
+    notify_request_start()
+    try:
+        return await call_next(request)
+    finally:
+        notify_request_end()
 
 # Allow CORS (for the frontend to call the backend)
 app.add_middleware(
@@ -135,6 +170,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(chat_router)
+# app.include_router(webhooks_router, prefix="/api")  # Runner webhooks (not active yet)
 
 
 @app.get("/health")

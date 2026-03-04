@@ -52,6 +52,7 @@ venv.bak/
 # Environment variables
 .env
 .env.local
+.envlocal
 .env.*.local
 
 # OS
@@ -70,8 +71,12 @@ logs/
 *.log.*
 
 # Results and outputs
+results/
 outputs/
 *.csv
+*.json
+!package.json
+!package-lock.json
 
 # Data directories (uncomment if you don't want to track data)
 # data/
@@ -111,20 +116,23 @@ CLAUDE.md
 .ruff_cache/
 pyproject.toml
 
-# Training (models, scripts, datasets — all managed separately)
-training/
+# Training models & heavy binaries
+training/models/*
+fasttext/
+
+# Model files (prevent accidental commit of large binaries)
+*.onnx
+*.safetensors
+*.pt
+*.pth
+*.bin
+!requirements*.txt
+*.pkl
+*.h5
+*.hdf5
 
 # SSH keys
 keys/
 
 # Compressed files
 *.zip
-
-# Deploy testing scripts
-test_deploy/
-
-# FastText language model (131MB, hosted on HuggingFace Hub)
-fasttext/
-
-# Planning
-planning/

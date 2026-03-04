@@ -6,6 +6,7 @@ Default: voyage-3-large (1024 dimensions)
 """
 
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -34,10 +35,10 @@ class Embedding(BaseModel):
     # ========================================================================
     # Metadata
     # ========================================================================
-    text: str | None = Field(None, description="Original text that was embedded")
+    text: Optional[str] = Field(None, description="Original text that was embedded")
     model: str = Field(description="Model used for generation")
     dimension: int = Field(..., ge=1, description="Dimension of the embedding vector")
-    tokens_used: int | None = Field(None, ge=0, description="Number of tokens used")
+    tokens_used: Optional[int] = Field(None, ge=0, description="Number of tokens used")
 
     @model_validator(mode="after")
     def validate_embedding_length(self):

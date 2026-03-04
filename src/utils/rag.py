@@ -1,5 +1,7 @@
+import logging
 import random
 import time
+from typing import List, Union
 
 from openai import APIError, OpenAI, RateLimitError
 from voyageai.client import Client as VoyageAI
@@ -7,11 +9,13 @@ from voyageai.client import Client as VoyageAI
 from src.config import RRF_K, RPCFunctions, get_supabase
 from src.models import DocumentChunk, Embedding
 
+logger = logging.getLogger(__name__)
+
 
 # ===============================
 # CHUNK PARSING FUNCTIONS
 # ===============================
-def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
+def parse_chunks_file(file_path: str) -> List[DocumentChunk]:
     """
     Parse a pre-chunked markdown file and extract chunks with metadata.
 
@@ -33,10 +37,10 @@ def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
         List of DocumentChunk objects with content and metadata
     """
     try:
-        with open(file_path, encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
-        print(f"ERROR: File not found: {file_path}")
+        logger.error(f"File not found: {file_path}")
         return []
 
     chunks = []
@@ -62,7 +66,7 @@ def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
         title = parts[1].strip() if len(parts) > 1 else ""
 
         # Initialize metadata
-        metadata = {"chunk_id": chunk_id, "title": title, "section": None, "subsection": None}
+        metadata = {"chunk_id": chunk_id, "title": title, "section": None, "subsection": None, "label": None, "context": None}
 
         # Parse metadata and content
         content_lines = []
@@ -84,6 +88,10 @@ def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
                         metadata["chunk_id"] = chunk_id_from_meta
                     except ValueError:
                         pass
+                elif line_stripped.startswith("**Label:**"):
+                    metadata["label"] = line_stripped.replace("**Label:**", "").strip()
+                elif line_stripped.startswith("**Context:**"):
+                    metadata["context"] = line_stripped.replace("**Context:**", "").strip()
                 elif line_stripped == "":
                     # Empty line - might be end of metadata or just spacing
                     continue
@@ -101,7 +109,8 @@ def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
                 if line_stripped == "---":
                     # End of chunk
                     break
-                content_lines.append(line.rstrip("\n"))
+                else:
+                    content_lines.append(line.rstrip("\n"))
 
         # Create DocumentChunk object
         content = "\n".join(content_lines).strip()
@@ -117,7 +126,7 @@ def parse_chunks_file(file_path: str) -> list[DocumentChunk]:
 # ===============================
 # EMBEDDING FUNCTIONS
 # ===============================
-def create_embedding(text: str, embed_client: OpenAI | VoyageAI, embed_model: str) -> Embedding:
+def create_embedding(text: str, embed_client: Union[OpenAI, VoyageAI], embed_model: str) -> Embedding:
     """Generate embedding with Voyage AI. Returns an Embedding with text and vector."""
     if isinstance(embed_client, OpenAI):
         response = embed_client.embeddings.create(
@@ -144,14 +153,14 @@ def create_embedding(text: str, embed_client: OpenAI | VoyageAI, embed_model: st
 
 
 def create_embeddings_batch(
-    chunks: list[DocumentChunk],
+    chunks: List[DocumentChunk],
     embed_client: OpenAI,
     embed_model: str,
     embed_dimensions: int,
     max_retries: int,
     initial_backoff: float,
     max_backoff: float,
-) -> list[Embedding]:
+) -> List[Embedding]:
     """
     Generate embeddings in batch with retries.
     Voyage AI allows up to 128 texts per request.
@@ -184,8 +193,8 @@ def create_embeddings_batch(
             if attempt == max_retries - 1:
                 raise e
 
-            sleep_time = min(backoff * (2**attempt) + random.uniform(0, 1), max_backoff)  # noqa: S311 — backoff jitter, not crypto
-            print(f"      Rate limit in batch, waiting {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})...")
+            sleep_time = min(backoff * (2**attempt) + random.uniform(0, 1), max_backoff)
+            logger.warning(f"Rate limit in batch, waiting {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})")
             time.sleep(sleep_time)
 
         except APIError as e:
@@ -193,7 +202,7 @@ def create_embeddings_batch(
                 raise e
 
             sleep_time = min(backoff * (2**attempt), max_backoff)
-            print(f"      API error in batch, retrying in {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})...")
+            logger.warning(f"API error in batch, retrying in {sleep_time:.1f}s (attempt {attempt + 1}/{max_retries})")
             time.sleep(sleep_time)
 
     raise Exception(f"Could not generate batch embeddings after {max_retries} attempts")
@@ -218,19 +227,27 @@ def fulltext_search(query: str, top_k: int = 5):
     return result.data
 
 
-def hybrid_search(query: str, embed_client: OpenAI, embed_model: str, embed_dimensions: int, top_k: int = 5, semantic_weight: float = 0.5):
+def hybrid_search(
+    query: str,
+    embed_client: OpenAI,
+    embed_model: str,
+    embed_dimensions: int,
+    top_k: int = 5,
+    semantic_weight: float = 0.5,
+    query_embedding: list | None = None,
+):
     """
-    Hybrid search combining semantic + full-text with RRF
+    Hybrid search combining semantic + full-text with RRF.
 
     Args:
         query: Search text
         top_k: Number of results
         semantic_weight: Semantic search weight (0.0 to 1.0)
-            - 1.0 = 100% semantic (embeddings only)
-            - 0.0 = 100% full-text (keywords only)
-            - 0.5 = 50/50 (balanced, recommended)
+        query_embedding: Pre-computed embedding vector. If provided, skips embedding API call.
     """
-    query_embedding = create_embedding(query, embed_client, embed_model)
+    if query_embedding is None:
+        embedding = create_embedding(query, embed_client, embed_model)
+        query_embedding = embedding.embedding
 
     result = (
         get_supabase()
@@ -238,7 +255,7 @@ def hybrid_search(query: str, embed_client: OpenAI, embed_model: str, embed_dime
             RPCFunctions.RAG_HYBRID_SEARCH,
             {
                 "query_text": query,
-                "query_embedding": query_embedding.embedding,
+                "query_embedding": query_embedding,
                 "match_count": top_k,
                 "semantic_weight": semantic_weight,
                 "rrf_k": RRF_K,
@@ -248,3 +265,43 @@ def hybrid_search(query: str, embed_client: OpenAI, embed_model: str, embed_dime
     )
 
     return result.data
+
+
+def search_runner_chunks(
+    query: str,
+    ctx_key: str,
+    embed_client: Union[OpenAI, VoyageAI],
+    embed_model: str,
+    top_k: int = 3,
+) -> list[dict]:
+    """
+    Search RUN chunks filtered by context key, ranked by embedding similarity.
+
+    Fetches only chunks where metadata.recommenderLabel = 'RUN' and
+    metadata.context = ctx_key, then returns the top_k closest to the query
+    embedding (cosine similarity).
+
+    Args:
+        query:       Text to embed and search with
+        ctx_key:     The context.subcontext key, e.g. 'professional.experience'
+        embed_client: Voyage AI or OpenAI embedding client
+        embed_model:  Embedding model name
+        top_k:        Number of results to return
+
+    Returns:
+        List of dicts with keys: id, content, metadata, similarity
+    """
+    query_embedding = create_embedding(query, embed_client, embed_model)
+    result = (
+        get_supabase()
+        .rpc(
+            RPCFunctions.SEARCH_RUNNER_CHUNKS,
+            {
+                "query_embedding": query_embedding.embedding,
+                "ctx_key": ctx_key,
+                "match_count": top_k,
+            },
+        )
+        .execute()
+    )
+    return result.data or []

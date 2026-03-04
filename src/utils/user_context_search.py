@@ -5,6 +5,7 @@ Search worthy messages in retrieval_chunks for user profile RAG.
 Reuses create_embedding() from rag.py for query embedding generation.
 """
 
+from typing import Dict, List
 
 from openai import OpenAI
 from supabase import Client
@@ -22,7 +23,7 @@ def search_user_context(
     embed_dimensions: int,
     top_k: int = 5,
     min_confidence: float = 0.6,
-) -> list[dict]:
+) -> List[Dict]:
     """
     Search user's worthy messages in retrieval_chunks.
 

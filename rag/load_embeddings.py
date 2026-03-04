@@ -127,6 +127,10 @@ def load_document(file_path: str, batch_size: int = BATCH_SIZE) -> bool:
             metadata["subsection"] = chunk_metadata["subsection"]
         if chunk_metadata.get("title"):
             metadata["title"] = chunk_metadata["title"]
+        if chunk_metadata.get("label"):
+            metadata["recommenderLabel"] = chunk_metadata["label"]
+        if chunk_metadata.get("context"):
+            metadata["context"] = chunk_metadata["context"]
 
         records.append({"content": parsed_chunk.content, "embedding": embedding.embedding, "metadata": metadata})
 
@@ -228,16 +232,7 @@ if __name__ == "__main__":
     option = input("\nChoose an option (1-5): ").strip()
 
     if option == "1":
-        print("\nWhich document to load?")
-        print("  a. General company info (general_info_chunks.md)")
-        print("  b. User manual (user_manual_chunks.md)")
-        doc_choice = input("Choose (a/b): ").strip().lower()
-
-        if doc_choice == "b":
-            data_path = os.path.join(os.path.dirname(__file__), "..", "info", "user_manual_chunks.md")
-        else:
-            data_path = os.path.join(os.path.dirname(__file__), "..", "info", "general_info_chunks.md")
-
+        data_path = os.path.join(os.path.dirname(__file__), "..", "info", "general_info_chunks.md")
         load_document(data_path)
         verify_data()
     elif option == "2":

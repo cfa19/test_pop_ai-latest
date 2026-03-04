@@ -4,6 +4,7 @@ Document Chunk Models
 General models for document chunks used in RAG systems.
 """
 
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -23,4 +24,4 @@ class DocumentChunk(BaseModel):
     # ========================================================================
     # Metadata
     # ========================================================================
-    metadata: dict | None = Field(None, description="Additional metadata for the chunk (section, subsection, chunk_id, etc.)")
+    metadata: Optional[dict] = Field(None, description="Additional metadata for the chunk (section, subsection, chunk_id, etc.)")

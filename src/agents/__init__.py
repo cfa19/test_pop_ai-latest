@@ -7,12 +7,11 @@ LangGraph workflow for intelligent message processing:
 - Response Generation: Context-specific personalized responses
 """
 
-from .langgraph_workflow import IntentClassification, MessageCategory, WorkflowState, create_workflow, run_workflow
+from .langgraph_workflow import IntentClassification, MessageCategory, WorkflowState, run_workflow
 
 __all__ = [
-    "run_workflow",
-    "create_workflow",
-    "WorkflowState",
     "IntentClassification",
     "MessageCategory",
+    "WorkflowState",
+    "run_workflow",
 ]

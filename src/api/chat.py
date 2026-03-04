@@ -7,19 +7,10 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 
 import src.config as config
-from src.agents.langgraph_workflow import (
-    MessageCategory,
-    run_extraction_background,
-    run_workflow_fast,
-)
+from src.agents.langgraph_workflow import MessageCategory, run_workflow
 from src.config import (
-    CHAT_MODEL,
-    CHAT_PROVIDER,
     EMBED_DIMENSIONS,
-    EMBED_MODEL,
-    EMBED_PROVIDER,
-    EXTRACTION_MODEL,
-    EXTRACTION_PROVIDER,
+    detect_provider,
     get_client_by_provider,
     get_supabase,
 )
@@ -75,16 +66,14 @@ async def chat(request_body: ChatRequest, request: Request):
 
     # Step 2: Process chat message with conversation memory
     try:
-        # Use request parameters or fall back to config defaults
-        embed_provider = request_body.embed_provider or EMBED_PROVIDER
-        embed_model = request_body.embed_model or EMBED_MODEL
-        chat_provider = request_body.chat_provider or CHAT_PROVIDER
-        chat_model = request_body.chat_model or CHAT_MODEL
+        # Model and provider config comes from environment variables
+        embed_model    = config.EMBED_MODEL
+        embed_provider = detect_provider(embed_model)
+        chat_model     = config.CHAT_MODEL
+        chat_provider  = detect_provider(chat_model)
 
-        # Get the appropriate embedding, chat, and extraction clients based on provider
         embed_client = get_client_by_provider(embed_provider)
-        chat_client = get_client_by_provider(chat_provider)
-        extraction_client = get_client_by_provider(EXTRACTION_PROVIDER)
+        chat_client  = get_client_by_provider(chat_provider)
 
         # Generate conversation_id if not provided
         conversation_id = request_body.conversation_id or generate_conversation_id()
@@ -95,9 +84,8 @@ async def chat(request_body: ChatRequest, request: Request):
 
         logger.info(f"[CHAT] Submitting message to queue (queue size: {message_queue.get_queue_size()})")
 
-        # Fast workflow: classify + respond (no extraction)
         workflow_state = await message_queue.process_message(
-            workflow_func=run_workflow_fast,
+            workflow_func=run_workflow,
             message=request_body.message,
             user_id=user_id,
             conversation_id=conversation_id,
@@ -108,21 +96,10 @@ async def chat(request_body: ChatRequest, request: Request):
             embed_model=embed_model,
             embed_dimensions=EMBED_DIMENSIONS,
             chat_model=chat_model,
-            extraction_client=extraction_client,
-            extraction_model=EXTRACTION_MODEL,
+            semantic_gate_enabled=request_body.semantic_gate_enabled,
         )
 
-        logger.info(f"[CHAT] Response ready (queue size: {message_queue.get_queue_size()})")
-
-        # Fire extraction + storage in background (non-blocking)
-        message_queue.fire_background_task(
-            run_extraction_background(
-                state=workflow_state,
-                chat_client=chat_client,
-                extraction_client=extraction_client,
-                extraction_model=EXTRACTION_MODEL,
-            )
-        )
+        logger.info(f"[CHAT] Message processed (queue size: {message_queue.get_queue_size()})")
 
         # Extract workflow results
         response_text = workflow_state["response"]
@@ -144,12 +121,11 @@ async def chat(request_body: ChatRequest, request: Request):
 
         # Step 5: Store conversation (embedding only for worthy messages)
         # Use intent classifier result to decide: CHITCHAT and OFF_TOPIC don't need embeddings
-        category = (
-            unified_classification.category
-            if unified_classification
-            else MessageCategory.PSYCHOLOGICAL  # fallback = worthy
+        # When classification is missing, assume the message is worthy (embed it)
+        is_worthy = (
+            unified_classification is None
+            or unified_classification.category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
         )
-        is_worthy = category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
 
         if is_worthy:
             # User message WITH embedding (for RAG search)
@@ -208,4 +184,4 @@ async def chat(request_body: ChatRequest, request: Request):
 
     except Exception as e:
         logger.exception("Chat processing failed")
-        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {e!s}") from e
