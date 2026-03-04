@@ -1090,7 +1090,27 @@ async def store_information_node(state: WorkflowState) -> WorkflowState:
 
     all_created_ids: list = []
 
+    # Dedup: fetch existing memory cards for this user to avoid duplicates
+    supabase = state.get("supabase")
+    existing_cards: set[tuple[str, str]] = set()  # (type, content)
+    if supabase:
+        try:
+            rows = supabase.table(Tables.MEMORY_CARDS).select("type, content").eq(
+                "user_id", user_id
+            ).execute()
+            existing_cards = {(r["type"], r["content"]) for r in rows.data}
+        except Exception as e:
+            logger.warning(f"Store Information: Could not fetch existing cards for dedup: {e}")
+
     for category, subcategory, extracted_data in extractions:
+        # Skip if identical card already exists
+        card_type = extracted_data.get("type", "")
+        card_content = extracted_data.get("content", "")
+        if (card_type, card_content) in existing_cards:
+            logger.info(f"Store Information: Skipping duplicate {category}.{subcategory} (type={card_type})")
+            state["workflow_process"].append(f"  ⏭️ {category}.{subcategory} skipped (duplicate)")
+            continue
+
         try:
             result = await store_extracted_information(
                 category=category,
