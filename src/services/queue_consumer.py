@@ -102,7 +102,7 @@ class QueueConsumer:
                 supabase.table(Tables.MEMORY_EXTRACTION_QUEUE).update(
                     {
                         "status": "failed",
-                        "attempts": item.get("attempts", 0) + 1,
+                        # Don't increment attempts here — claim_extraction_batch RPC already did it
                         "last_error": str(e)[:500],
                     }
                 ).eq("id", item["id"]).execute()
