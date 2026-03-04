@@ -1,21 +1,20 @@
 """
-Hierarchical Semantic Gate - Two-Level Filtering
+Hierarchical Semantic Gate - Two-Level Filtering (ONNX Runtime)
 
 Filters off-topic messages using hierarchical thresholds:
 - Primary level: Category thresholds (rag_query, professional, etc.)
 - Secondary level: Subcategory thresholds (skills, experience, etc.)
 
 Flow:
-1. Compute message embedding
+1. Compute message embedding via ONNX model (MiniLM quantized)
 2. Primary check: Compare to primary category centroids
 3. Secondary check (if applicable): Compare to subcategory centroids
 4. Block if below threshold at either level
 
-Data Sources:
-- Thresholds: training/results/semantic_gate_hierarchical_tuning.json
-- Centroids: from hierarchical model path (ONNX_MODELS_PATH or tuning model_path)
-  - Primary: {model_path}/primary/final/centroids.pkl
-  - Secondary: {model_path}/secondary/{category}/final/centroids.pkl per category
+Data Sources (all from {ONNX_MODELS_PATH}/semantic_gate/):
+- model_quantized.onnx + tokenizer files (MiniLM-L6-v2)
+- primary_centroids.pkl, secondary_centroids.pkl
+- semantic_gate_hierarchical_tuning.json
 """
 
 import json
@@ -29,33 +28,33 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Lazy imports for optional dependencies
-_sentence_transformer = None
-_cosine_similarity = None
+
+def _mean_pooling(hidden_state: np.ndarray, attention_mask: np.ndarray) -> np.ndarray:
+    """Mean Pooling — same logic as sentence-transformers default pooling."""
+    mask = attention_mask[..., np.newaxis].astype(np.float32)
+    sum_embeddings = np.sum(hidden_state * mask, axis=1)
+    sum_mask = np.clip(mask.sum(axis=1), a_min=1e-9, a_max=None)
+    return sum_embeddings / sum_mask
 
 
-def _ensure_dependencies():
-    """Ensure required dependencies are imported (lazy loading)"""
-    global _sentence_transformer, _cosine_similarity
+def _l2_normalize(embeddings: np.ndarray) -> np.ndarray:
+    """L2 normalize embeddings (same as sentence-transformers)."""
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    return embeddings / np.clip(norms, a_min=1e-9, a_max=None)
 
-    if _sentence_transformer is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            from sklearn.metrics.pairwise import cosine_similarity
 
-            _sentence_transformer = SentenceTransformer
-            _cosine_similarity = cosine_similarity
-        except ImportError as exc:
-            raise ImportError(
-                "Semantic gate requires sentence-transformers and scikit-learn. Install with: pip install sentence-transformers scikit-learn"
-            ) from exc
+def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Cosine similarity between two 2D arrays. Returns shape (len(a), len(b))."""
+    a_norm = _l2_normalize(a)
+    b_norm = _l2_normalize(b)
+    return np.dot(a_norm, b_norm.T)
 
 
 class SemanticGate:
     """
     Hierarchical semantic gate for filtering off-topic messages.
 
-    Uses SentenceTransformer embeddings and cosine similarity with two-level thresholds:
+    Uses ONNX Runtime for embeddings and cosine similarity with two-level thresholds:
     - Primary: Category-level thresholds
     - Secondary: Subcategory-level thresholds
     """
@@ -91,35 +90,36 @@ class SemanticGate:
         Initialize hierarchical semantic gate.
 
         Args:
-            tuning_results_path: Path to semantic_gate_hierarchical_tuning.json
-            centroids_dir: Directory containing centroid pickle files (primary_centroids.pkl, secondary_centroids.pkl)
+            tuning_results_path: Path to semantic_gate_hierarchical_tuning.json.
+                                 Defaults to {centroids_dir}/semantic_gate_hierarchical_tuning.json
+            centroids_dir: Directory containing ONNX model, tokenizer, centroids, and tuning JSON.
                           Defaults to {ONNX_MODELS_PATH}/semantic_gate/
-            model_name: SentenceTransformer model name (must match tuning)
+            model_name: Original model name (for logging only)
         """
-        _ensure_dependencies()
+        import onnxruntime as ort
+        from transformers import AutoTokenizer
 
-        # Default paths (relative to project root)
+        # Default centroids directory
         project_root = Path(__file__).parent.parent.parent
-        if tuning_results_path is None:
-            tuning_results_path = project_root / "training" / "results" / "semantic_gate_hierarchical_tuning.json"
-
-        # Load tuning results (hierarchical)
-        self.tuning_results = self._load_tuning_results(tuning_results_path)
-        self.is_hierarchical = self.tuning_results.get("hierarchical", self.tuning_results.get("approach") == "hierarchical_thresholds")
-
-        # Determine centroids directory
-        # Expected: {model_path}/semantic_gate/ containing primary_centroids.pkl and secondary_centroids.pkl
         if centroids_dir is None:
-            # Try tuning results model_path, then default semantic_gate dir
-            model_path = self.tuning_results.get("model_path")
-            if model_path:
-                centroids_dir = Path(model_path) / "semantic_gate"
-            else:
-                centroids_dir = project_root / "training" / "semantic_gate"
+            from src.config import ONNX_MODELS_PATH
+            centroids_dir = Path(ONNX_MODELS_PATH) / "semantic_gate"
         else:
             centroids_dir = Path(centroids_dir)
 
         self.centroids_dir = centroids_dir
+
+        # Default tuning results path: look in centroids_dir first, then training/results/
+        if tuning_results_path is None:
+            candidate = centroids_dir / "semantic_gate_hierarchical_tuning.json"
+            if candidate.exists():
+                tuning_results_path = candidate
+            else:
+                tuning_results_path = project_root / "training" / "results" / "semantic_gate_hierarchical_tuning.json"
+
+        # Load tuning results (hierarchical)
+        self.tuning_results = self._load_tuning_results(tuning_results_path)
+        self.is_hierarchical = self.tuning_results.get("hierarchical", self.tuning_results.get("approach") == "hierarchical_thresholds")
 
         # Load thresholds
         if self.is_hierarchical:
@@ -136,20 +136,21 @@ class SemanticGate:
             logger.info("Loaded non-hierarchical thresholds (legacy format)")
             logger.info(f"Primary categories: {len(self.primary_thresholds)}")
 
-        # Initialize embedding model
-        logger.info(f"Loading SentenceTransformer: {model_name}...")
-        try:
-            from src.config import SEMANTIC_GATE_LOCAL_FILES_ONLY, SEMANTIC_GATE_MODEL_PATH
-        except ImportError:
-            SEMANTIC_GATE_LOCAL_FILES_ONLY = True
-        self.model = _sentence_transformer(
-            model_name,
-            cache_folder=SEMANTIC_GATE_MODEL_PATH,
-            local_files_only=SEMANTIC_GATE_LOCAL_FILES_ONLY,
+        # Load ONNX model + tokenizer from centroids_dir
+        onnx_path = centroids_dir / "model_quantized.onnx"
+        if not onnx_path.exists():
+            raise FileNotFoundError(f"ONNX model not found at {onnx_path}")
+
+        logger.info(f"Loading ONNX semantic gate model from {centroids_dir}...")
+        self.tokenizer = AutoTokenizer.from_pretrained(str(centroids_dir))
+        self.session = ort.InferenceSession(
+            str(onnx_path),
+            providers=["CPUExecutionProvider"],
         )
         self.model_name = model_name
+        logger.info(f"Loaded ONNX model: {model_name} (quantized)")
 
-        # Load centroids from models directory (pickle files)
+        # Load centroids from pickle files
         logger.info(f"Loading centroids from {centroids_dir}...")
         self.primary_centroids = self._load_centroids_from_models("primary")
         self.secondary_centroids = self._load_centroids_from_models("secondary") if self.is_hierarchical else {}
@@ -159,6 +160,27 @@ class SemanticGate:
         if self.is_hierarchical:
             total_sec_centroids = sum(len(subcats) for subcats in self.secondary_centroids.values())
             logger.info(f"Secondary centroids: {total_sec_centroids}")
+
+    def _encode(self, texts: list[str]) -> np.ndarray:
+        """Encode texts to embeddings using ONNX model + mean pooling."""
+        tokens = self.tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            max_length=128,
+            return_tensors="np",
+        )
+        outputs = self.session.run(None, {
+            "input_ids": tokens["input_ids"].astype(np.int64),
+            "attention_mask": tokens["attention_mask"].astype(np.int64),
+            "token_type_ids": tokens.get(
+                "token_type_ids",
+                np.zeros_like(tokens["input_ids"]),
+            ).astype(np.int64),
+        })
+        hidden_state = outputs[0]  # (batch, seq_len, 384)
+        embeddings = _mean_pooling(hidden_state, tokens["attention_mask"])
+        return _l2_normalize(embeddings)
 
     def _load_tuning_results(self, path: str) -> dict:
         """Load tuning results from JSON file"""
@@ -177,11 +199,7 @@ class SemanticGate:
 
     def _load_centroids_from_models(self, level: str):
         """
-        Load centroids from hierarchical model directory.
-
-        Paths:
-        - Primary: centroids_dir/primary/final/centroids.pkl
-        - Secondary: centroids_dir/secondary/{category}/final/centroids.pkl (one .pkl per category)
+        Load centroids from pickle files in centroids_dir.
 
         Args:
             level: "primary" or "secondary"
@@ -233,14 +251,9 @@ class SemanticGate:
 
         Returns:
             Tuple of (should_pass, primary_similarity, best_primary, best_secondary, secondary_similarity)
-            - should_pass: True if message passes both levels, False if blocked at either level
-            - primary_similarity: Similarity to best matching primary category
-            - best_primary: Best matching primary category (tuning key format)
-            - best_secondary: Best matching secondary category (or None if N/A)
-            - secondary_similarity: Similarity to best matching secondary category (or None if N/A)
         """
         # Compute message embedding once
-        message_embedding = self.model.encode([message])
+        message_embedding = self._encode([message])
 
         # =====================================================================
         # STEP 1: Primary Category Check
@@ -269,21 +282,15 @@ class SemanticGate:
         # STEP 2: Secondary Category Check (if hierarchical and applicable)
         # =====================================================================
         if not self.is_hierarchical:
-            # Non-hierarchical mode: only primary check
             return True, float(best_primary_sim), best_primary, None, None
 
-        # Check if category has secondary classification
         if predicted_category in self.SKIP_SECONDARY:
-            # Categories that skip secondary (rag_query, chitchat, off_topic)
             return True, float(best_primary_sim), best_primary, None, None
 
-        # Check if we have secondary centroids and thresholds for this category
         if predicted_category_key not in self.secondary_centroids:
-            # No secondary data for this category
             return True, float(best_primary_sim), best_primary, None, None
 
         if predicted_category_key not in self.secondary_thresholds:
-            # No secondary thresholds for this category
             return True, float(best_primary_sim), best_primary, None, None
 
         # Find best matching subcategory
@@ -299,13 +306,10 @@ class SemanticGate:
 
         # Get secondary threshold
         if predicted_subcategory and predicted_subcategory in self.secondary_thresholds[predicted_category_key]:
-            # Use predicted subcategory threshold
             secondary_threshold = self.secondary_thresholds[predicted_category_key][predicted_subcategory]
         elif best_secondary and best_secondary in self.secondary_thresholds[predicted_category_key]:
-            # Use best match threshold
             secondary_threshold = self.secondary_thresholds[predicted_category_key][best_secondary]
         else:
-            # Fallback: use primary threshold
             secondary_threshold = primary_threshold
 
         # Check secondary threshold
@@ -314,26 +318,14 @@ class SemanticGate:
         return should_pass, float(best_primary_sim), best_primary, best_secondary, float(best_secondary_sim)
 
     def get_threshold(self, category: str, subcategory: str | None = None) -> float:
-        """
-        Get threshold for a specific category or subcategory.
-
-        Args:
-            category: Category name (MessageCategory enum value like "rag_query")
-            subcategory: Optional subcategory name (e.g., "skills")
-
-        Returns:
-            Threshold for that category/subcategory
-        """
-        # Map to tuning key format
+        """Get threshold for a specific category or subcategory."""
         category_key = self.CATEGORY_MAPPING.get(category, category)
 
         if subcategory and self.is_hierarchical:
-            # Try to get secondary threshold
             if category_key in self.secondary_thresholds:
                 if subcategory in self.secondary_thresholds[category_key]:
                     return self.secondary_thresholds[category_key][subcategory]
 
-        # Get primary threshold
         return self.primary_thresholds.get(category_key, self.DEFAULT_THRESHOLD)
 
     def get_statistics(self) -> dict:
@@ -371,9 +363,9 @@ def get_semantic_gate(
     Get or create the global semantic gate instance (singleton pattern).
 
     Args:
-        centroids_dir: Directory containing centroid pickle files
-        tuning_results_path: Path to tuning results JSON
-        model_name: SentenceTransformer model name (must match tuning)
+        centroids_dir: Directory containing ONNX model, tokenizer, centroids, and tuning JSON
+        tuning_results_path: Path to tuning results JSON (defaults to centroids_dir/)
+        model_name: Model name for logging
         force_reload: If True, recreate the semantic gate
 
     Returns:

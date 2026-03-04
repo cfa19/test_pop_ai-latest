@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /docs
+    healthCheckPath: /health
     envVars:
       # Supabase
       - key: SUPABASE_URL
@@ -12,29 +12,21 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
-      # OpenAI
+      # LLM API Keys
       - key: OPENAI_API_KEY
         sync: false
-
-      # Voyage AI (Embeddings)
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: VOYAGE_API_KEY
         sync: false
-      - key: EMBED_MODEL
-        value: voyage-3-large
-      - key: EMBED_DIMENSIONS
-        value: "1024"
 
-      # Groq (optional fast chat)
-      - key: GROQ_API_KEY
-        sync: false
-
-      # Chat
+      # Model Configuration
       - key: CHAT_MODEL
         value: gpt-4o-mini
-      - key: CHAT_PROVIDER
-        value: openai
-      - key: EMBED_PROVIDER
-        value: voyage
+      - key: EMBED_MODEL
+        value: voyage-4-large
+      - key: EMBED_DIMENSIONS
+        value: "1024"
 
       # ONNX Token Classifier (downloaded from HuggingFace Hub at startup)
       - key: ONNX_MODELS_PATH
@@ -42,6 +34,16 @@ services:
       - key: HF_REPO_ID
         value: cfa0819/pop-skills-onnx
 
-      # JWT
-      - key: JWT_ALGORITHM
-        value: ES256
+      # Semantic Gate
+      - key: SEMANTIC_GATE_ENABLED
+        value: "true"
+      - key: SEMANTIC_GATE_MODEL
+        value: all-MiniLM-L6-v2
+
+      # Language
+      - key: DEFAULT_LANGUAGE
+        value: fr
+
+      # Frontend
+      - key: NEXT_PUBLIC_BASE_URL
+        value: https://dev.pop-skills.fr

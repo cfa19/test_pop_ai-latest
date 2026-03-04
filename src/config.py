@@ -88,10 +88,6 @@ ONNX_MODELS_PATH = os.getenv("ONNX_MODELS_PATH", "training/models_onnx")
 # Semantic gate settings (Stage 1 filtering)
 SEMANTIC_GATE_ENABLED = os.getenv("SEMANTIC_GATE_ENABLED", "true").lower() in ("true", "1", "yes")
 SEMANTIC_GATE_MODEL = os.getenv("SEMANTIC_GATE_MODEL", "all-MiniLM-L6-v2")
-SEMANTIC_GATE_TUNING_PATH = os.getenv("SEMANTIC_GATE_TUNING_PATH", "training/results/semantic_gate_tuning.json")
-# Use only cached model (no network). Set to "true" for offline; model must be in cache_folder first.
-SEMANTIC_GATE_LOCAL_FILES_ONLY = os.getenv("SEMANTIC_GATE_LOCAL_FILES_ONLY", "false").lower() in ("true", "1", "yes")
-SEMANTIC_GATE_MODEL_PATH = os.getenv("SEMANTIC_GATE_MODEL_PATH", "training/models/sentence_transformers")
 
 # Language detection (optional FastText model for redundancy)
 LANG_DETECT_FASTTEXT_MODEL_PATH = os.getenv("LANG_DETECT_FASTTEXT_MODEL_PATH", "")  # e.g. "data/lid.176.bin"
