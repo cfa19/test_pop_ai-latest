@@ -1,9 +1,8 @@
 """
-Runner Extraction — 3-tier pipeline for extracting memory cards from activity completions.
+Runner Extraction — pipeline for extracting memory cards from activity completions.
 
 Tier 1: _ai_context.data_semantics → deterministic extraction using canonical_target mapping
-Tier 2: journey_contributions → mapped cards via JOURNEY_MAPPING rules (deterministic)
-Tier 3: LLM fallback → uses EXTRACTION_SCHEMAS from chat flow for remaining data
+Tier 2: LLM fallback → uses EXTRACTION_SCHEMAS from chat flow for remaining data
 """
 
 import asyncio
@@ -43,115 +42,6 @@ _CANONICAL_TARGET_ALIASES = {
 
 
 # =============================================================================
-# Tier 2: Journey Contributions → Memory Card mapping
-# path → (card_type, confidence)
-# =============================================================================
-
-JOURNEY_MAPPING = {
-    # professional domain
-    "professional.profile":                ("experience", 0.90),
-    "professional.unique_value_proposition": ("trait", 0.85),
-    "professional.skills_positioning":     ("competence", 0.85),
-    "professional.positioning_assessment": ("trait", 0.80),
-    "professional.development_plan":       ("aspiration", 0.85),
-    "professional.development_priorities": ("aspiration", 0.85),
-    "professional.career_goals":           ("aspiration", 0.90),
-    "professional.mini_bilan":             ("trait", 0.85),
-    "professional.market_awareness":       ("competence", 0.80),
-    "professional.market_positioning":     ("trait", 0.80),
-    "professional.certification":          ("experience", 0.90),
-    "professional.validations":            ("competence", 0.85),
-    "professional.negotiation":            ("competence", 0.85),
-    "professional.objection_handling":     ("competence", 0.85),
-    "professional.visibility":             ("competence", 0.80),
-    "professional.personal_branding":      ("aspiration", 0.80),
-    "professional.montee_competences":     ("competence", 0.85),
-    "professional.job_assessments":        ("experience", 0.85),
-    "professional.career_clarity":         ("aspiration", 0.85),
-    "professional.project":               ("experience", 0.85),
-    "professional.activation_readiness":   ("trait", 0.80),
-    "professional.research":              ("competence", 0.75),
-    "professional.positioning":           ("trait", 0.80),
-    "professional.priorities":            ("aspiration", 0.85),
-    "professional.kpis":                  ("aspiration", 0.80),
-    "professional.patterns":              ("competence", 0.85),
-    # personal domain
-    "personal.vision_6m":                 ("aspiration", 0.85),
-    "personal.goals":                     ("aspiration", 0.85),
-    "personal.motivations":               ("trait", 0.85),
-    "personal.engagement_baseline":       ("emotion", 0.80),
-    "personal.perceived_obstacles":       ("trait", 0.85),
-    "personal.action_levers":             ("trait", 0.85),
-    "personal.commitment":                ("trait", 0.80),
-    "personal.keywords":                  ("trait", 0.75),
-    "personal.readiness_signals":         ("aspiration", 0.80),
-    "personal.identityKeywords":          ("trait", 0.80),
-    # social domain
-    "social":                             ("connection", 0.80),
-    "social.circles_mapped":              ("connection", 0.80),
-    "social.priority_contacts_selected":  ("connection", 0.80),
-    "social.total_contacts_identified":   ("connection", 0.75),
-    # psychological domain
-    "psychological.validation":           ("trait", 0.80),
-    "psychological.market_validation":    ("aspiration", 0.80),
-    "psychological.confidence":           ("emotion", 0.80),
-    # learning domain
-    "learning.communication":             ("competence", 0.85),
-    "learning.interview":                 ("competence", 0.85),
-    "learning.autonomie":                 ("competence", 0.80),
-}
-
-CONTENT_TEMPLATES = {
-    "professional.profile":                "Profil professionnel identifié",
-    "professional.unique_value_proposition": "Proposition de valeur unique définie",
-    "professional.skills_positioning":     "Positionnement compétences réalisé",
-    "professional.positioning_assessment": "Évaluation de positionnement complétée",
-    "professional.development_plan":       "Plan de développement à 6 mois défini",
-    "professional.development_priorities": "Priorités de développement identifiées",
-    "professional.career_goals":           "Objectifs de carrière définis",
-    "professional.mini_bilan":             "Mini-bilan express réalisé",
-    "professional.market_awareness":       "Connaissance du marché évaluée",
-    "professional.market_positioning":     "Positionnement marché analysé",
-    "professional.certification":          "Certification: scénario complété",
-    "professional.validations":            "Évidences professionnelles validées",
-    "professional.negotiation":            "Préparation à la négociation réalisée",
-    "professional.objection_handling":     "Gestion des objections préparée",
-    "professional.visibility":             "Audit de visibilité complété",
-    "professional.personal_branding":      "Stratégie de personal branding définie",
-    "professional.montee_competences":     "Plan de montée en compétences établi",
-    "professional.job_assessments":        "Évaluations de postes réalisées",
-    "professional.career_clarity":         "Clarté de trajectoire professionnelle renforcée",
-    "professional.project":               "Projet professionnel évalué",
-    "professional.activation_readiness":   "Préparation à l'activation évaluée",
-    "professional.research":              "Recherche marché réalisée",
-    "professional.positioning":           "Positionnement marché ajusté",
-    "professional.priorities":            "Priorités professionnelles définies",
-    "professional.kpis":                  "KPIs professionnels définis",
-    "professional.patterns":              "Patterns de compétences identifiés",
-    "personal.vision_6m":                 "Vision à 6 mois définie",
-    "personal.goals":                     "Objectifs personnels identifiés",
-    "personal.motivations":               "Motivations identifiées",
-    "personal.engagement_baseline":       "Baseline d'engagement mesurée",
-    "personal.perceived_obstacles":       "Obstacles perçus identifiés",
-    "personal.action_levers":             "Leviers d'action identifiés",
-    "personal.commitment":                "Engagement formalisé",
-    "personal.keywords":                  "Mots-clés personnels identifiés",
-    "personal.readiness_signals":         "Signaux de préparation identifiés",
-    "personal.identityKeywords":          "Mots-clés d'identité identifiés",
-    "social":                             "Réseau professionnel cartographié",
-    "social.circles_mapped":              "Cercles de réseau cartographiés",
-    "social.priority_contacts_selected":  "Contacts prioritaires sélectionnés",
-    "social.total_contacts_identified":   "Contacts totaux identifiés",
-    "psychological.validation":           "Validation de décision complétée",
-    "psychological.market_validation":    "Validation marché réalisée",
-    "psychological.confidence":           "Niveau de confiance évalué",
-    "learning.communication":             "Compétences de communication évaluées",
-    "learning.interview":                 "Préparation aux entretiens réalisée",
-    "learning.autonomie":                 "Niveau d'autonomie évalué",
-}
-
-
-# =============================================================================
 # Helper functions
 # =============================================================================
 
@@ -176,13 +66,6 @@ def _build_source(completion: dict) -> dict:
         "activityId": completion.get("activity_id"),
         "extractedAt": datetime.now(UTC).isoformat(),
     }
-
-
-def _make_tree_content(subcategory: str, value) -> str:
-    """Wrap value in tree-view JSON format: {subcategory: value}."""
-    if isinstance(value, list) and all(isinstance(v, str) for v in value):
-        value = ", ".join(value)
-    return json.dumps({subcategory: value}, ensure_ascii=False, default=str)
 
 
 # =============================================================================
@@ -266,48 +149,7 @@ def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]
 
 
 # =============================================================================
-# Tier 2: journey_contributions → mapped cards
-# =============================================================================
-
-def _extract_tier2(responses: dict, source: dict) -> list[dict]:
-    """Tier 2: deterministic extraction from journey_contributions via JOURNEY_MAPPING."""
-    journey = responses.get("journey_contributions")
-    if not journey or not isinstance(journey, dict):
-        return []
-
-    proposals = []
-    for path, (card_type, confidence) in JOURNEY_MAPPING.items():
-        value = _resolve_nested_path(journey, path)
-        if value is None or value == {} or value == []:
-            continue
-
-        label = CONTENT_TEMPLATES.get(path, path.replace(".", " > ").replace("_", " ").title())
-        content = _make_tree_content(label, value)
-
-        parts = path.split(".", 1)
-        category = parts[0]
-        subcategory = parts[1] if len(parts) > 1 else category
-        title = CONTENT_TEMPLATES.get(path, subcategory.replace("_", " ").title())
-
-        proposals.append({
-            "content": content,
-            "type": card_type,
-            "confidence": confidence,
-            "source": source,
-            "rawData": {"path": path, "value": value},
-            "tags": [category],
-            "linkedContexts": [category, subcategory],
-            "title": title,
-            "status": "proposed",
-        })
-
-    if proposals:
-        logger.info(f"Tier 2: extracted {len(proposals)} cards from journey_contributions")
-    return proposals
-
-
-# =============================================================================
-# Tier 3: LLM fallback — uses same EXTRACTION_SCHEMAS as chat flow
+# Tier 2: LLM fallback — uses same EXTRACTION_SCHEMAS as chat flow
 # =============================================================================
 
 _SKIP_KEYS = {
@@ -347,8 +189,8 @@ If no meaningful data can be extracted, return {{"cards": []}}.
 Do NOT extract dashboard layout, metadata, or technical fields."""
 
 
-async def _extract_tier3(responses: dict, source: dict, already_extracted: set[str]) -> list[dict]:
-    """Tier 3: LLM-based extraction from remaining data not covered by T1/T2."""
+async def _extract_tier2_llm(responses: dict, source: dict, already_extracted: set[str]) -> list[dict]:
+    """Tier 2: LLM-based extraction from remaining data not covered by T1."""
     remaining = {
         k: v for k, v in responses.items()
         if k not in _SKIP_KEYS
@@ -374,7 +216,7 @@ async def _extract_tier3(responses: dict, source: dict, already_extracted: set[s
         )
 
         raw = response.choices[0].message.content
-        logger.info(f"Tier 3: LLM raw response: {raw[:500]}")
+        logger.info(f"Tier 2 LLM: raw response: {raw[:500]}")
         parsed = json.loads(raw)
 
         if isinstance(parsed, list):
@@ -411,13 +253,13 @@ async def _extract_tier3(responses: dict, source: dict, already_extracted: set[s
             })
 
         if proposals:
-            logger.info(f"Tier 3: LLM extracted {len(proposals)} cards")
+            logger.info(f"Tier 2 LLM: extracted {len(proposals)} cards")
 
         await asyncio.sleep(QUEUE_POLL_INTERVAL / 10)
         return proposals
 
     except Exception as e:
-        logger.error(f"Tier 3 LLM extraction failed: {e}")
+        logger.error(f"Tier 2 LLM extraction failed: {e}")
         return []
 
 
@@ -427,7 +269,7 @@ async def _extract_tier3(responses: dict, source: dict, already_extracted: set[s
 
 async def process_completion(completion: dict) -> list[dict]:
     """
-    Process a single activity completion through the 3-tier extraction pipeline.
+    Process a single activity completion through the extraction pipeline.
 
     Args:
         completion: Full activity_completions row (dict with 'responses', 'activity_id', etc.)
@@ -441,16 +283,13 @@ async def process_completion(completion: dict) -> list[dict]:
     # Tier 1: _ai_context.data_semantics (deterministic, no LLM)
     tier1, extracted_paths = _extract_tier1(responses, source)
 
-    # Tier 2: journey_contributions (deterministic, no LLM)
-    tier2 = _extract_tier2(responses, source)
+    proposals = tier1
 
-    proposals = tier1 + tier2
-
-    # Tier 3: LLM fallback (only for data not already extracted by T1/T2)
-    tier3 = []
+    # Tier 2: LLM fallback (only for data not already extracted by T1)
+    tier2 = []
     if not proposals:
-        tier3 = await _extract_tier3(responses, source, extracted_paths)
-        proposals.extend(tier3)
+        tier2 = await _extract_tier2_llm(responses, source, extracted_paths)
+        proposals.extend(tier2)
 
     # Validate all proposals
     valid = [
@@ -466,7 +305,7 @@ async def process_completion(completion: dict) -> list[dict]:
 
     logger.info(
         f"Extraction complete for completion {completion.get('id', '?')}: "
-        f"{len(valid)} valid proposals (T1={len(tier1)}, T2={len(tier2)}, T3={len(tier3)})"
+        f"{len(valid)} valid proposals (T1={len(tier1)}, T2_LLM={len(tier2)})"
     )
 
     return valid
