@@ -330,10 +330,15 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
         )
 
         raw = response.choices[0].message.content
+        logger.info(f"Tier 3: LLM raw response: {raw[:500]}")
         parsed = json.loads(raw)
 
-        # Handle both {"cards": [...]} and [...] formats
-        items = parsed if isinstance(parsed, list) else parsed.get("cards", parsed.get("proposals", []))
+        # Handle {"cards": [...]}, {"proposals": [...]}, {"memoryCards": [...]}, or [...]
+        if isinstance(parsed, list):
+            items = parsed
+        else:
+            # Find the first list value in the response dict
+            items = next((v for v in parsed.values() if isinstance(v, list)), [])
         if not isinstance(items, list):
             items = []
 

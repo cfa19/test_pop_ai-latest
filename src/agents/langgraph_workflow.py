@@ -1000,7 +1000,8 @@ async def information_extraction_node(state: WorkflowState, chat_client: OpenAI)
             logger.info(f"Information Extraction: No data extracted for {category}.{subcategory}, skipping")
             continue
 
-        extracted["content"] = json.dumps(extracted)
+        schema_key = _SUBCATEGORY_ALIASES.get(subcategory, subcategory)
+        extracted["content"] = json.dumps({schema_key: extracted}, ensure_ascii=False)
         extracted["type"] = schema["type"]
 
         extractions.append({

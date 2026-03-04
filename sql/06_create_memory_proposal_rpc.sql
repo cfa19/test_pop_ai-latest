@@ -36,6 +36,18 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  -- Deduplication: if same user + type + content already exists, return existing
+  SELECT id INTO v_card_id
+  FROM memory_cards
+  WHERE user_id = p_user_id
+    AND type = p_type
+    AND content = p_content
+  LIMIT 1;
+
+  IF v_card_id IS NOT NULL THEN
+    RETURN v_card_id;
+  END IF;
+
   INSERT INTO memory_cards (
     user_id, content, type, confidence, source,
     raw_data, tags, linked_contexts, title, status
