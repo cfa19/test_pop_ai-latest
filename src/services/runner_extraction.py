@@ -1,9 +1,9 @@
 """
 Runner Extraction — 3-tier pipeline for extracting memory cards from activity completions.
 
-Tier 1: covered_skills → competence cards (deterministic, no LLM)
-Tier 2: journey_contributions → mapped cards via rules (deterministic, no LLM)
-Tier 3: flat data → LLM extraction (only ~20% of completions)
+Tier 1: _ai_context.data_semantics → deterministic extraction using canonical_target mapping
+Tier 2: journey_contributions → mapped cards via JOURNEY_MAPPING rules (deterministic)
+Tier 3: LLM fallback → uses EXTRACTION_SCHEMAS from chat flow for remaining data
 """
 
 import asyncio
@@ -12,8 +12,35 @@ import logging
 from datetime import UTC, datetime
 
 from src.config import EXTRACTION_MODEL, QUEUE_POLL_INTERVAL, VALID_CARD_TYPES, get_client_by_provider
+from src.schemas import EXTRACTION_SCHEMAS
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# canonical_target → (subcategory_key, card_type)
+# Maps _ai_context canonical targets to the extraction schema keys
+# =============================================================================
+
+_CANONICAL_TO_SCHEMA = {}
+for schema_key, schema in EXTRACTION_SCHEMAS.items():
+    _CANONICAL_TO_SCHEMA[schema_key] = (schema_key, schema["type"])
+
+# Additional mappings for canonical_target formats like "professional.experience"
+_CANONICAL_TARGET_ALIASES = {
+    "professional.experience": ("work_history", "experience"),
+    "professional.aspirations": ("professional_aspirations", "aspiration"),
+    "professional.achievements": ("professional_achievements", "experience"),
+    "professional.strengths": ("work_history", "experience"),
+    "professional.development_priorities": ("professional_aspirations", "aspiration"),
+    "professional.development_plan": ("professional_aspirations", "aspiration"),
+    "learning.knowledge_and_credentials": ("knowledge_and_credentials", "competence"),
+    "learning.languages": ("languages", "competence"),
+    "learning.educationHistory": ("knowledge_and_credentials", "competence"),
+    "personal.personalityProfile": ("mindset_and_values", "emotion"),
+    "personal.personalTraits": ("mindset_and_values", "emotion"),
+    "social.network": ("network_and_networking", "connection"),
+}
+
 
 # =============================================================================
 # Tier 2: Journey Contributions → Memory Card mapping
@@ -48,7 +75,6 @@ JOURNEY_MAPPING = {
     "professional.priorities":            ("aspiration", 0.85),
     "professional.kpis":                  ("aspiration", 0.80),
     "professional.patterns":              ("competence", 0.85),
-
     # personal domain
     "personal.vision_6m":                 ("aspiration", 0.85),
     "personal.goals":                     ("aspiration", 0.85),
@@ -59,41 +85,21 @@ JOURNEY_MAPPING = {
     "personal.commitment":                ("trait", 0.80),
     "personal.keywords":                  ("trait", 0.75),
     "personal.readiness_signals":         ("aspiration", 0.80),
-
-    # social domain (was network)
+    "personal.identityKeywords":          ("trait", 0.80),
+    # social domain
     "social":                             ("connection", 0.80),
     "social.circles_mapped":              ("connection", 0.80),
     "social.priority_contacts_selected":  ("connection", 0.80),
     "social.total_contacts_identified":   ("connection", 0.75),
-
-    # psychological domain (was decision + mindset)
+    # psychological domain
     "psychological.validation":           ("trait", 0.80),
     "psychological.market_validation":    ("aspiration", 0.80),
     "psychological.confidence":           ("emotion", 0.80),
-
-    # learning domain (was skills + autonomie)
+    # learning domain
     "learning.communication":             ("competence", 0.85),
     "learning.interview":                 ("competence", 0.85),
     "learning.autonomie":                 ("competence", 0.80),
-
-    # legacy keys (pre POP-539, still in old completions)
-    "network":                            ("connection", 0.80),
-    "network.circles_mapped":             ("connection", 0.80),
-    "network.priority_contacts_selected": ("connection", 0.80),
-    "network.total_contacts_identified":  ("connection", 0.75),
-    "market.research":                    ("competence", 0.75),
-    "market.positioning":                 ("trait", 0.80),
-    "decision.validation":                ("trait", 0.80),
-    "decision.market_validation":         ("aspiration", 0.80),
-    "skills.communication":               ("competence", 0.85),
-    "skills.interview":                   ("competence", 0.85),
-    "autonomie":                          ("competence", 0.80),
-    "mindset.confidence":                 ("emotion", 0.80),
 }
-
-# =============================================================================
-# Tier 2: Content templates (French)
-# =============================================================================
 
 CONTENT_TEMPLATES = {
     "professional.profile":                "Profil professionnel identifié",
@@ -131,6 +137,7 @@ CONTENT_TEMPLATES = {
     "personal.commitment":                "Engagement formalisé",
     "personal.keywords":                  "Mots-clés personnels identifiés",
     "personal.readiness_signals":         "Signaux de préparation identifiés",
+    "personal.identityKeywords":          "Mots-clés d'identité identifiés",
     "social":                             "Réseau professionnel cartographié",
     "social.circles_mapped":              "Cercles de réseau cartographiés",
     "social.priority_contacts_selected":  "Contacts prioritaires sélectionnés",
@@ -141,19 +148,6 @@ CONTENT_TEMPLATES = {
     "learning.communication":             "Compétences de communication évaluées",
     "learning.interview":                 "Préparation aux entretiens réalisée",
     "learning.autonomie":                 "Niveau d'autonomie évalué",
-    # legacy keys
-    "network":                            "Réseau professionnel cartographié",
-    "network.circles_mapped":             "Cercles de réseau cartographiés",
-    "network.priority_contacts_selected": "Contacts prioritaires sélectionnés",
-    "network.total_contacts_identified":  "Contacts totaux identifiés",
-    "market.research":                    "Recherche marché réalisée",
-    "market.positioning":                 "Positionnement marché analysé",
-    "decision.validation":                "Validation de décision complétée",
-    "decision.market_validation":         "Validation marché réalisée",
-    "skills.communication":               "Compétences de communication évaluées",
-    "skills.interview":                   "Préparation aux entretiens réalisée",
-    "autonomie":                          "Niveau d'autonomie évalué",
-    "mindset.confidence":                 "Niveau de confiance évalué",
 }
 
 
@@ -172,27 +166,8 @@ def _resolve_nested_path(data: dict, path: str):
     return current
 
 
-def _generate_content(path: str, value) -> str:
-    """Generate JSON content matching the chat flow tree-view format.
-
-    The frontend renders content as a tree view when it's valid JSON
-    wrapped as {subcategory: fields}. Arrays of strings are joined
-    into readable comma-separated values. The CONTENT_TEMPLATES label
-    is used as key for better readability.
-    """
-    label = CONTENT_TEMPLATES.get(
-        path, path.replace(".", " > ").replace("_", " ").title()
-    )
-
-    # Arrays of strings → join into readable comma-separated text
-    if isinstance(value, list) and all(isinstance(v, str) for v in value):
-        value = ", ".join(value)
-
-    return json.dumps({label: value}, ensure_ascii=False, default=str)
-
-
 def _build_source(completion: dict) -> dict:
-    """Build POP-507 source object from completion record."""
+    """Build source object from completion record."""
     responses = completion.get("responses") or {}
     metadata = responses.get("_runner_metadata") or {}
     return {
@@ -203,37 +178,91 @@ def _build_source(completion: dict) -> dict:
     }
 
 
+def _make_tree_content(subcategory: str, value) -> str:
+    """Wrap value in tree-view JSON format: {subcategory: value}."""
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        value = ", ".join(value)
+    return json.dumps({subcategory: value}, ensure_ascii=False, default=str)
+
+
 # =============================================================================
-# Tier 1: covered_skills → competence cards
+# Tier 1: _ai_context.data_semantics → direct extraction (no LLM)
 # =============================================================================
 
-def _extract_tier1(responses: dict, source: dict) -> list[dict]:
-    """Tier 1: deterministic extraction from covered_skills (RNCP codes)."""
-    covered_skills = responses.get("covered_skills", [])
-    if not covered_skills or not isinstance(covered_skills, list):
-        return []
+def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]:
+    """Tier 1: deterministic extraction using _ai_context.data_semantics.
+
+    Returns:
+        (proposals, extracted_paths) — extracted_paths are data paths already covered
+    """
+    ai_context = responses.get("_ai_context")
+    if not ai_context or not isinstance(ai_context, dict):
+        return [], set()
+
+    semantics = ai_context.get("data_semantics")
+    if not semantics or not isinstance(semantics, dict):
+        return [], set()
 
     proposals = []
-    for skill in covered_skills:
-        if not isinstance(skill, dict) or "code" not in skill:
+    extracted_paths = set()
+
+    for data_path, meta in semantics.items():
+        if not isinstance(meta, dict):
             continue
-        code = skill["code"]
-        level = skill.get("level", 1)
-        proposals.append({
-            "content": json.dumps({f"Compétence RNCP {code}": {"code": code, "niveau": level}}, ensure_ascii=False),
-            "type": "competence",
-            "confidence": 0.95,
-            "source": source,
-            "rawData": skill,
-            "tags": ["rncp", code],
-            "linkedContexts": ["learning", "knowledge_and_credentials"],
-            "title": f"Compétence RNCP {code}",
-            "status": "proposed",
-        })
+
+        canonical = meta.get("canonical_target", "")
+        if not canonical:
+            continue
+
+        # Resolve the data path to get the actual value
+        value = _resolve_nested_path(responses, data_path)
+        if value is None or value == {} or value == []:
+            continue
+
+        # Find the schema key and card type from canonical target
+        schema_key, card_type = _CANONICAL_TARGET_ALIASES.get(
+            canonical,
+            _CANONICAL_TO_SCHEMA.get(canonical.split(".")[-1], (None, None))
+        )
+        if not schema_key or card_type not in VALID_CARD_TYPES:
+            continue
+
+        # Handle lists (e.g., cvData.experiences is a list of jobs)
+        items_to_process = value if isinstance(value, list) else [value]
+
+        for item in items_to_process:
+            if isinstance(item, dict):
+                # Filter out empty/null fields
+                clean = {k: v for k, v in item.items()
+                         if v is not None and v != "" and v != "null"
+                         and k not in ("id", "metadata", "_ai_label")}
+                if not clean:
+                    continue
+                content = json.dumps({schema_key: clean}, ensure_ascii=False)
+                title = schema_key.replace("_", " ").title()
+            elif isinstance(item, str) and item.strip():
+                content = json.dumps({schema_key: item}, ensure_ascii=False)
+                title = schema_key.replace("_", " ").title()
+            else:
+                continue
+
+            proposals.append({
+                "content": content,
+                "type": card_type,
+                "confidence": 0.85,
+                "source": source,
+                "rawData": {"data_path": data_path, "canonical_target": canonical},
+                "tags": [canonical.split(".")[0]] if "." in canonical else [],
+                "linkedContexts": canonical.split(".") if "." in canonical else [],
+                "title": title,
+                "status": "proposed",
+            })
+
+        extracted_paths.add(data_path)
 
     if proposals:
-        logger.info(f"Tier 1: extracted {len(proposals)} competence cards from covered_skills")
-    return proposals
+        logger.info(f"Tier 1: extracted {len(proposals)} cards from _ai_context.data_semantics")
+    return proposals, extracted_paths
 
 
 # =============================================================================
@@ -251,11 +280,15 @@ def _extract_tier2(responses: dict, source: dict) -> list[dict]:
         value = _resolve_nested_path(journey, path)
         if value is None or value == {} or value == []:
             continue
-        content = _generate_content(path, value)
+
+        label = CONTENT_TEMPLATES.get(path, path.replace(".", " > ").replace("_", " ").title())
+        content = _make_tree_content(label, value)
+
         parts = path.split(".", 1)
         category = parts[0]
         subcategory = parts[1] if len(parts) > 1 else category
         title = CONTENT_TEMPLATES.get(path, subcategory.replace("_", " ").title())
+
         proposals.append({
             "content": content,
             "type": card_type,
@@ -274,7 +307,7 @@ def _extract_tier2(responses: dict, source: dict) -> list[dict]:
 
 
 # =============================================================================
-# Tier 3: flat data → LLM extraction
+# Tier 3: LLM fallback — uses same EXTRACTION_SCHEMAS as chat flow
 # =============================================================================
 
 _SKIP_KEYS = {
@@ -282,10 +315,18 @@ _SKIP_KEYS = {
     "covered_skills", "journey_contributions",
     "dashboard_data", "dashboard_summary",
     "completed_at", "duration_ms", "credits_consumed",
-    "version",
+    "version", "report_html",
 }
 
-LLM_SYSTEM_PROMPT = """You are a memory card extractor for a career coaching platform.
+
+def _build_llm_prompt() -> str:
+    """Build LLM system prompt from EXTRACTION_SCHEMAS (same schemas as chat)."""
+    schema_lines = []
+    for key, schema in EXTRACTION_SCHEMAS.items():
+        fields = ", ".join(schema["fields"])
+        schema_lines.append(f"{key} (type={schema['type']}): {{{fields}}}")
+
+    return f"""You are a memory card extractor for a career coaching platform.
 Extract memory card proposals from this runner completion data.
 
 Each card must have:
@@ -297,46 +338,35 @@ Each card must have:
 
 Subcategories and their schemas:
 
-work_history (type=experience): {role, company, isCurrent, startDate, endDate, responsibilities, achievements}
-professional_aspirations (type=aspiration): {dreamRole, targetCompany, targetIndustry, targetTimeframe, skillGapsToAddress}
-professional_achievements (type=experience): {type, title, organization, date, description}
-knowledge_and_credentials (type=competence): {type, name, level, yearsExperience, institution}
-languages (type=competence): {language, proficiency, certification}
-learning_agenda (type=aspiration): {gapOrGoal, description, targetDate, preferredFormat}
-network_and_networking (type=connection): {type, name, role, organization, engagementLevel, networkingGoal}
-mentorship (type=connection): {direction, name, role, organization, guidanceAreas}
-emotional_state (type=emotion): {dimension, context, intensity, duration}
-mindset_and_values (type=emotion): {category, value, strength, description}
+{chr(10).join(schema_lines)}
 
-Return a JSON object: {"cards": [...]}
-Each card: {"subcategory": "...", "fields": {...}, "type": "...", "confidence": 0.75, "tags": [...]}
+Return a JSON object: {{"cards": [...]}}
+Each card: {{"subcategory": "...", "fields": {{...}}, "type": "...", "confidence": 0.75, "tags": [...]}}
 Only fill fields that have actual data. Omit fields with no data.
-If no meaningful data can be extracted, return {"cards": []}.
+If no meaningful data can be extracted, return {{"cards": []}}.
 Do NOT extract dashboard layout, metadata, or technical fields."""
 
 
-async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
-    """Tier 3: LLM-based extraction from remaining flat data."""
+async def _extract_tier3(responses: dict, source: dict, already_extracted: set[str]) -> list[dict]:
+    """Tier 3: LLM-based extraction from remaining data not covered by T1/T2."""
     remaining = {
         k: v for k, v in responses.items()
-        if k not in _SKIP_KEYS and v is not None and v != {} and v != []
+        if k not in _SKIP_KEYS
+        and k not in already_extracted
+        and v is not None and v != {} and v != []
     }
 
     if not remaining:
         return []
 
-    # Include _ai_context if available for better extraction
-    ai_context = responses.get("_ai_context")
     user_prompt = f"Runner completion data:\n{json.dumps(remaining, ensure_ascii=False, default=str)}"
-    if ai_context:
-        user_prompt += f"\n\nSemantic annotations:\n{json.dumps(ai_context, ensure_ascii=False, default=str)}"
 
     try:
         client = get_client_by_provider("openai")
         response = client.chat.completions.create(
             model=EXTRACTION_MODEL,
             messages=[
-                {"role": "system", "content": LLM_SYSTEM_PROMPT},
+                {"role": "system", "content": _build_llm_prompt()},
                 {"role": "user", "content": user_prompt},
             ],
             response_format={"type": "json_object"},
@@ -347,11 +377,9 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
         logger.info(f"Tier 3: LLM raw response: {raw[:500]}")
         parsed = json.loads(raw)
 
-        # Handle {"cards": [...]}, {"proposals": [...]}, {"memoryCards": [...]}, or [...]
         if isinstance(parsed, list):
             items = parsed
         else:
-            # Find the first list value in the response dict
             items = next((v for v in parsed.values() if isinstance(v, list)), [])
         if not isinstance(items, list):
             items = []
@@ -385,9 +413,7 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
         if proposals:
             logger.info(f"Tier 3: LLM extracted {len(proposals)} cards")
 
-        # Rate limiting: avoid hitting OpenAI RPM limits
         await asyncio.sleep(QUEUE_POLL_INTERVAL / 10)
-
         return proposals
 
     except Exception as e:
@@ -412,18 +438,18 @@ async def process_completion(completion: dict) -> list[dict]:
     responses = completion.get("responses") or {}
     source = _build_source(completion)
 
-    # Tier 1: covered_skills (deterministic)
-    tier1 = _extract_tier1(responses, source)
+    # Tier 1: _ai_context.data_semantics (deterministic, no LLM)
+    tier1, extracted_paths = _extract_tier1(responses, source)
 
-    # Tier 2: journey_contributions (deterministic)
+    # Tier 2: journey_contributions (deterministic, no LLM)
     tier2 = _extract_tier2(responses, source)
 
     proposals = tier1 + tier2
 
-    # Tier 3: LLM extraction (only if Tiers 1-2 didn't cover the data)
+    # Tier 3: LLM fallback (only for data not already extracted by T1/T2)
     tier3 = []
-    if not proposals or not tier2:
-        tier3 = await _extract_tier3(responses, source)
+    if not proposals:
+        tier3 = await _extract_tier3(responses, source, extracted_paths)
         proposals.extend(tier3)
 
     # Validate all proposals
