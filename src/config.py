@@ -95,9 +95,9 @@ LANG_DETECT_FASTTEXT_MODEL_PATH = os.getenv("LANG_DETECT_FASTTEXT_MODEL_PATH", "
 # Allowed languages (ISO 639-1 codes). Only these are considered; others fall back to "en".
 # Comma-separated, e.g. "en,es,fr,de,pt,it,nl,pl,ru,ar,zh,ja,ko,hi". "en" is always included.
 _LANG_DETECT_ALLOWED_RAW = os.getenv("LANG_DETECT_ALLOWED_LANGUAGES", "en,es,fr")
-LANG_DETECT_ALLOWED_LANGUAGES: frozenset[str] = frozenset(
-    c.strip().lower()[:2] for c in _LANG_DETECT_ALLOWED_RAW.split(",") if c.strip()
-) | frozenset({"en"})
+LANG_DETECT_ALLOWED_LANGUAGES: frozenset[str] = frozenset(c.strip().lower()[:2] for c in _LANG_DETECT_ALLOWED_RAW.split(",") if c.strip()) | frozenset(
+    {"en"}
+)
 # Map language code to full name
 LANGUAGE_NAMES = {
     "en": "English",
@@ -138,10 +138,17 @@ VERBOSE_MODE = False
 
 RRF_K = 60
 
-VALID_CARD_TYPES = frozenset({
-    "competence", "experience", "preference", "aspiration",
-    "trait", "emotion", "connection",
-})
+VALID_CARD_TYPES = frozenset(
+    {
+        "competence",
+        "experience",
+        "preference",
+        "aspiration",
+        "trait",
+        "emotion",
+        "connection",
+    }
+)
 
 
 class Tables:
@@ -242,9 +249,7 @@ def get_client_by_provider(provider: str):
         try:
             import anthropic  # type: ignore[import-untyped]
         except ImportError as exc:
-            raise ImportError(
-                "anthropic SDK not installed. Run: pip install anthropic"
-            ) from exc
+            raise ImportError("anthropic SDK not installed. Run: pip install anthropic") from exc
         if not ANTHROPIC_API_KEY:
             raise ValueError("ANTHROPIC_API_KEY is not set in the environment.")
         return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -253,15 +258,10 @@ def get_client_by_provider(provider: str):
         try:
             import google.generativeai as genai  # type: ignore[import-untyped]
         except ImportError as exc:
-            raise ImportError(
-                "google-generativeai SDK not installed. Run: pip install google-generativeai"
-            ) from exc
+            raise ImportError("google-generativeai SDK not installed. Run: pip install google-generativeai") from exc
         if not GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY is not set in the environment.")
         genai.configure(api_key=GOOGLE_API_KEY)
         return genai
 
-    raise ValueError(
-        f"Unsupported provider: '{provider}'. "
-        "Must be one of: 'openai', 'voyage', 'anthropic', 'google'."
-    )
+    raise ValueError(f"Unsupported provider: '{provider}'. Must be one of: 'openai', 'voyage', 'anthropic', 'google'.")

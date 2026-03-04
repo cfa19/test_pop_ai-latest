@@ -28,13 +28,7 @@ async def process_queue_item(queue_item: dict) -> str:
     # 1. Fetch full completion record
     try:
         supabase = get_supabase()
-        result = (
-            supabase.table(Tables.ACTIVITY_COMPLETIONS)
-            .select("*")
-            .eq("id", completion_id)
-            .limit(1)
-            .execute()
-        )
+        result = supabase.table(Tables.ACTIVITY_COMPLETIONS).select("*").eq("id", completion_id).limit(1).execute()
         if not result.data:
             logger.warning(f"Completion {completion_id} not found")
             return "failed"

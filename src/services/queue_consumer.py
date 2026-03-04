@@ -40,10 +40,7 @@ class QueueConsumer:
     async def start(self):
         """Start the consumer loop. Called from FastAPI lifespan."""
         self._running = True
-        logger.info(
-            f"QueueConsumer started (safety-poll={self.poll_interval}s, "
-            f"batch={self.batch_size}, retries={self.max_retries})"
-        )
+        logger.info(f"QueueConsumer started (safety-poll={self.poll_interval}s, batch={self.batch_size}, retries={self.max_retries})")
         while self._running:
             try:
                 processed = await self._poll_batch()
@@ -73,10 +70,13 @@ class QueueConsumer:
         """Fetch and process a batch of pending items. Returns count processed."""
         try:
             supabase = get_supabase()
-            items = supabase.rpc(RPCFunctions.CLAIM_EXTRACTION_BATCH, {
-                "batch_size": self.batch_size,
-                "max_retries": self.max_retries,
-            }).execute()
+            items = supabase.rpc(
+                RPCFunctions.CLAIM_EXTRACTION_BATCH,
+                {
+                    "batch_size": self.batch_size,
+                    "max_retries": self.max_retries,
+                },
+            ).execute()
         except Exception as e:
             logger.error(f"Failed to claim batch: {e}")
             return 0
@@ -90,17 +90,21 @@ class QueueConsumer:
             now = datetime.now(UTC).isoformat()
             try:
                 status = await runner_orchestrator.process_queue_item(item)
-                supabase.table(Tables.MEMORY_EXTRACTION_QUEUE).update({
-                    "status": status,
-                    "completed_at": now,
-                }).eq("id", item["id"]).execute()
+                supabase.table(Tables.MEMORY_EXTRACTION_QUEUE).update(
+                    {
+                        "status": status,
+                        "completed_at": now,
+                    }
+                ).eq("id", item["id"]).execute()
                 logger.info(f"Queue item {item['id']}: {status}")
             except Exception as e:
                 logger.error(f"Processing failed for queue item {item['id']}: {e}")
-                supabase.table(Tables.MEMORY_EXTRACTION_QUEUE).update({
-                    "status": "failed",
-                    "attempts": item.get("attempts", 0) + 1,
-                    "last_error": str(e)[:500],
-                }).eq("id", item["id"]).execute()
+                supabase.table(Tables.MEMORY_EXTRACTION_QUEUE).update(
+                    {
+                        "status": "failed",
+                        "attempts": item.get("attempts", 0) + 1,
+                        "last_error": str(e)[:500],
+                    }
+                ).eq("id", item["id"]).execute()
 
         return len(items.data)

@@ -240,11 +240,7 @@ def search_user_memory(
         },
     ).execute()
 
-    return [
-        {"id": r["id"], "content": r["content"], "similarity": r["similarity"]}
-        for r in result.data
-        if r["similarity"] >= similarity_threshold
-    ]
+    return [{"id": r["id"], "content": r["content"], "similarity": r["similarity"]} for r in result.data if r["similarity"] >= similarity_threshold]
 
 
 def generate_conversation_id() -> str:

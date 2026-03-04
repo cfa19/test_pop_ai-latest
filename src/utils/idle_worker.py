@@ -57,6 +57,7 @@ _IDLE_POLL_INTERVAL: int = 30
 # Request tracking helpers (called by middleware)
 # ---------------------------------------------------------------------------
 
+
 def notify_request_start() -> None:
     """Signal that an API request has started.  Pauses the idle worker."""
     global _active_requests
@@ -79,6 +80,7 @@ def notify_request_end() -> None:
 # ---------------------------------------------------------------------------
 # Idle worker loop
 # ---------------------------------------------------------------------------
+
 
 async def _idle_worker_loop() -> None:
     """Main loop: wait until idle, then process one full pass of unprocessed
@@ -107,8 +109,8 @@ async def _idle_worker_loop() -> None:
             # ── Run one full pass across all unprocessed messages ─────────
             logger.debug("[IDLE] Running background span pipeline pass...")
 
-            supabase     = get_supabase()
-            chat_client  = get_openai()
+            supabase = get_supabase()
+            chat_client = get_openai()
             embed_client = get_client_by_provider(embed_provider)
 
             await run_span_pipeline_background(
@@ -143,6 +145,7 @@ async def _idle_worker_loop() -> None:
 # ---------------------------------------------------------------------------
 # Lifecycle helpers (called from main.py)
 # ---------------------------------------------------------------------------
+
 
 def start_idle_worker() -> None:
     """Create and schedule the idle worker task.  Must be called after the

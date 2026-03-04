@@ -29,21 +29,15 @@ def get_queue_consumer() -> QueueConsumer | None:
     """Return the running QueueConsumer instance (used by webhooks)."""
     return _queue_consumer
 
+
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # ===============================
 # FASTAPI APP
 # ===============================
-app = FastAPI(
-    title="Pop Skills Chatbot API",
-    description="API for the chatbot with RAG",
-    version="1.0.0"
-)
+app = FastAPI(title="Pop Skills Chatbot API", description="API for the chatbot with RAG", version="1.0.0")
 
 
 def download_models_from_hf(local_dir: str):
@@ -64,6 +58,7 @@ def download_models_from_hf(local_dir: str):
     logger.info(f"Downloading ONNX models from huggingface.co/{hf_repo} → {local_dir}...")
     try:
         from huggingface_hub import snapshot_download
+
         snapshot_download(
             repo_id=hf_repo,
             local_dir=local_dir,
@@ -174,6 +169,7 @@ async def track_active_requests(request: Request, call_next):
         return await call_next(request)
     finally:
         notify_request_end()
+
 
 # Allow CORS (for the frontend to call the backend)
 app.add_middleware(

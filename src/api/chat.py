@@ -67,13 +67,13 @@ async def chat(request_body: ChatRequest, request: Request):
     # Step 2: Process chat message with conversation memory
     try:
         # Model and provider config comes from environment variables
-        embed_model    = config.EMBED_MODEL
+        embed_model = config.EMBED_MODEL
         embed_provider = detect_provider(embed_model)
-        chat_model     = config.CHAT_MODEL
-        chat_provider  = detect_provider(chat_model)
+        chat_model = config.CHAT_MODEL
+        chat_provider = detect_provider(chat_model)
 
         embed_client = get_client_by_provider(embed_provider)
-        chat_client  = get_client_by_provider(chat_provider)
+        chat_client = get_client_by_provider(chat_provider)
 
         # Generate conversation_id if not provided
         conversation_id = request_body.conversation_id or generate_conversation_id()
@@ -122,10 +122,7 @@ async def chat(request_body: ChatRequest, request: Request):
         # Step 5: Store conversation (embedding only for worthy messages)
         # Use intent classifier result to decide: CHITCHAT and OFF_TOPIC don't need embeddings
         # When classification is missing, assume the message is worthy (embed it)
-        is_worthy = (
-            unified_classification is None
-            or unified_classification.category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
-        )
+        is_worthy = unified_classification is None or unified_classification.category not in (MessageCategory.CHITCHAT, MessageCategory.OFF_TOPIC)
 
         if is_worthy:
             # User message WITH embedding (for RAG search)

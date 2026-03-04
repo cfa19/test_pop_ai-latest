@@ -45,6 +45,7 @@ _CANONICAL_TARGET_ALIASES = {
 # Helper functions
 # =============================================================================
 
+
 def _resolve_nested_path(data: dict, path: str):
     """Resolve 'a.b.c' into data['a']['b']['c']."""
     keys = path.split(".")
@@ -71,6 +72,7 @@ def _build_source(completion: dict) -> dict:
 # =============================================================================
 # Tier 1: _ai_context.data_semantics → direct extraction (no LLM)
 # =============================================================================
+
 
 def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]:
     """Tier 1: deterministic extraction using _ai_context.data_semantics.
@@ -103,10 +105,7 @@ def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]
             continue
 
         # Find the schema key and card type from canonical target
-        schema_key, card_type = _CANONICAL_TARGET_ALIASES.get(
-            canonical,
-            _CANONICAL_TO_SCHEMA.get(canonical.split(".")[-1], (None, None))
-        )
+        schema_key, card_type = _CANONICAL_TARGET_ALIASES.get(canonical, _CANONICAL_TO_SCHEMA.get(canonical.split(".")[-1], (None, None)))
         if not schema_key or card_type not in VALID_CARD_TYPES:
             continue
 
@@ -116,9 +115,7 @@ def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]
         for item in items_to_process:
             if isinstance(item, dict):
                 # Filter out empty/null fields
-                clean = {k: v for k, v in item.items()
-                         if v is not None and v != "" and v != "null"
-                         and k not in ("id", "metadata", "_ai_label")}
+                clean = {k: v for k, v in item.items() if v is not None and v != "" and v != "null" and k not in ("id", "metadata", "_ai_label")}
                 if not clean:
                     continue
                 content = json.dumps({schema_key: clean}, ensure_ascii=False)
@@ -129,17 +126,19 @@ def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]
             else:
                 continue
 
-            proposals.append({
-                "content": content,
-                "type": card_type,
-                "confidence": 0.85,
-                "source": source,
-                "rawData": {"data_path": data_path, "canonical_target": canonical},
-                "tags": [canonical.split(".")[0]] if "." in canonical else [],
-                "linkedContexts": canonical.split(".") if "." in canonical else [],
-                "title": title,
-                "status": "proposed",
-            })
+            proposals.append(
+                {
+                    "content": content,
+                    "type": card_type,
+                    "confidence": 0.85,
+                    "source": source,
+                    "rawData": {"data_path": data_path, "canonical_target": canonical},
+                    "tags": [canonical.split(".")[0]] if "." in canonical else [],
+                    "linkedContexts": canonical.split(".") if "." in canonical else [],
+                    "title": title,
+                    "status": "proposed",
+                }
+            )
 
         extracted_paths.add(data_path)
 
@@ -153,11 +152,19 @@ def _extract_tier1(responses: dict, source: dict) -> tuple[list[dict], set[str]]
 # =============================================================================
 
 _SKIP_KEYS = {
-    "_runner_metadata", "_metadata", "_ai_context", "_activity_context",
-    "covered_skills", "journey_contributions",
-    "dashboard_data", "dashboard_summary",
-    "completed_at", "duration_ms", "credits_consumed",
-    "version", "report_html",
+    "_runner_metadata",
+    "_metadata",
+    "_ai_context",
+    "_activity_context",
+    "covered_skills",
+    "journey_contributions",
+    "dashboard_data",
+    "dashboard_summary",
+    "completed_at",
+    "duration_ms",
+    "credits_consumed",
+    "version",
+    "report_html",
 }
 
 
@@ -191,12 +198,7 @@ Do NOT extract dashboard layout, metadata, or technical fields."""
 
 async def _extract_tier2_llm(responses: dict, source: dict, already_extracted: set[str]) -> list[dict]:
     """Tier 2: LLM-based extraction from remaining data not covered by T1."""
-    remaining = {
-        k: v for k, v in responses.items()
-        if k not in _SKIP_KEYS
-        and k not in already_extracted
-        and v is not None and v != {} and v != []
-    }
+    remaining = {k: v for k, v in responses.items() if k not in _SKIP_KEYS and k not in already_extracted and v is not None and v != {} and v != []}
 
     if not remaining:
         return []
@@ -240,17 +242,19 @@ async def _extract_tier2_llm(responses: dict, source: dict, already_extracted: s
             # Tree-view JSON: {subcategory: {field: value, ...}} — same as chat flow
             content_tree = json.dumps({subcategory: fields}, ensure_ascii=False)
             title = subcategory.replace("_", " ").title()
-            proposals.append({
-                "content": content_tree,
-                "type": card_type,
-                "confidence": min(max(float(item.get("confidence", 0.75)), 0.0), 1.0),
-                "source": source,
-                "rawData": {"llm_extracted": True, "original_keys": list(remaining.keys())},
-                "tags": item.get("tags", [])[:3],
-                "linkedContexts": item.get("linkedContexts", []),
-                "title": title,
-                "status": "proposed",
-            })
+            proposals.append(
+                {
+                    "content": content_tree,
+                    "type": card_type,
+                    "confidence": min(max(float(item.get("confidence", 0.75)), 0.0), 1.0),
+                    "source": source,
+                    "rawData": {"llm_extracted": True, "original_keys": list(remaining.keys())},
+                    "tags": item.get("tags", [])[:3],
+                    "linkedContexts": item.get("linkedContexts", []),
+                    "title": title,
+                    "status": "proposed",
+                }
+            )
 
         if proposals:
             logger.info(f"Tier 2 LLM: extracted {len(proposals)} cards")
@@ -266,6 +270,7 @@ async def _extract_tier2_llm(responses: dict, source: dict, already_extracted: s
 # =============================================================================
 # Main entry point
 # =============================================================================
+
 
 async def process_completion(completion: dict) -> list[dict]:
     """
@@ -293,19 +298,14 @@ async def process_completion(completion: dict) -> list[dict]:
 
     # Validate all proposals
     valid = [
-        p for p in proposals
-        if p.get("type") in VALID_CARD_TYPES
-        and p.get("content")
-        and isinstance(p.get("confidence"), (int, float))
-        and 0 <= p["confidence"] <= 1
+        p
+        for p in proposals
+        if p.get("type") in VALID_CARD_TYPES and p.get("content") and isinstance(p.get("confidence"), (int, float)) and 0 <= p["confidence"] <= 1
     ]
     dropped = len(proposals) - len(valid)
     if dropped:
         logger.warning(f"Dropped {dropped} invalid proposals")
 
-    logger.info(
-        f"Extraction complete for completion {completion.get('id', '?')}: "
-        f"{len(valid)} valid proposals (T1={len(tier1)}, T2_LLM={len(tier2)})"
-    )
+    logger.info(f"Extraction complete for completion {completion.get('id', '?')}: {len(valid)} valid proposals (T1={len(tier1)}, T2_LLM={len(tier2)})")
 
     return valid

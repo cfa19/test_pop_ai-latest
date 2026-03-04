@@ -23,11 +23,9 @@ carry no structured user-profile data to extract.
 # =============================================================================
 
 EXTRACTION_SCHEMAS = {
-
     # ==========================================================================
     # PROFESSIONAL CONTEXT
     # ==========================================================================
-
     "work_history": {
         "task": (
             "Extract all current and past work roles mentioned. "
@@ -36,13 +34,19 @@ EXTRACTION_SCHEMAS = {
             "key responsibilities, and notable achievements or impact."
         ),
         "fields": [
-            "role", "company", "isCurrent", "startDate", "endDate",
-            "department", "compensation", "responsibilities", "achievements",
+            "role",
+            "company",
+            "isCurrent",
+            "startDate",
+            "endDate",
+            "department",
+            "compensation",
+            "responsibilities",
+            "achievements",
             "location",
         ],
         "type": "experience",
     },
-
     "professional_aspirations": {
         "task": (
             "Extract career aspirations and future plans: desired next roles, target companies "
@@ -52,13 +56,20 @@ EXTRACTION_SCHEMAS = {
             "willingness to take a pay cut)."
         ),
         "fields": [
-            "dreamRole", "targetCompany", "targetIndustry", "targetTimeframe",
-            "skillGapsToAddress", "targetSalary", "minimumSalary", "currency",
-            "workEnvironment", "careerChangeType", "riskTolerance",
+            "dreamRole",
+            "targetCompany",
+            "targetIndustry",
+            "targetTimeframe",
+            "skillGapsToAddress",
+            "targetSalary",
+            "minimumSalary",
+            "currency",
+            "workEnvironment",
+            "careerChangeType",
+            "riskTolerance",
         ],
         "type": "aspiration",
     },
-
     "professional_achievements": {
         "task": (
             "Extract professional accomplishments beyond core job duties: "
@@ -70,7 +81,6 @@ EXTRACTION_SCHEMAS = {
         "fields": ["type", "title", "organization", "date", "description"],
         "type": "experience",
     },
-
     "workplace_challenges": {
         "task": (
             "Extract current workplace difficulties: type of challenge "
@@ -79,12 +89,14 @@ EXTRACTION_SCHEMAS = {
             "has existed, impact on performance and wellbeing, and any actions already taken."
         ),
         "fields": [
-            "challengeType", "severity", "duration",
-            "impactOnPerformance", "actionsTaken",
+            "challengeType",
+            "severity",
+            "duration",
+            "impactOnPerformance",
+            "actionsTaken",
         ],
         "type": "trait",
     },
-
     "job_search_status": {
         "task": (
             "Extract current job search activity: search status (actively searching, "
@@ -92,16 +104,18 @@ EXTRACTION_SCHEMAS = {
             "active interview processes, offers received, and desired start date."
         ),
         "fields": [
-            "searchStatus", "urgencyLevel", "applicationsSent",
-            "interviewsInProgress", "offersReceived", "desiredStartDate",
+            "searchStatus",
+            "urgencyLevel",
+            "applicationsSent",
+            "interviewsInProgress",
+            "offersReceived",
+            "desiredStartDate",
         ],
         "type": "preference",
     },
-
     # ==========================================================================
     # LEARNING CONTEXT
     # ==========================================================================
-
     "knowledge_and_credentials": {
         "task": (
             "Extract what they currently know and have earned. For each item capture its type "
@@ -110,12 +124,17 @@ EXTRACTION_SCHEMAS = {
             "field of study, date earned, and expiry date if applicable."
         ),
         "fields": [
-            "type", "name", "level", "yearsExperience",
-            "institution", "field", "date", "expiryDate",
+            "type",
+            "name",
+            "level",
+            "yearsExperience",
+            "institution",
+            "field",
+            "date",
+            "expiryDate",
         ],
         "type": "competence",
     },
-
     "languages": {
         "task": (
             "Extract EACH language separately as its own object. "
@@ -134,7 +153,6 @@ EXTRACTION_SCHEMAS = {
         "fields": ["language", "proficiency", "certification", "score"],
         "type": "competence",
     },
-
     "learning_agenda": {
         "task": (
             "Extract what they want to learn or develop next: skill gaps blocking career goals, "
@@ -145,16 +163,18 @@ EXTRACTION_SCHEMAS = {
             "available time per week, and learning budget."
         ),
         "fields": [
-            "gapOrGoal", "description", "targetDate",
-            "preferredFormat", "hoursPerWeek", "budget",
+            "gapOrGoal",
+            "description",
+            "targetDate",
+            "preferredFormat",
+            "hoursPerWeek",
+            "budget",
         ],
         "type": "aspiration",
     },
-
     # ==========================================================================
     # SOCIAL CONTEXT
     # ==========================================================================
-
     "mentorship": {
         "task": (
             "Extract mentorship relationships in both directions. "
@@ -163,12 +183,16 @@ EXTRACTION_SCHEMAS = {
             "areas of guidance, and impact or progress."
         ),
         "fields": [
-            "direction", "name", "role", "organization",
-            "frequency", "guidanceAreas", "impact",
+            "direction",
+            "name",
+            "role",
+            "organization",
+            "frequency",
+            "guidanceAreas",
+            "impact",
         ],
         "type": "connection",
     },
-
     "recommendations": {
         "task": (
             "Extract testimonials and professional references. "
@@ -177,12 +201,16 @@ EXTRACTION_SCHEMAS = {
             "For references: name, role, relationship, and availability."
         ),
         "fields": [
-            "type", "authorName", "authorRole", "text",
-            "platform", "relationship", "available",
+            "type",
+            "authorName",
+            "authorRole",
+            "text",
+            "platform",
+            "relationship",
+            "available",
         ],
         "type": "connection",
     },
-
     "network_and_networking": {
         "task": (
             "Extract professional network information: specific connections mentioned "
@@ -192,16 +220,19 @@ EXTRACTION_SCHEMAS = {
             "(1-on-1 vs large events, energizing or draining)."
         ),
         "fields": [
-            "type", "name", "role", "organization",
-            "engagementLevel", "networkingGoal", "preference",
+            "type",
+            "name",
+            "role",
+            "organization",
+            "engagementLevel",
+            "networkingGoal",
+            "preference",
         ],
         "type": "connection",
     },
-
     # ==========================================================================
     # PSYCHOLOGICAL CONTEXT
     # ==========================================================================
-
     "mindset_and_values": {
         "task": (
             "Extract personality traits, motivations, demotivators, and mindset indicators - "
@@ -215,7 +246,6 @@ EXTRACTION_SCHEMAS = {
         "fields": ["category", "value", "strength", "description"],
         "type": "emotion",
     },
-
     "working_style_preferences": {
         "task": (
             "Extract work and collaboration style preferences. For each preference record the "
@@ -225,7 +255,6 @@ EXTRACTION_SCHEMAS = {
         "fields": ["dimension", "preference", "description"],
         "type": "preference",
     },
-
     "emotional_state": {
         "task": (
             "Extract current psychological wellbeing signals. For each signal record the "
@@ -236,11 +265,9 @@ EXTRACTION_SCHEMAS = {
         "fields": ["dimension", "value", "context", "copingStrategy"],
         "type": "emotion",
     },
-
     # ==========================================================================
     # PERSONAL CONTEXT
     # ==========================================================================
-
     "life_situation": {
         "task": (
             "Extract personal life context - both factual circumstances and how they constrain "
@@ -254,12 +281,16 @@ EXTRACTION_SCHEMAS = {
             "severity, and expected timeframe of the circumstance."
         ),
         "fields": [
-            "attribute", "value", "detail", "type",
-            "severity", "timeframe", "impactOnCareer",
+            "attribute",
+            "value",
+            "detail",
+            "type",
+            "severity",
+            "timeframe",
+            "impactOnCareer",
         ],
         "type": "trait",
     },
-
     "health_and_wellbeing": {
         "task": (
             "Extract diagnosed medical conditions, physical impediments, and addiction or "
@@ -272,12 +303,15 @@ EXTRACTION_SCHEMAS = {
             "those belong to emotional_state."
         ),
         "fields": [
-            "condition", "type", "status",
-            "duration", "treatment", "impactOnWork",
+            "condition",
+            "type",
+            "status",
+            "duration",
+            "treatment",
+            "impactOnWork",
         ],
         "type": "trait",
     },
-
     "personal_projects": {
         "task": (
             "Extract personal and side projects: project name, description, type "
@@ -285,12 +319,16 @@ EXTRACTION_SCHEMAS = {
             "skills being used or developed, weekly time commitment, and motivation."
         ),
         "fields": [
-            "name", "description", "type", "role",
-            "skills", "hoursPerWeek", "motivation",
+            "name",
+            "description",
+            "type",
+            "role",
+            "skills",
+            "hoursPerWeek",
+            "motivation",
         ],
         "type": "experience",
     },
-
     "personal_priorities": {
         "task": (
             "Extract concrete personal commitments, hard rules, and personal life goals - "
@@ -334,9 +372,7 @@ SUBCATEGORY_TO_CATEGORY: dict[str, str] = {
 }
 
 # Valid "category.subcategory" labels for classification (derived from mapping)
-VALID_EXTRACTION_LABELS: list[str] = [
-    f"{cat}.{sub}" for sub, cat in SUBCATEGORY_TO_CATEGORY.items()
-]
+VALID_EXTRACTION_LABELS: list[str] = [f"{cat}.{sub}" for sub, cat in SUBCATEGORY_TO_CATEGORY.items()]
 
 # =============================================================================
 # Prompt Templates
@@ -376,9 +412,7 @@ def build_json_schema(fields: list[str]) -> dict:
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "properties": {
-                        f: {"type": ["string", "null"]} for f in fields
-                    },
+                    "properties": {f: {"type": ["string", "null"]} for f in fields},
                     "required": fields,
                     "additionalProperties": False,
                 },
@@ -405,7 +439,7 @@ def build_extraction_prompt(schema: dict, message: str) -> str:
     json_schema = build_json_schema(schema["fields"])
 
     return f"""
-Task: {schema['task']}
+Task: {schema["task"]}
 Message: "{message}"
 
 Return a JSON object matching this exact schema:
@@ -438,24 +472,19 @@ def format_extracted_data(subcategory: str, items: list[dict]) -> str:
     """
     schema = EXTRACTION_SCHEMAS.get(subcategory)
     if schema is None:
-        raise KeyError(
-            f"Subcategory '{subcategory}' not found in EXTRACTION_SCHEMAS"
-        )
+        raise KeyError(f"Subcategory '{subcategory}' not found in EXTRACTION_SCHEMAS")
 
     format_spec = schema.get("format")
     if format_spec is None:
-        raise KeyError(
-            f"Schema for '{subcategory}' does not have a 'format' field"
-        )
+        raise KeyError(f"Schema for '{subcategory}' does not have a 'format' field")
 
     schema_fields = schema.get("fields", [])
     if not schema_fields:
-        raise KeyError(
-            f"Schema for '{subcategory}' does not have a 'fields' field"
-        )
+        raise KeyError(f"Schema for '{subcategory}' does not have a 'fields' field")
 
     import re
-    placeholder_pattern = r'\{(\w+)\}'
+
+    placeholder_pattern = r"\{(\w+)\}"
 
     all_format_fields = set()
     all_format_fields.update(re.findall(placeholder_pattern, format_spec))
