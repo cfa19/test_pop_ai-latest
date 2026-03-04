@@ -48,6 +48,25 @@ CREATE TRIGGER trg_enqueue_memory_extraction
   AFTER INSERT OR UPDATE ON activity_completions
   FOR EACH ROW EXECUTE FUNCTION enqueue_memory_extraction();
 
+-- Webhook trigger: notify Python API when a new item is enqueued
+-- pg_net calls POST /api/extract so the QueueConsumer wakes immediately
+CREATE OR REPLACE FUNCTION notify_extraction_webhook()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM net.http_post(
+    url := 'http://127.0.0.1:8000/api/extract',
+    body := '{}'::jsonb,
+    headers := '{"Content-Type": "application/json"}'::jsonb
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_notify_extraction_webhook ON memory_extraction_queue;
+CREATE TRIGGER trg_notify_extraction_webhook
+  AFTER INSERT ON memory_extraction_queue
+  FOR EACH ROW EXECUTE FUNCTION notify_extraction_webhook();
+
 -- RPC: claim a batch of pending items for processing
 -- Uses FOR UPDATE SKIP LOCKED to prevent concurrent processing
 -- Also recovers items stuck in 'processing' for >10 minutes (crash recovery)
