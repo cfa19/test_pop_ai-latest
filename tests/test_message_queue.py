@@ -26,18 +26,14 @@ async def mock_workflow(message: str, user_id: str, delay: float = 0.5) -> dict:
     await asyncio.sleep(delay)  # Simulate model inference
     print(f"  [WORKER] Completed message from {user_id}")
 
-    return {
-        "response": f"Response to: {message}",
-        "user_id": user_id,
-        "metadata": {"processed": True}
-    }
+    return {"response": f"Response to: {message}", "user_id": user_id, "metadata": {"processed": True}}
 
 
 async def test_sequential_processing():
     """Test that messages are processed sequentially."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 1: Sequential Processing")
-    print("="*80)
+    print("=" * 80)
 
     queue = MessageQueue()
     await queue.start()
@@ -60,7 +56,7 @@ async def test_sequential_processing():
             workflow_func=mock_workflow,
             message=msg,
             user_id=user_id,
-            delay=0.5  # Each takes 0.5s
+            delay=0.5,  # Each takes 0.5s
         )
         for msg, user_id in messages
     ]
@@ -95,9 +91,9 @@ async def test_sequential_processing():
 
 async def test_queue_size():
     """Test queue size tracking."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 2: Queue Size Tracking")
-    print("="*80)
+    print("=" * 80)
 
     queue = MessageQueue()
     await queue.start()
@@ -110,19 +106,13 @@ async def test_queue_size():
     print("\n[TEST] Submitting 3 slow messages (2s each)...")
 
     # Submit 3 messages quickly
-    task1 = asyncio.create_task(
-        queue.process_message(workflow_func=slow_workflow, delay=2.0)
-    )
+    task1 = asyncio.create_task(queue.process_message(workflow_func=slow_workflow, delay=2.0))
 
     await asyncio.sleep(0.1)  # Small delay
-    task2 = asyncio.create_task(
-        queue.process_message(workflow_func=slow_workflow, delay=2.0)
-    )
+    task2 = asyncio.create_task(queue.process_message(workflow_func=slow_workflow, delay=2.0))
 
     await asyncio.sleep(0.1)
-    task3 = asyncio.create_task(
-        queue.process_message(workflow_func=slow_workflow, delay=2.0)
-    )
+    task3 = asyncio.create_task(queue.process_message(workflow_func=slow_workflow, delay=2.0))
 
     # Check queue size
     await asyncio.sleep(0.2)  # Let them queue up
@@ -156,9 +146,9 @@ async def test_queue_size():
 
 async def test_error_handling():
     """Test error handling in queue."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 3: Error Handling")
-    print("="*80)
+    print("=" * 80)
 
     queue = MessageQueue()
     await queue.start()
@@ -195,17 +185,17 @@ async def test_error_handling():
 
 async def main():
     """Run all tests."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("MESSAGE QUEUE SYSTEM TESTS")
-    print("="*80)
+    print("=" * 80)
 
     await test_sequential_processing()
     await test_queue_size()
     await test_error_handling()
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("ALL TESTS COMPLETED")
-    print("="*80)
+    print("=" * 80)
     print()
 
 

@@ -80,12 +80,7 @@ class SemanticGate:
     # Categories that skip secondary classification
     SKIP_SECONDARY: ClassVar[set[str]] = {"rag_query", "chitchat", "meta", "off_topic"}
 
-    def __init__(
-        self,
-        tuning_results_path: str | None = None,
-        centroids_dir: str | None = None,
-        model_name: str = "all-MiniLM-L6-v2"
-    ):
+    def __init__(self, tuning_results_path: str | None = None, centroids_dir: str | None = None, model_name: str = "all-MiniLM-L6-v2"):
         """
         Initialize hierarchical semantic gate.
 
@@ -103,6 +98,7 @@ class SemanticGate:
         project_root = Path(__file__).parent.parent.parent
         if centroids_dir is None:
             from src.config import ONNX_MODELS_PATH
+
             centroids_dir = Path(ONNX_MODELS_PATH) / "semantic_gate"
         else:
             centroids_dir = Path(centroids_dir)
@@ -170,14 +166,17 @@ class SemanticGate:
             max_length=128,
             return_tensors="np",
         )
-        outputs = self.session.run(None, {
-            "input_ids": tokens["input_ids"].astype(np.int64),
-            "attention_mask": tokens["attention_mask"].astype(np.int64),
-            "token_type_ids": tokens.get(
-                "token_type_ids",
-                np.zeros_like(tokens["input_ids"]),
-            ).astype(np.int64),
-        })
+        outputs = self.session.run(
+            None,
+            {
+                "input_ids": tokens["input_ids"].astype(np.int64),
+                "attention_mask": tokens["attention_mask"].astype(np.int64),
+                "token_type_ids": tokens.get(
+                    "token_type_ids",
+                    np.zeros_like(tokens["input_ids"]),
+                ).astype(np.int64),
+            },
+        )
         hidden_state = outputs[0]  # (batch, seq_len, 384)
         embeddings = _mean_pooling(hidden_state, tokens["attention_mask"])
         return _l2_normalize(embeddings)
@@ -208,6 +207,7 @@ class SemanticGate:
             For primary: Dict mapping category -> centroid array (shape 1, dim)
             For secondary: Dict mapping category -> subcategory -> centroid array
         """
+
         def _normalize(arr):
             arr = np.asarray(arr)
             if arr.ndim == 1:
@@ -236,10 +236,7 @@ class SemanticGate:
         return {}
 
     def check_message(
-        self,
-        message: str,
-        predicted_category: str,
-        predicted_subcategory: str | None = None
+        self, message: str, predicted_category: str, predicted_subcategory: str | None = None
     ) -> Tuple[bool, float, str, str | None, float | None]:
         """
         Check if message should pass the hierarchical semantic gate.
@@ -354,10 +351,7 @@ _semantic_gate_instance = None
 
 
 def get_semantic_gate(
-    centroids_dir: str | None = None,
-    tuning_results_path: str | None = None,
-    model_name: str = "all-MiniLM-L6-v2",
-    force_reload: bool = False
+    centroids_dir: str | None = None, tuning_results_path: str | None = None, model_name: str = "all-MiniLM-L6-v2", force_reload: bool = False
 ) -> SemanticGate:
     """
     Get or create the global semantic gate instance (singleton pattern).
@@ -374,10 +368,6 @@ def get_semantic_gate(
     global _semantic_gate_instance
 
     if _semantic_gate_instance is None or force_reload:
-        _semantic_gate_instance = SemanticGate(
-            centroids_dir=centroids_dir,
-            tuning_results_path=tuning_results_path,
-            model_name=model_name
-        )
+        _semantic_gate_instance = SemanticGate(centroids_dir=centroids_dir, tuning_results_path=tuning_results_path, model_name=model_name)
 
     return _semantic_gate_instance

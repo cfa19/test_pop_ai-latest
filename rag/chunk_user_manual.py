@@ -111,19 +111,23 @@ def process_regular_file(filepath: Path, section_name: str, subsection_name: str
                 part = clean_text(part)
                 if part and len(part) >= 20:
                     sub_title = extract_title_from_content(part)
-                    chunks.append({
-                        "section": section_name,
-                        "subsection": f"{subsection_name} - {sub_title}",
-                        "title": sub_title,
-                        "content": part,
-                    })
+                    chunks.append(
+                        {
+                            "section": section_name,
+                            "subsection": f"{subsection_name} - {sub_title}",
+                            "title": sub_title,
+                            "content": part,
+                        }
+                    )
         else:
-            chunks.append({
-                "section": section_name,
-                "subsection": subsection_name,
-                "title": title,
-                "content": cleaned,
-            })
+            chunks.append(
+                {
+                    "section": section_name,
+                    "subsection": subsection_name,
+                    "title": title,
+                    "content": cleaned,
+                }
+            )
 
     return chunks
 
@@ -141,12 +145,14 @@ def process_runners_file(filepath: Path) -> list[dict]:
         if not cleaned or len(cleaned) < 20:
             continue
 
-        chunks.append({
-            "section": f"Runners - {category}",
-            "subsection": runner_name,
-            "title": runner_name,
-            "content": cleaned,
-        })
+        chunks.append(
+            {
+                "section": f"Runners - {category}",
+                "subsection": runner_name,
+                "title": runner_name,
+                "content": cleaned,
+            }
+        )
 
     return chunks
 
@@ -209,8 +215,15 @@ def main():
 
     # Process each subdirectory in order
     ordered_dirs = [
-        "getting-started", "activities", "programs", "credits",
-        "users", "results", "analytics", "runners", "admin",
+        "getting-started",
+        "activities",
+        "programs",
+        "credits",
+        "users",
+        "results",
+        "analytics",
+        "runners",
+        "admin",
     ]
 
     for dir_name in ordered_dirs:

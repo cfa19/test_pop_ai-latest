@@ -52,13 +52,11 @@ SUBCATEGORY_ENDPOINTS = {
     "salary_expectations": ("aspirational", "salary-expectations", "transform_salary_expectations"),
     "life_goals": ("aspirational", "life-goals", "transform_life_goals"),
     "impact_legacy": ("aspirational", "life-goals", "transform_impact_legacy"),
-
     # Professional context
     "skills": ("professional", "skills", "transform_skills"),
     "experiences": ("professional", "experiences", "transform_experiences"),
     "certifications": ("professional", "certifications", "transform_certifications"),
     "current_position": ("professional", "experiences", "transform_current_position"),
-
     # Psychological context
     "personality_profile": ("psychological", "personality", "transform_personality"),
     "strengths": ("psychological", "personality", "transform_strengths"),
@@ -66,18 +64,15 @@ SUBCATEGORY_ENDPOINTS = {
     "motivations": ("psychological", "motivations", "transform_motivations"),
     "work_style": ("psychological", "working-styles", "transform_work_style"),
     "values": ("psychological", "values", "transform_values"),
-
     # Learning context
     "knowledge": ("learning", "knowledge-graph", "transform_knowledge"),
     "learning_velocity": ("learning", None, "transform_learning_velocity"),  # No specific endpoint, update context
     "preferred_format": ("learning", "preferred-formats", "transform_preferred_format"),
-
     # Social context
     "mentors": ("social", "mentors", "transform_mentors"),
     "journey_peers": ("social", "peers", "transform_peers"),
     "people_helped": ("social", "peers", "transform_people_helped"),  # Store as peers with type="mentee"
     "testimonials": ("social", "testimonials", "transform_testimonials"),
-
     # Emotional context
     "confidence": ("emotional", "confidence", "transform_confidence"),
     "stress": ("emotional", "stress-triggers", "transform_stress"),
@@ -89,12 +84,9 @@ SUBCATEGORY_ENDPOINTS = {
 # API Client Functions
 # =============================================================================
 
+
 async def _make_request(
-    method: str,
-    endpoint: str,
-    data: Optional[Dict[str, Any]] = None,
-    headers: Optional[Dict[str, str]] = None,
-    user_id: Optional[str] = None
+    method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None, user_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Make async HTTP request to Harmonia API.
@@ -128,7 +120,10 @@ async def _make_request(
     try:
         async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             response = await client.request(
-                method.upper(), url, headers=request_headers, json=data,
+                method.upper(),
+                url,
+                headers=request_headers,
+                json=data,
             )
             response.raise_for_status()
             return response.json()
@@ -146,6 +141,7 @@ async def _make_request(
 # Data Transform Helpers
 # =============================================================================
 
+
 def _get_list_field(data: Dict[str, Any], *keys) -> list:
     """Get a list field from data dict, trying multiple keys. Splits comma-separated strings."""
     for key in keys:
@@ -160,6 +156,7 @@ def _get_list_field(data: Dict[str, Any], *keys) -> list:
 # =============================================================================
 # Data Transform Functions
 # =============================================================================
+
 
 def transform_dream_roles(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Transform extracted dream_roles to API format."""
@@ -239,11 +236,13 @@ def transform_experiences(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     for i, role in enumerate(roles):
         if role:
             company = companies[i] if i < len(companies) else "Unknown Company"
-            items.append({
-                "title": str(role),
-                "company": str(company),
-                "startDate": data.get("start_date"),
-            })
+            items.append(
+                {
+                    "title": str(role),
+                    "company": str(company),
+                    "startDate": data.get("start_date"),
+                }
+            )
 
     return items
 
@@ -266,12 +265,14 @@ def transform_current_position(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     employer = data.get("current_employer")
 
     if title or employer:
-        return [{
-            "title": str(title or "Current Position"),
-            "company": str(employer or "Current Company"),
-            "startDate": data.get("start_date"),
-            "isCurrent": True
-        }]
+        return [
+            {
+                "title": str(title or "Current Position"),
+                "company": str(employer or "Current Company"),
+                "startDate": data.get("start_date"),
+                "isCurrent": True,
+            }
+        ]
     return []
 
 
@@ -440,6 +441,7 @@ def transform_resilience(data: Dict[str, Any]) -> List[Dict[str, Any]]:
 # Profile Management Functions
 # =============================================================================
 
+
 async def check_profile_exists(user_id: str) -> bool:
     """
     Check if user's Canonical Profile exists.
@@ -504,6 +506,7 @@ async def ensure_profile_exists(user_id: str) -> bool:
 # Main Storage Function
 # =============================================================================
 
+
 async def store_extracted_information(
     category: str,
     subcategory: str,
@@ -527,7 +530,8 @@ async def store_extracted_information(
     # Create memory card
     try:
         memory_card = await _make_request(
-            "POST", "/api/harmonia/journal/memory-cards",
+            "POST",
+            "/api/harmonia/journal/memory-cards",
             data={
                 "userId": user_id,
                 "content": extracted_data.get("content"),
@@ -562,6 +566,7 @@ async def store_extracted_information(
 # Used by runner_orchestrator (runner flow)
 # =============================================================================
 
+
 def create_memory_proposal_rpc(user_id: str, proposal: dict) -> str | None:
     """
     Write a memory card via the create_memory_proposal RPC function.
@@ -585,18 +590,21 @@ def create_memory_proposal_rpc(user_id: str, proposal: dict) -> str | None:
 
     try:
         supabase = get_supabase()
-        result = supabase.rpc(RPCFunctions.CREATE_MEMORY_PROPOSAL, {
-            "p_user_id": user_id,
-            "p_content": proposal["content"],
-            "p_type": card_type,
-            "p_confidence": proposal["confidence"],
-            "p_source": proposal["source"],
-            "p_raw_data": proposal.get("rawData"),
-            "p_tags": proposal.get("tags", []),
-            "p_linked_contexts": proposal.get("linkedContexts", []),
-            "p_title": proposal.get("title"),
-            "p_status": proposal.get("status", "proposed"),
-        }).execute()
+        result = supabase.rpc(
+            RPCFunctions.CREATE_MEMORY_PROPOSAL,
+            {
+                "p_user_id": user_id,
+                "p_content": proposal["content"],
+                "p_type": card_type,
+                "p_confidence": proposal["confidence"],
+                "p_source": proposal["source"],
+                "p_raw_data": proposal.get("rawData"),
+                "p_tags": proposal.get("tags", []),
+                "p_linked_contexts": proposal.get("linkedContexts", []),
+                "p_title": proposal.get("title"),
+                "p_status": proposal.get("status", "proposed"),
+            },
+        ).execute()
         logger.info(f"Created memory card for user {user_id}: type={card_type}")
         return result.data
     except Exception as e:

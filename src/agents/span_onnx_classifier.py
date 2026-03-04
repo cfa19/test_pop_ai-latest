@@ -44,6 +44,7 @@ class Span:
 @dataclass
 class HierarchicalResult:
     """Result from hierarchical token classification."""
+
     # Primary spans (context-level)
     primary_spans: list[Span] = field(default_factory=list)
     # Active contexts found
@@ -99,10 +100,13 @@ class ONNXTokenClassifier:
         input_ids = encoding["input_ids"].astype(np.int64)
         attention_mask = encoding["attention_mask"].astype(np.int64)
 
-        logits = self.session.run(None, {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-        })[0]
+        logits = self.session.run(
+            None,
+            {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+            },
+        )[0]
 
         pred_ids = np.argmax(logits[0], axis=-1).tolist()
 
@@ -132,7 +136,7 @@ class ONNXTokenClassifier:
                     )
                 else:
                     current.end = char_end
-                    current.text = text[current.start:char_end]
+                    current.text = text[current.start : char_end]
 
         if current is not None:
             spans.append(current)
@@ -176,10 +180,7 @@ class HierarchicalONNXTokenClassifier:
                     self.secondary[ctx] = ONNXTokenClassifier(ctx_dir)
                     logger.info(f"Loaded secondary classifier: {ctx}")
 
-        logger.info(
-            f"HierarchicalONNXTokenClassifier ready: "
-            f"primary + {len(self.secondary)} secondary classifiers"
-        )
+        logger.info(f"HierarchicalONNXTokenClassifier ready: primary + {len(self.secondary)} secondary classifiers")
 
     def classify(self, message: str) -> HierarchicalResult:
         """
@@ -221,7 +222,7 @@ class HierarchicalONNXTokenClassifier:
                 for sub_span in sub_spans:
                     sub_span.start += primary_span.start
                     sub_span.end += primary_span.start
-                    sub_span.text = message[sub_span.start:sub_span.end]
+                    sub_span.text = message[sub_span.start : sub_span.end]
                     ctx_entity_spans.append(sub_span)
 
             if ctx_entity_spans:
