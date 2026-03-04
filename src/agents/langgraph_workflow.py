@@ -1793,7 +1793,15 @@ async def run_span_pipeline_background(
     preprocessing_wf = create_preprocessing_workflow(chat_client)
 
     # ── 1. Current message: context spans already extracted ───────────────────
-    context_spans = [sp for sp in current_all_spans if sp["category"] in context_keys]
+    context_spans_all = [sp for sp in current_all_spans if sp["category"] in context_keys]
+    # Deduplicate: keep only one span per category.subcategory
+    seen_keys: set[str] = set()
+    context_spans: list[dict] = []
+    for sp in context_spans_all:
+        key = f"{sp['category']}.{sp.get('subcategory', '')}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            context_spans.append(sp)
     if context_spans:
         logger.info(f"[BG] Processing {len(context_spans)} context span(s) from current message")
         for span in context_spans:
@@ -1882,9 +1890,17 @@ async def run_span_pipeline_background(
                 }
                 hist_pre = await preprocessing_wf.ainvoke(hist_state)
                 hist_spans = list(hist_pre.get("spans", []))
-                hist_context_spans = [
+                hist_context_all = [
                     sp for sp in hist_spans if sp["category"] in context_keys
                 ]
+                # Deduplicate: one span per category.subcategory
+                hist_seen: set[str] = set()
+                hist_context_spans: list[dict] = []
+                for sp in hist_context_all:
+                    key = f"{sp['category']}.{sp.get('subcategory', '')}"
+                    if key not in hist_seen:
+                        hist_seen.add(key)
+                        hist_context_spans.append(sp)
 
                 for span in hist_context_spans:
                     if _should_stop():
