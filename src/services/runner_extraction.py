@@ -287,18 +287,32 @@ _SKIP_KEYS = {
 
 LLM_SYSTEM_PROMPT = """You are a memory card extractor for a career coaching platform.
 Extract memory card proposals from this runner completion data.
-Assign each to one of: competence, experience, preference, aspiration, trait, emotion, connection.
-Use confidence 0.70-0.80 for these extractions.
 
-Return a JSON array of objects with these fields:
-- content: string (human-readable summary in French, max 100 chars)
-- type: string (one of the 7 types above)
+Each card must have:
+- subcategory: string (one of the subcategories below)
+- fields: object with structured data (see schema per subcategory)
+- type: string (the card type for that subcategory)
 - confidence: number (0.70-0.80)
-- tags: string[] (1-3 relevant tags)
+- tags: string[] (1-3 relevant tags in French)
 
-If no meaningful data can be extracted, return an empty array [].
-Do NOT extract dashboard layout data, metadata, or technical fields.
-Focus on user skills, experiences, goals, traits, emotions, and connections."""
+Subcategories and their schemas:
+
+work_history (type=experience): {role, company, isCurrent, startDate, endDate, responsibilities, achievements}
+professional_aspirations (type=aspiration): {dreamRole, targetCompany, targetIndustry, targetTimeframe, skillGapsToAddress}
+professional_achievements (type=experience): {type, title, organization, date, description}
+knowledge_and_credentials (type=competence): {type, name, level, yearsExperience, institution}
+languages (type=competence): {language, proficiency, certification}
+learning_agenda (type=aspiration): {gapOrGoal, description, targetDate, preferredFormat}
+network_and_networking (type=connection): {type, name, role, organization, engagementLevel, networkingGoal}
+mentorship (type=connection): {direction, name, role, organization, guidanceAreas}
+emotional_state (type=emotion): {dimension, context, intensity, duration}
+mindset_and_values (type=emotion): {category, value, strength, description}
+
+Return a JSON object: {"cards": [...]}
+Each card: {"subcategory": "...", "fields": {...}, "type": "...", "confidence": 0.75, "tags": [...]}
+Only fill fields that have actual data. Omit fields with no data.
+If no meaningful data can be extracted, return {"cards": []}.
+Do NOT extract dashboard layout, metadata, or technical fields."""
 
 
 async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
@@ -349,9 +363,13 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
             card_type = item.get("type")
             if card_type not in VALID_CARD_TYPES:
                 continue
-            raw_content = str(item.get("content", ""))[:200]
-            # Wrap in tree-view JSON format (same as chat flow)
-            content_tree = json.dumps({card_type: raw_content}, ensure_ascii=False)
+            subcategory = item.get("subcategory", card_type)
+            fields = item.get("fields", {})
+            if not isinstance(fields, dict) or not fields:
+                continue
+            # Tree-view JSON: {subcategory: {field: value, ...}} — same as chat flow
+            content_tree = json.dumps({subcategory: fields}, ensure_ascii=False)
+            title = subcategory.replace("_", " ").title()
             proposals.append({
                 "content": content_tree,
                 "type": card_type,
@@ -360,7 +378,7 @@ async def _extract_tier3(responses: dict, source: dict) -> list[dict]:
                 "rawData": {"llm_extracted": True, "original_keys": list(remaining.keys())},
                 "tags": item.get("tags", [])[:3],
                 "linkedContexts": item.get("linkedContexts", []),
-                "title": raw_content[:80],
+                "title": title,
                 "status": "proposed",
             })
 
