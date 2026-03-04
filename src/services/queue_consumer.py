@@ -1,5 +1,8 @@
 """
-Queue Consumer — polls memory_extraction_queue for pending items and processes them.
+Queue Consumer — event-driven processing of memory_extraction_queue.
+
+Primary mode: sleeps until woken by webhook (POST /api/extract).
+Safety net: wakes every QUEUE_POLL_INTERVAL seconds to catch stuck/missed items.
 
 Uses FOR UPDATE SKIP LOCKED for concurrent-safe processing.
 Recovers stuck items after 10 minutes.
@@ -16,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class QueueConsumer:
-    """Polls memory_extraction_queue for pending items."""
+    """Event-driven consumer with safety-net polling."""
 
     def __init__(
         self,
-        poll_interval: float = 5.0,
+        poll_interval: float = 60.0,
         batch_size: int = 10,
         max_retries: int = 3,
     ):
@@ -28,27 +31,42 @@ class QueueConsumer:
         self.batch_size = batch_size
         self.max_retries = max_retries
         self._running = False
+        self._wake_event = asyncio.Event()
+
+    def wake(self):
+        """Signal the consumer to process immediately (called by webhook)."""
+        self._wake_event.set()
 
     async def start(self):
-        """Start the polling loop. Called from FastAPI lifespan."""
+        """Start the consumer loop. Called from FastAPI lifespan."""
         self._running = True
         logger.info(
-            f"QueueConsumer started (poll={self.poll_interval}s, "
+            f"QueueConsumer started (safety-poll={self.poll_interval}s, "
             f"batch={self.batch_size}, retries={self.max_retries})"
         )
         while self._running:
             try:
                 processed = await self._poll_batch()
-                if processed == 0:
-                    await asyncio.sleep(self.poll_interval)
-                # If we processed items, immediately check for more
+                if processed > 0:
+                    continue  # More items may be waiting, check immediately
+                # Wait for webhook wake OR safety-net timeout
+                self._wake_event.clear()
+                try:
+                    await asyncio.wait_for(
+                        self._wake_event.wait(),
+                        timeout=self.poll_interval,
+                    )
+                    logger.debug("QueueConsumer woken by webhook")
+                except asyncio.TimeoutError:
+                    pass  # Safety-net poll
             except Exception as e:
                 logger.error(f"Queue poll error: {e}")
-                await asyncio.sleep(self.poll_interval * 2)
+                await asyncio.sleep(self.poll_interval)
 
     async def stop(self):
-        """Stop the polling loop gracefully."""
+        """Stop the consumer loop gracefully."""
         self._running = False
+        self._wake_event.set()  # Unblock the wait
         logger.info("QueueConsumer stopped")
 
     async def _poll_batch(self) -> int:

@@ -3,6 +3,7 @@ Backend FastAPI for the Chatbot with RAG
 """
 
 import argparse
+import asyncio
 import logging
 import os
 
@@ -11,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import src.config as config
 from src.api.chat import router as chat_router
+from src.api.webhooks import router as webhooks_router
+from src.services.queue_consumer import QueueConsumer
 from src.utils.idle_worker import (
     notify_request_end,
     notify_request_start,
@@ -18,9 +21,13 @@ from src.utils.idle_worker import (
 )
 from src.utils.message_queue import start_message_queue, stop_message_queue
 
-# Runner extraction imports (not active yet)
-# from src.api.webhooks import router as webhooks_router
-# from src.services.queue_consumer import QueueConsumer
+# Module-level reference for graceful shutdown
+_queue_consumer: QueueConsumer | None = None
+
+
+def get_queue_consumer() -> QueueConsumer | None:
+    """Return the running QueueConsumer instance (used by webhooks)."""
+    return _queue_consumer
 
 # Setup logging
 logging.basicConfig(
@@ -124,22 +131,31 @@ async def startup_event():
     # start_idle_worker()
     # logger.info("Idle span-pipeline worker started")
 
-    # # Start runner extraction queue consumer (not active yet)
-    # if config.RUNNER_EXTRACTION_ENABLED:
-    #     import asyncio
-    #     from src.services.queue_consumer import QueueConsumer
-    #     _queue_consumer = QueueConsumer(
-    #         batch_size=config.QUEUE_BATCH_SIZE,
-    #         max_retries=config.QUEUE_MAX_RETRIES,
-    #     )
-    #     asyncio.create_task(_queue_consumer.start())
-    #     logger.info("Runner extraction queue consumer started")
+    # Start runner extraction queue consumer
+    if config.RUNNER_EXTRACTION_ENABLED:
+        global _queue_consumer
+        _queue_consumer = QueueConsumer(
+            poll_interval=config.QUEUE_POLL_INTERVAL,
+            batch_size=config.QUEUE_BATCH_SIZE,
+            max_retries=config.QUEUE_MAX_RETRIES,
+        )
+        asyncio.create_task(_queue_consumer.start())
+        logger.info("Runner extraction queue consumer started")
+    else:
+        logger.info("Runner extraction disabled (RUNNER_EXTRACTION_ENABLED=false)")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup resources on application shutdown."""
     logger.info("Shutting down Pop Skills AI API...")
+
+    # Stop runner extraction queue consumer
+    global _queue_consumer
+    if _queue_consumer:
+        await _queue_consumer.stop()
+        _queue_consumer = None
+        logger.info("Runner extraction queue consumer stopped")
 
     # Stop idle background worker
     await stop_idle_worker()
@@ -170,7 +186,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(chat_router)
-# app.include_router(webhooks_router, prefix="/api")  # Runner webhooks (not active yet)
+app.include_router(webhooks_router, prefix="/api")
 
 
 @app.get("/health")

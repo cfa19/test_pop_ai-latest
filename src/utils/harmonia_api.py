@@ -558,8 +558,8 @@ async def store_extracted_information(
 
 
 # =============================================================================
-# Runner-based memory card creation via Supabase RPC
-# (used by src/services/runner_orchestrator — currently disabled)
+# Memory card creation via Supabase RPC
+# Used by runner_orchestrator (runner flow)
 # =============================================================================
 
 def create_memory_proposal_rpc(user_id: str, proposal: dict) -> str | None:
@@ -569,7 +569,8 @@ def create_memory_proposal_rpc(user_id: str, proposal: dict) -> str | None:
 
     Args:
         user_id: User UUID
-        proposal: Dict with content, type, confidence, source, rawData, tags
+        proposal: Dict with content, type, confidence, source, rawData, tags,
+                  linkedContexts, title, status
 
     Returns:
         Card UUID string or None on failure
@@ -592,6 +593,9 @@ def create_memory_proposal_rpc(user_id: str, proposal: dict) -> str | None:
             "p_source": proposal["source"],
             "p_raw_data": proposal.get("rawData"),
             "p_tags": proposal.get("tags", []),
+            "p_linked_contexts": proposal.get("linkedContexts", []),
+            "p_title": proposal.get("title"),
+            "p_status": proposal.get("status", "proposed"),
         }).execute()
         logger.info(f"Created memory card for user {user_id}: type={card_type}")
         return result.data
