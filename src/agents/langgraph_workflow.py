@@ -49,7 +49,7 @@ from src.config import (
     Tables,
     detect_provider,
 )
-from src.utils.conversation_memory import format_conversation_context, search_conversation_history
+from src.utils.conversation_memory import format_conversation_context, search_conversation_history, search_user_memory
 from src.utils.harmonia_api import store_extracted_information
 from src.utils.rag import hybrid_search, search_runner_chunks
 from src.schemas import EXTRACTION_SCHEMAS, EXTRACTION_SYSTEM_MESSAGE, build_extraction_prompt
@@ -1147,6 +1147,22 @@ def _run_rag_retrieval(
         query_embedding=query_vector,
     )
 
+    # Cross-conversation memory: search ALL user embeddings (not just this chat)
+    user_memory = search_user_memory(
+        supabase=state["supabase"],
+        user_id=state["user_id"],
+        query_embedding=query_vector,
+        top_k=top_k_history,
+        similarity_threshold=similarity_threshold,
+    )
+
+    # Deduplicate: remove user_memory entries already in this conversation's history
+    conv_texts = {m["message"] for m in conversation_history}
+    user_memory_new = [m for m in user_memory if m["content"] not in conv_texts]
+
+    if user_memory_new:
+        logger.info(f"Cross-conversation memory: {len(user_memory_new)} relevant messages from previous chats")
+
     state["document_results"] = document_results
     state["conversation_history"] = conversation_history
     state["document_context"] = (
@@ -1155,6 +1171,14 @@ def _run_rag_retrieval(
         else "No relevant information found in documents."
     )
     state["conversation_context"] = format_conversation_context(conversation_history, include_recent=False)
+
+    # Append cross-conversation memory to context
+    if user_memory_new:
+        memory_lines = ["## From Previous Conversations:"]
+        for m in user_memory_new:
+            memory_lines.append(f"User: {m['content']}")
+        state["conversation_context"] += "\n" + "\n".join(memory_lines)
+
     state["sources"] = _build_sources(document_results)
 
 

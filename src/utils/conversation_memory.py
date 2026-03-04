@@ -208,6 +208,45 @@ def get_recent_messages(supabase: Client, conversation_id: str, user_id: str, li
     return messages
 
 
+def search_user_memory(
+    supabase: Client,
+    user_id: str,
+    query_embedding: list,
+    top_k: int = 3,
+    similarity_threshold: float = 0.6,
+) -> List[Dict]:
+    """
+    Search ALL user embeddings across every conversation (cross-conversation memory).
+
+    Uses user_rag_search_semantic RPC which queries user_embeddings_1024
+    filtered only by user_id, without conversation_id scoping.
+
+    Args:
+        supabase: Supabase client
+        user_id: User ID to search
+        query_embedding: Pre-computed query embedding vector
+        top_k: Number of results to return
+        similarity_threshold: Minimum similarity score (0-1)
+
+    Returns:
+        List of matching messages with id, content, similarity
+    """
+    result = supabase.rpc(
+        RPCFunctions.USER_RAG_SEARCH_SEMANTIC,
+        {
+            "query_embedding": query_embedding,
+            "filter_user_id": user_id,
+            "match_count": top_k,
+        },
+    ).execute()
+
+    return [
+        {"id": r["id"], "content": r["content"], "similarity": r["similarity"]}
+        for r in result.data
+        if r["similarity"] >= similarity_threshold
+    ]
+
+
 def generate_conversation_id() -> str:
     """
     Generate a unique conversation ID

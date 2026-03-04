@@ -167,6 +167,7 @@ class RPCFunctions:
     SEARCH_CONVERSATION_HISTORY = "search_conversation_history"
     SEARCH_USER_CONTEXT_CHUNKS = "search_user_context_chunks"
     SEARCH_RUNNER_CHUNKS = "search_runner_chunks"
+    USER_RAG_SEARCH_SEMANTIC = "user_rag_search_semantic"
     # Runner extraction RPCs (not used yet)
     CLAIM_EXTRACTION_BATCH = "claim_extraction_batch"
     CREATE_MEMORY_PROPOSAL = "create_memory_proposal"
